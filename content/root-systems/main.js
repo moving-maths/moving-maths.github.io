@@ -83,8 +83,8 @@
     even: ['root-real', 'even root'], iso: ['root-iso', 'odd isotropic root'], odd: ['root-odd', 'odd root, not isotropic'],
   };
   const EXTENT = { min: 5, max: 20, start: 7 };   // rank 2: half-width of the window, for the infinite systems
-  const DEPTHS = [8, 14, 22, 36];                 // rank 3: real roots and mirrors up to this height
-  const IM_DEPTHS = [5, 7, 9, 12];                // rank 3: imaginary roots up to this height
+  const DEPTH = 36;                               // rank 3: real roots and mirrors up to this height, the deeper smaller
+  const IM_DEPTH = 12;                            // rank 3: imaginary roots up to this height
   const SPAN = { min: 1.4, max: 4.8, start: 2.1 }; // rank 3, the affine plane: half-width of the window, in diameters of an alcove
   const IM_LOCAL = 8;                    // the disc: imaginary roots up to this height in the coordinates of their chamber
   const RIM = 0.985;                     // the disc: the handle stays inside this radius
@@ -114,7 +114,6 @@
     n: [0, 1],         // the handle: a unit vector of the model space
     view: VIEW0,       // rank 3: the rotation from the model to the screen (x right, y up, z towards the reader)
     zoom: EXTENT.start, // rank 2: the half-width of the window
-    depth: 2,          // rank 3: index into DEPTHS
     mirrors: true,
     handle: true,      // the handle is shown (Save image may leave it out); hidden, it keeps its place
     lengths: true,     // rank 3, finite type: the roots at their true lengths, out of the sphere
@@ -136,7 +135,7 @@
     const id = which || currentId(), k = id === 'd21' ? id + '@' + state.alpha : id;
     if (!cache[k]) {
       const def = defOf(id);
-      const sys = def.A ? RS.kacMoody(def.A, { R: EXTENT.max, H: DEPTHS[DEPTHS.length - 1], Him: IM_DEPTHS[IM_DEPTHS.length - 1] }) : RS.superSystem(id, state.alpha);
+      const sys = def.A ? RS.kacMoody(def.A, { R: EXTENT.max, H: DEPTH, Him: IM_DEPTH }) : RS.superSystem(id, state.alpha);
       sys.byKey = new Map(sys.roots.map((v) => [RS.key(v.c), v]));
       sys.reach = Math.max(...sys.roots.map((v) => Math.hypot(...v.p)));
       sys.maxNorm = Math.max(...sys.roots.map((v) => Math.abs(v.norm)));
@@ -576,7 +575,7 @@
     }
 
     // mirrors: great circles; in hyperbolic type only inside the light cone, where the chambers are
-    const depth = DEPTHS[state.depth], clip = sys.family === 'hyperbolic' ? inCone : null;
+    const depth = DEPTH, clip = sys.family === 'hyperbolic' ? inCone : null;
     if (state.mirrors) {
       ctx.lineWidth = 1;
       for (const wl of sys.walls) {
@@ -619,18 +618,19 @@
     ctx.stroke();
 
     // the roots, where their rays meet the near side of the sphere
-    const r0 = w < 420 ? 4.6 : 5.6, imDepth = IM_DEPTHS[state.depth], dht = sys.delta ? RS.height(sys.delta) : 0;
+    const r0 = w < 420 ? 4.6 : 5.6, imDepth = IM_DEPTH, dht = sys.delta ? RS.height(sys.delta) : 0;
     const list = [], out = stretch(sys) > 1;
     for (const v of sys.roots) {
       const ht = Math.abs(v.ht);
-      let r;
+      let r, a; // (a: paler for the deep imaginary roots of a hyperbolic system)
       if (sys.family === 'super') r = v.kind === 'odd' ? 0.7 : v.doubled ? 1.5 : 1;
       else if (v.kind === 'imag') {
         if (sys.family === 'affine' ? ht !== dht : !v.primitive || ht > imDepth) continue;
-        r = sys.family === 'affine' ? 1.1 : Math.max(0.3, 0.95 / Math.sqrt(ht));
+        r = sys.family === 'affine' ? 1.1 : Math.max(0.18, 1.1 / Math.pow(ht, 0.75));
+        if (sys.family === 'hyperbolic') a = Math.max(0.3, 1 - 0.7 * (ht - 2) / (IM_DEPTH - 2));
       } else {
         if (sys.infinite && ht > depth) continue;
-        r = (0.5 + 0.55 * v.norm / sys.maxNorm) * (sys.infinite ? Math.max(0.36, Math.min(1, 1.3 / (1 + ht / 7))) : 1);
+        r = (0.5 + 0.55 * v.norm / sys.maxNorm) * (sys.infinite ? Math.max(0.2, Math.min(1, 1.5 / (1 + ht / 5))) : 1);
       }
       const p = mv(R, v.u);
       // true lengths: a longer root stands out of the sphere, at the end of a stem
@@ -645,16 +645,16 @@
         ctx.moveTo(cx + K * from * p[0], cy - K * from * p[1]);
         ctx.lineTo(cx + K * far * p[0], cy - K * far * p[1]);
         ctx.stroke();
-        list.push({ v, z: p[2] * far, px: cx + K * far * p[0], py: cy - K * far * p[1], r: r0 * r * (0.72 + 0.28 * p[2]) });
+        list.push({ v, a, z: p[2] * far, px: cx + K * far * p[0], py: cy - K * far * p[1], r: r0 * r * (0.72 + 0.28 * p[2]) });
         continue;
       }
       if (p[2] < 0.02) continue;
-      list.push({ v, z: p[2], px: X(p), py: Y(p), r: r0 * r * (0.72 + 0.28 * p[2]) });
+      list.push({ v, a, z: p[2], px: X(p), py: Y(p), r: r0 * r * (0.72 + 0.28 * p[2]) });
     }
     // the larger first, so that the smaller stay in reach; standing out of the sphere, the nearer last
     list.sort(out ? (a, b) => a.z - b.z : (a, b) => b.r - a.r);
     shown = list;
-    for (const p of list) dot2(p.px, p.py, p.r, colorOf(p.v.kind), f(p.v.c) > 1e-9);
+    for (const p of list) dot2(p.px, p.py, p.r, colorOf(p.v.kind, p.a), f(p.v.c) > 1e-9);
 
     const simpleKeys = res.ok ? res.simple.map(RS.key) : [], originKeys = standard(sys).map(RS.key).filter((k) => !simpleKeys.includes(k));
     const picked = rings(null, simpleKeys, originKeys);
@@ -877,7 +877,9 @@
           const r = r0 * Math.max(0.3, 0.95 / Math.sqrt(RS.height(a))) * (room < 1e-6 ? 1.6 * Math.min(1, size / V.K) : 1.25 * room);
           if (r < 0.75) continue;
           seen.add(ck);
-          dots.push({ v: record(sys, c, 'imag', a, cf), px: q[0], py: q[1], r: Math.min(r, r0) });
+          // paler the higher it is in its chamber, as the deep ones are on the sphere
+          const al = Math.max(0.3, 1 - 0.7 * (RS.height(a) - 2) / (IM_LOCAL - 2));
+          dots.push({ v: record(sys, c, 'imag', a, cf), px: q[0], py: q[1], r: Math.min(r, r0), a: al });
         }
       }
       dots.sort((a, b) => b.r - a.r);
@@ -1031,7 +1033,7 @@
 
     // the imaginary roots: points of the hyperbolic plane
     shown = T.dots;
-    for (const d of shown) dot2(d.px, d.py, d.r, colorOf('imag'), true);
+    for (const d of shown) dot2(d.px, d.py, d.r, colorOf('imag', d.a), true);
     const picked = rings(null);
 
     // the simple roots, each beside its wall; in grey, α_1, α_2, α_3 beside the walls of the standard chamber
@@ -1094,7 +1096,7 @@
           : 'On the hyperbola' + (sys.realNorms.length > 1 ? 's ' : ' ') + norms + ', infinitely many.']);
         const imag = 'Every lattice point with $(\\alpha,\\alpha)\\le0$ except the origin' + cite + '. ';
         rows.push(['Imaginary roots', imag + (flat ? 'The ray of $\\beta$ is drawn at the functional $-(\\beta,\\cdot\\,)$, a point of the disc, and every triangle carries the same pattern.'
-          : three ? 'Their rays are dense in the two caps; the primitive roots of small height are shown.' : 'The dots grow with the multiplicity.')]);
+          : three ? 'Their rays are dense in the two caps.' : 'The dots grow with the multiplicity.')]);
       }
     }
     MM.setHTML($('about-h'), title + ' <span class="side-kind">' + FAMILY[sys.family] + '</span>');
@@ -1297,7 +1299,7 @@
     MM.setHTML($('pos'), positiveText(sys, res));
     MM.setHTML($('sel'), selectedText(sys, f));
 
-    // the planes zoom (the plane of rank two and the affine plane); the sphere shows roots to a depth
+    // the planes zoom (the plane of rank two and the affine plane)
     const zoomable = zoomsNow(sys), zoom = $('zoom');
     zoom.hidden = !zoomable;
     if (zoomable) {
@@ -1305,9 +1307,6 @@
       zoom.setAttribute('max', String(R.max / R.min));
       zoom.value = R.max / (three ? state.span : state.zoom);
     }
-    $('depth').hidden = !(sys.infinite && three && !flat);
-    $('depth-less').disabled = state.depth <= 0;
-    $('depth-more').disabled = state.depth >= DEPTHS.length - 1;
     if (example) example.changed();
   }
 
@@ -1339,7 +1338,7 @@
         state.view = mm(state.view, turn);
         state.n = unit(tmv(turn, twin.start));
       }
-      state.zoom = EXTENT.start; state.depth = 2; state.span = SPAN.start; state.pan = [0, 0]; state.boost = I3; state.at = null;
+      state.zoom = EXTENT.start; state.span = SPAN.start; state.pan = [0, 0]; state.boost = I3; state.at = null;
     }
     state.sel = state.hover = null;
     known.clear();
@@ -1469,10 +1468,6 @@
     state.id = lastPair = id;
     setSystem(true);
   }));
-  // the sphere: − shows fewer roots and mirrors, + more
-  const deeper = (d) => { state.depth = Math.max(0, Math.min(DEPTHS.length - 1, state.depth + d)); draw(); MM.moved(); };
-  $('depth-less').addEventListener('click', () => deeper(-1));
-  $('depth-more').addEventListener('click', () => deeper(1));
 
   // The planes zoom, by f about the point (x, y) of the canvas, which stays where it is (the
   // plane of rank two, which stays centred on the origin, about its middle): with the slider
@@ -1699,7 +1694,6 @@
       return text.split('').map(Number);
     },
   };
-  const index = (k, list) => Math.max(0, Math.min(list.length - 1, k));
   // The handle of a hyperbolic system in the disc: the chamber it is in (h) and where it is in
   // it (n, taken there by the Weyl group, with Lorentz length 1); the view: its middle's
   // chamber, near enough (w), and the small map after it (b).
@@ -1708,7 +1702,7 @@
     return {
       t: currentId(), n: loc ? loc.x.map((x) => x / Math.sqrt(-HY.lip(loc.x, loc.x))) : state.n, h: loc ? frameWord(sys, loc.F) : [],
       f: state.flat, m: state.mirrors, l: state.lengths, a: state.alpha,
-      v: state.view, z: state.zoom, d: state.depth, s: state.span, p: state.pan, b: state.boost, w: frameWord(sys, state.at),
+      v: state.view, z: state.zoom, s: state.span, p: state.pan, b: state.boost, w: frameWord(sys, state.at),
     };
   }
   // A field that does not apply to the picture in view (the turn of the sphere when the disc is
@@ -1718,13 +1712,13 @@
     const three = sys.rank === 3, flat = isFlat(sys), views = three && (sys.family === 'affine' || sys.family === 'hyperbolic');
     return {
       f: views, m: !flat, l: three && sys.family === 'finite' && sys.realNorms.length > 1, a: currentId() === 'd21',
-      v: three && !flat, z: sys.rank === 2 && sys.infinite, d: three && sys.infinite && !flat,
+      v: three && !flat, z: sys.rank === 2 && sys.infinite,
       s: flat && sys.family === 'affine', p: flat && sys.family === 'affine', b: flat && sys.family === 'hyperbolic', w: flat && sys.family === 'hyperbolic',
     };
   }
   example = MM.example({
-    fields: { t: 'text', n: 'numbers', h: word, f: 'flag', m: 'flag', l: 'flag', a: 'number', v: 'rotation', z: 'number', d: 'int', s: 'number', p: 'numbers', b: lorentz, w: word },
-    view: ['v', 'z', 'd', 's', 'p', 'b', 'w'],
+    fields: { t: 'text', n: 'numbers', h: word, f: 'flag', m: 'flag', l: 'flag', a: 'number', v: 'rotation', z: 'number', s: 'number', p: 'numbers', b: lorentz, w: word },
+    view: ['v', 'z', 's', 'p', 'b', 'w'],
     get() {
       const x = fields(), on = applies(system());
       for (const k in on) if (!on[k]) x[k] = own[k];
@@ -1756,7 +1750,6 @@
       if (named.has('v')) state.view = x.v;
       if ((named.has('b') || named.has('w')) && group === 'hyperbolic3' && !recentre(system(), x.b, weyl(system()).frame(x.w))) { state.boost = I3; state.at = null; }
       if (named.has('z')) state.zoom = clampTo(x.z, EXTENT);
-      if (named.has('d')) state.depth = index(x.d, DEPTHS);
       if (named.has('s')) state.span = clampTo(x.s, SPAN);
       if (named.has('p')) state.pan = x.p.map((c) => Math.max(-40, Math.min(40, c)));
       $('mirrors').pressed = x.m;

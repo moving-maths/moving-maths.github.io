@@ -870,11 +870,11 @@
   }
   function naming(info) {
     if (info.empty) return ['Nothing drawn', 'Draw a component, or choose a knot or a link from the table.'];
-    if (!info.ok) return ['A link with many crossings', 'Its diagram has more than ' + MOST + ' crossings even after tidying, too many to work out its polynomials here.'];
+    if (!info.ok) return ['A link with many crossings', 'Its diagram has more than ' + MOST + ' crossings, too many to work out its polynomials here.'];
     const id = info.id;
     if (info.C > 1) {
       if (id.unlink) return ['Unlink of ' + info.C + ' components', info.n ? 'Every crossing of the diagram can be undone.' : ''];
-      if (id.split) return ['A split link', 'After tidying, its diagram falls into separate pieces.'];
+      if (id.split) return ['A split link', 'Its diagram can be pulled apart into separate pieces.'];
       if (id.sum) return ['Not in the table', 'Its diagram is visibly a sum, and a part of it is not in the table.'];
       if (!id.entries.length) return ['Not in the table', 'No link of the table, nor any sum of its links and knots with at most nine crossings, has these invariants.'];
       const title = id.entries.map((e) => '$' + nameTex(e.parts) + '$').join(' or ');
@@ -1430,7 +1430,7 @@
       },
     });
     const g = K.pieces(D).length === 1 && n > 1 ? K.goeritz(D) : null;
-    MM.setHTML($('chess-cap'), g ? 'Goeritz’s matrix of these regions is ' + g.matrix.length + ' by ' + g.matrix.length + '; with the correction, the signature is $' + K.signature(D) + '$.' : 'Signature $' + (info.ok ? info.s : '?') + '$.');
+    MM.setHTML($('chess-cap'), g ? 'Goeritz’s matrix of these regions is ' + g.matrix.length + ' by ' + g.matrix.length + '; the signature of the link is $' + K.signature(D) + '$.' : 'Signature $' + (info.ok ? info.s : '?') + '$.');
   }
 
   // the figures in the text are drawn only while they can be seen, and not on every step of a pull

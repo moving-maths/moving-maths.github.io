@@ -119,6 +119,10 @@ body {
    the strands run steeply and their crossings read */
 /* the generators of the braid group, to choose; the braid of the one chosen, and Play */
 .cs-gens { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+/* the one chosen ends in a play mark: a click plays it again */
+.cs-gens > button { display: inline-flex; align-items: center; gap: 6px; }
+.cs-play { width: 9px; height: 9px; flex: none; fill: currentColor; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
+.cs-gens > [aria-checked="false"] > .cs-play { display: none; }
 #braid { display: block; width: 100%; height: 250px; outline-offset: 2px; }
 #braid.is-3d { height: auto; aspect-ratio: 1; max-height: 460px; } /* (it turns under a drag: MM.turnDrag) */
 

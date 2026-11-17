@@ -1337,23 +1337,23 @@
     let label;
     const onLine = state.surface === 'line';
     if (kind === 'square' && o) {
-      label = 'The space itself: $(x_1,x_2)$ in the ' + (onLine ? 'square' : 'torus') + ', off the diagonal';
+      label = '$(x_1,x_2)$ in the ' + (onLine ? 'square' : 'torus') + ', off the diagonal';
     } else if (kind === 'square') {
-      label = 'The space itself: the points in order, $a<b$' + (onLine ? '' : ' from $0$');
+      label = 'The points in order, $a<b$' + (onLine ? '' : ' from $0$');
     } else if (kind === 'cube' && state.k === 3 && o) {
-      label = 'The space itself: $(x_1,x_2,x_3)$ in the ' + (onLine ? 'cube' : '3-torus') + ', off the planes $x_i=x_j$';
+      label = '$(x_1,x_2,x_3)$ in the ' + (onLine ? 'cube' : '3-torus') + ', off the planes $x_i=x_j$';
     } else if (kind === 'cube' && state.k === 3) {
-      label = 'The space itself: the points in order, $a<b<c$' + (onLine ? '' : ' from $0$');
+      label = 'The points in order, $a<b<c$' + (onLine ? '' : ' from $0$');
     } else if (kind === 'cube' && o) {
-      label = 'Turned until $x_1$ is at $0$: $(x_2-x_1,\\,x_3-x_1,\\,x_4-x_1)$';
+      label = 'Up to rotation: $(x_2-x_1,\\,x_3-x_1,\\,x_4-x_1)$';
     } else if (kind === 'cube') {
-      label = 'Turned until $x_1$ is at $0$: the others in order round from it';
+      label = 'Up to rotation: the others in order round from $x_1$';
     } else if (kind === 'sphere' && o) {
-      label = 'Centred and scaled: $S^2$ minus six great circles';
+      label = '$S^2$ minus six great circles';
     } else if (kind === 'sphere') {
-      label = 'Centred and scaled: the points in order';
+      label = 'A triangle of $S^2$: the points in order';
     } else if (kind === '3d') {
-      label = 'Centred and scaled: $S^3$ minus ' + (o ? 'three circles' : 'a trefoil');
+      label = '$S^3$ minus ' + (o ? 'three circles' : 'a trefoil');
     } else if (kind === 'mobius') {
       label = 'Up to homotopy: up, where $x_1$ is along the band; across, $x_2$ as seen from $x_1$';
     } else if (kind === 'quaternion') {
@@ -1372,16 +1372,16 @@
     const curveLabel = !o ? (kind === 'square' ? 'Two unordered points on the ' + s.name + ', in order: a triangle' + (onLine ? '' : ' with two sides glued, a Möbius band')
       : kind === 'cube' && state.k === 3 ? 'Three unordered points on the ' + s.name + ', in order: a tetrahedron' + (onLine ? '' : ' with two faces glued')
         : kind === 'cube' ? 'Four unordered points on the circle, turned until the first is at 0, the others in order: a tetrahedron'
-          : 'Four unordered points on the line, centred and scaled, in order: a triangle of the sphere')
+          : 'Four unordered points on the line, in order: a triangle of the sphere')
       : kind === 'square' ? 'Two points on the ' + s.name + ' as a point of the ' + (onLine ? 'square' : 'torus') + ', off the diagonal where they collide'
         : kind === 'cube' && state.k === 3 ? 'Three points on the ' + s.name + ' as a point of the ' + (onLine ? 'cube' : '3-torus, a cube with opposite faces glued') + ', off the three planes where two of them collide'
           : kind === 'cube' ? 'Four points on the circle, turned until the first is at 0, as a point of the open cube of the other three, off the three planes where two of them collide'
-            : 'Four points on the line, centred and scaled, as a point of the sphere, off the six great circles where two of them collide';
+            : 'Four points on the line as a point of the sphere, off the six great circles where two of them collide';
     spaceCv.setAttribute('aria-label', kind === 'square' || kind === 'cube' || kind === 'sphere'
       ? curveLabel + '; a dot shows the configuration, and a line its path.' + (turnable() ? ' Drag sideways or use the arrow keys to turn it.' : '')
       : kind === '3d'
-      ? (o ? 'The ordered configurations of three points in the plane, centred and scaled, as the 3-sphere projected to space: the collisions form three circles, each pair linked once; a dot shows the configuration, and a line its path.'
-        : 'The unordered configurations of three points in the plane, centred and scaled, as the 3-sphere projected to space: the configurations where two points collide form a trefoil knot; a dot shows the configuration, and a line its path.') + turn
+      ? (o ? 'The ordered configurations of three points in the plane as the 3-sphere projected to space: the collisions form three circles, each pair linked once; a dot shows the configuration, and a line its path.'
+        : 'The unordered configurations of three points in the plane as the 3-sphere projected to space: the configurations where two points collide form a trefoil knot; a dot shows the configuration, and a line its path.') + turn
       : kind === 'quaternion' ? (o ? 'Two points on the projective plane, up to homotopy: the quaternion space, a cube whose opposite faces are glued after a quarter turn'
         : 'Two unordered points on the projective plane, up to homotopy: an octagonal prism whose opposite faces are glued after a turn') + '; a dot shows the configuration, and a line its path.' + turn
       : kind === 'direction' ? (o ? 'Two points on the sphere, up to homotopy: the direction from the second to the first, a point of a sphere; a dot shows it, and a line its path.' + turn
@@ -2132,6 +2132,8 @@
         b.dataset.key = x.key;
         b.setAttribute('role', 'radio');
         MM.setHTML(b, x.label);
+        // (on the one chosen, a play mark: a click on it plays it again)
+        b.insertAdjacentHTML('beforeend', '<svg class="cs-play" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 1.5v7l6-3.5z"/></svg>');
         gensBox.appendChild(b);
       }
     }
@@ -2139,6 +2141,7 @@
       const on = b.dataset.key === g.key;
       b.setAttribute('aria-checked', String(on));
       b.tabIndex = on ? 0 : -1;
+      if (on) b.title = 'Play again'; else b.removeAttribute('title');
     }
   }
   // a generator chosen is drawn and played (chosen again, played again)

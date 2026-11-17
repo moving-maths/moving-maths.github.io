@@ -566,8 +566,8 @@
     let where = 'The $' + n + '$ roots, ';
     if (!cox.space) where += 'in the plane, which $c$ turns by ' + angle(1) + '.';
     else {
-      where += 'projected to the plane which $c$ turns by ' + angle(P.m) + ', seen face on at first, and for depth to '
-        + (P.depth === 'line' ? 'the line that $c$ reverses.' : 'a direction in the plane for $m=' + P.depth + '$, chosen to keep a mirror' + (fold(P) > 1 ? ' and a ' + fold(P) + '-fold axis' : '') + '.') + ' Drag to turn it.';
+      where += 'projected to the plane which $c$ turns by ' + angle(P.m) + ', and for depth to '
+        + (P.depth === 'line' ? 'the line that $c$ reverses.' : 'a direction in the plane for $m=' + P.depth + '$.') + ' Drag to turn it.';
     }
     const whole = D.integral(state.A), rough = pick && coefsRough(pick.c); // (with a label there are no heights)
     MM.setHTML($('cox-note'), where + ' ' + (pick ? '$\\beta' + (rough ? '\\approx' : '=') + linear(pick.c) + '$' + (whole ? ', of height $' + pick.c.reduce((t, x) => t + x, 0) + '$.' : '.') : 'Click a root for its orbit under $c$.'));
@@ -575,8 +575,6 @@
       : ' in the plane, which the Coxeter element turns by ' + P.m + ' over ' + cx.h + ' of a full turn.'));
   }
 
-  // how many powers of c turn the picture about its axis without changing the depth
-  const fold = (P) => 1 + P.turns.filter((k) => (P.depth * k) % cox.cx.h === 0).length;
   // the coefficients of a root that coefTeX writes in decimals
   const coefsRough = (c) => c.some((x) => /\./.test(coefTeX(Math.abs(x))));
   // the picture of the roots as it starts, the plane face on
@@ -1480,7 +1478,7 @@
       },
       pictures: () => [
         { label: 'Diagram', element: stage }, { label: 'Roots', element: cv },
-        { label: 'Form', element: $('spectrum'), selected: false }, { label: 'Real roots by height', element: $('heights'), selected: false },
+        { label: 'Eigenvalues', element: $('spectrum'), selected: false }, { label: 'Real roots by height', element: $('heights'), selected: false },
       ],
       // for Save image: the node or bond selected, and the root picked
       scene: { get: () => ({ sel: state.sel, root: state.root }), set(s) { Object.assign(state, s); draw(); } },

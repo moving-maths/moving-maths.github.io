@@ -1268,7 +1268,7 @@
     plate(V, t, 6 + tw / 2, y, MM.color('ink-3'), 11.5);
   }
   function affineMessage(V, S) {
-    if (S.mode === 'irrational') plate(V, 'Its labels are not fractions with small denominators: choose Verma for $M(\\Lambda)$', V.w / 2, V.h / 2, MM.color('ink-2'), 13);
+    if (S.mode === 'irrational') plate(V, '$L(\\Lambda)$ is drawn only for rational labels: choose Verma for $M(\\Lambda)$', V.w / 2, V.h / 2, MM.color('ink-2'), 13);
   }
 
   function paintAffLine(V) {
@@ -1891,8 +1891,8 @@
         verma: why('verma-affine', 'the Verma module') + ' $M(\\Lambda)$',
         generic: why('verma-affine', 'equal to $M(\\Lambda)$') + ' down to this depth',
         kl: why('verma-affine', 'an alternating sum') + ' of $' + S.terms.length + '$ characters of Verma modules, in the table',
-        generators: why('verma-affine', building ? 'being built from the generators…' : 'built from the generators'),
-        irrational: 'not computed: its labels are not fractions with small denominators',
+        generators: '$L(\\Lambda)$, ' + why('verma-affine', building ? 'being worked out weight space by weight space…' : 'worked out weight space by weight space'),
+        irrational: '$L(\\Lambda)$, not drawn: its labels are not rational',
       }[S.mode]]);
       legend += lineMark(' hull', 'M1 5H21', '', 'the cone $\\Lambda-\\widehat{Q}_+$') + (k === 'aff-line' && Math.abs(S.k + A.hv) > 0.05 ? lineMark('', 'M1 5H21', '5 4', 'mirrors of the integral Weyl group') : '');
     }
@@ -1918,7 +1918,7 @@
     const I = info(), k = kind(), v = state.view;
     if (isAffine()) {
       const S = affScene(), what = (S.mode === 'verma' ? 'M(' : 'L(') + aplain(S.labels) + ')';
-      if (!S.points.length) return 'The highest weight ' + aplain(S.labels) + ' of ' + I.plain + (S.mode === 'generators' ? '; its simple module is being built.' : '; its simple module is not drawn.');
+      if (!S.points.length) return 'The highest weight ' + aplain(S.labels) + ' of ' + I.plain + (S.mode === 'generators' ? '; its simple module is being worked out.' : '; its simple module is not drawn.');
       return 'The weights of ' + what + ' for ' + I.plain + ' down to depth ' + S.N + ', the depth drawn downwards, each a dot with its multiplicity by it.' + (k === 'aff-space' ? ' Drag to turn the picture, or use the arrow keys.' : '');
     }
     const where = { line: 'on a line', plane: 'in the plane', space: 'in space' }[k];
