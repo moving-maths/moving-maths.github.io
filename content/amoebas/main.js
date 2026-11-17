@@ -8,8 +8,8 @@
 // heights v. Beside it the polynomial is written out term by term, and edited in
 // place: a drag on a term changes its height, a click on its sign the sign; under
 // it t, and the height of the term clicked, each with a slider.
-// The text after the figure has two pictures of its own: in "The tropical
-// limit", the Newton polygon with each point lifted to its height, the roof
+// The text after the figure has two pictures of its own: in "The curve and
+// its amoeba", the Newton polygon with each point lifted to its height, the roof
 // over them (their upper hull) and, on the floor, the subdivision the roof
 // projects to, where dragging a lifted point changes its height; in "Area", the
 // area of the amoeba against log t, where dragging the handle changes t. Each

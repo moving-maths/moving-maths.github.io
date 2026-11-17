@@ -88,7 +88,19 @@ references:
   <p>Consider the curve in $(\CC^\times)^2$ defined by</p>
   $$f(z,w)=\sum_{i+j\le d}a_{ij}\,z^iw^j=0,\qquad a_{ij}=\pm t^{v_{ij}},$$
   <p>where $t>1$ and $v_{ij}$ are real parameters. The polynomial $f$ has a term for each lattice point $(i,j)$ of the triangle with corners $(0,0)$, $(d,0)$ and $(0,d)$, its <strong>Newton polygon</strong>; $d$ is the degree of the curve, and $v_{ij}$ is called the <strong>height</strong> of $(i,j)$.</p>
-  <p>The <strong>amoeba</strong> of the curve is its image under $(z,w)\mapsto(\log|z|,\log|w|)$ [@gelfand1994]. The figure shows it scaled by $1/\log t$, in the coordinates</p>
+  <figure id="lift-fig">
+    <div class="fig-pair">
+      <div>
+        <div class="fig-bar"><mm-toggle id="spin" pressed>Rotate</mm-toggle></div>
+        <div class="am-lift" id="lift">
+          <canvas id="lift-cv" tabindex="0" role="img" aria-label="The lattice points of the Newton polygon lifted to their heights, the roof over them, and the subdivision it projects to"></canvas>
+        </div>
+      </div>
+      <div class="fig-copy"><canvas id="copy-lift" role="img" aria-label="The amoeba and its tropical curve, as in the figure at the top"></canvas></div>
+    </div>
+    <figcaption class="caption" id="lift-cap"></figcaption>
+  </figure>
+  <p>The <strong>amoeba</strong> of the curve is its image under $(z,w)\mapsto(\log|z|,\log|w|)$ [@gelfand1994]. The <a href="#figure">figure</a> shows it scaled by $1/\log t$, in the coordinates</p>
   $$x=\log_t|z|,\qquad y=\log_t|w|.$$
 </section>
 
@@ -101,22 +113,10 @@ references:
 
 <section aria-labelledby="sec-tropical">
   <h2 class="section-title" id="sec-tropical">The tropical limit</h2>
-  <figure>
-    <div class="fig-pair">
-      <div>
-        <div class="fig-bar"><mm-toggle id="spin" pressed>Rotate</mm-toggle></div>
-        <div class="am-lift" id="lift">
-          <canvas id="lift-cv" tabindex="0" role="img" aria-label="The lattice points of the Newton polygon lifted to their heights, the roof over them, and the subdivision it projects to"></canvas>
-        </div>
-      </div>
-      <div class="fig-copy"><canvas id="copy-lift" role="img" aria-label="The amoeba and its tropical curve, as in the figure at the top"></canvas></div>
-    </div>
-    <figcaption class="caption" id="lift-cap"></figcaption>
-  </figure>
   <p>The <strong>tropical curve</strong> $T$ of the heights is the set of points $(x,y)$ at which the maximum</p>
   $$\max_{i+j\le d}\,\bigl(v_{ij}+ix+jy\bigr)$$
   <p>is attained at least twice. Over a point $(x,y)$ the terms of $f$ have sizes $|a_{ij}z^iw^j|=t^{\,v_{ij}+ix+jy}$, so in each region of the complement of $T$ one term is the largest, and the region is named after its monomial. Where one term is larger than all the others together, $f$ has no zeros. So the amoeba lies in the band where the two largest of the numbers ${v_{ij}+ix+jy}$ differ by at most $\log_t(n-1)$, $n$ being the number of terms, and the band narrows onto $T$ as $t$ grows [@mikhalkin2004; @maclagan2015, §1.4].</p>
-  <p>The <strong>roof</strong> in the figure above is the upper convex hull of the lifted points $(i,j,v_{ij})$. Its faces project to a subdivision of the Newton polygon, dual to $T$: each face to a vertex of $T$, where the terms of the face are the largest and equal; each inner edge to an edge of $T$ at right angles to it, whose <strong>weight</strong> is the lattice length of the inner edge; each edge on the boundary to a ray. The curve $T$ is <strong>smooth</strong> when the faces are triangles of area $\tfrac12$. A lattice point under the roof, or on it but not at a corner, gives a term that is never alone the largest. An interior point at a corner gives a cycle of $T$, and so, once $t$ is large, a hole of the amoeba.</p>
+  <p>The <strong>roof</strong> in the <a href="#lift-fig">figure of the Newton polygon</a> is the upper convex hull of the lifted points $(i,j,v_{ij})$. Its faces project to a subdivision of the Newton polygon, dual to $T$: each face to a vertex of $T$, where the terms of the face are the largest and equal; each inner edge to an edge of $T$ at right angles to it, whose <strong>weight</strong> is the lattice length of the inner edge; each edge on the boundary to a ray. The curve $T$ is <strong>smooth</strong> when the faces are triangles of area $\tfrac12$. A lattice point under the roof, or on it but not at a corner, gives a term that is never alone the largest. An interior point at a corner gives a cycle of $T$, and so, once $t$ is large, a hole of the amoeba.</p>
 </section>
 
 <section aria-labelledby="sec-area">
