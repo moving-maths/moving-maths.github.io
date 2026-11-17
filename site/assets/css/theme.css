@@ -299,6 +299,9 @@ code, kbd, samp { font-family: var(--mono); font-size: .88em; }
 ::selection { background: color-mix(in srgb, var(--accent-2) 38%, transparent); }
 [hidden] { display: none !important; }
 
+/* a term where it is defined, in the text: a little lighter than Inter's bold */
+:is(b, strong) { font-weight: 600; }
+
 /* ---------- KaTeX, tuned for Inter (as in new-banana) ---------- */
 .katex { font-size: 1.1em; letter-spacing: 0; }
 .katex .mathbb, .katex .amsrm { font-family: "Banana Math", KaTeX_AMS; }

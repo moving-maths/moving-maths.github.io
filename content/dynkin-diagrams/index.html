@@ -82,10 +82,10 @@ references:
 <div class="prose">
 <section aria-labelledby="sec-matrix">
   <h2 class="section-title" id="sec-matrix">The Cartan matrix</h2>
-  <p>A Cartan matrix is a square matrix $A=(a_{ij})$ of integers with $a_{ii}=2$, with $a_{ij}\le0$ for $i\ne j$, and with $a_{ij}=0$ exactly when $a_{ji}=0$ (a generalized Cartan matrix in [@kac1990, Ch. 1]). The simple roots $\alpha_1,\dots,\alpha_n$ of a <a href="/root-systems/">root system</a> give a Cartan matrix, with entries</p>
+  <p>A <strong>Cartan matrix</strong> is a square matrix $A=(a_{ij})$ of integers with $a_{ii}=2$, with $a_{ij}\le0$ for $i\ne j$, and with $a_{ij}=0$ exactly when $a_{ji}=0$ (a generalized Cartan matrix in [@kac1990, Ch. 1]). The simple roots $\alpha_1,\dots,\alpha_n$ of a <a href="/root-systems/">root system</a> give a Cartan matrix, with entries</p>
   $$a_{ij}=\frac{2(\alpha_i,\alpha_j)}{(\alpha_i,\alpha_i)}.$$
-  <p>The Dynkin diagram of a Cartan matrix has a node for each $i$. Nodes $i$ and $j$ are joined when $a_{ij}\ne0$, by $\max(\lvert a_{ij}\rvert,\lvert a_{ji}\rvert)$ lines, with an arrow pointing to node $i$ when $\lvert a_{ij}\rvert>1$; for a root system, the arrow points to the shorter root. When $a_{ij}a_{ji}>4$ they are joined instead by one thick line labelled $\lvert a_{ij}\rvert,\lvert a_{ji}\rvert$ [@kac1990, Ch. 4]. So a single line is $a_{ij}=a_{ji}=-1$, and a double line with its arrow pointing to node $i$ is $a_{ij}=-2$ and $a_{ji}=-1$.</p>
-  <p>A Coxeter diagram may also have bonds labelled $m$, which stand for $a_{ij}=a_{ji}=-2\cos(\pi/m)$ [@humphreys1990, Ch. 5]. The reflections $s_i(\alpha_j)=\alpha_j-a_{ij}\alpha_i$ generate the Weyl group of a Cartan matrix [@kac1990, Ch. 3], or the Coxeter group of a Coxeter diagram.</p>
+  <p>The <strong>Dynkin diagram</strong> of a Cartan matrix has a node for each $i$. Nodes $i$ and $j$ are joined when $a_{ij}\ne0$, by $\max(\lvert a_{ij}\rvert,\lvert a_{ji}\rvert)$ lines, with an arrow pointing to node $i$ when $\lvert a_{ij}\rvert>1$; for a root system, the arrow points to the shorter root. When $a_{ij}a_{ji}>4$ they are joined instead by one thick line labelled $\lvert a_{ij}\rvert,\lvert a_{ji}\rvert$ [@kac1990, Ch. 4]. So a single line is $a_{ij}=a_{ji}=-1$, and a double line with its arrow pointing to node $i$ is $a_{ij}=-2$ and $a_{ji}=-1$.</p>
+  <p>A Coxeter diagram may also have bonds labelled $m$, which stand for $a_{ij}=a_{ji}=-2\cos(\pi/m)$ [@humphreys1990, Ch. 5]. The reflections $s_i(\alpha_j)=\alpha_j-a_{ij}\alpha_i$ generate the <strong>Weyl group</strong> of a Cartan matrix [@kac1990, Ch. 3], or the <strong>Coxeter group</strong> of a Coxeter diagram.</p>
 </section>
 
 <section aria-labelledby="sec-type">
@@ -94,9 +94,9 @@ references:
     <svg id="spectrum" role="img"></svg>
     <figcaption class="caption" id="form-cap" aria-live="polite"></figcaption>
   </figure>
-  <p>The eigenvalues of $A$ decide the type of a connected diagram. It is of finite type when they are all positive, of affine type when one is $0$ and the others are positive, and of indefinite type otherwise [@kac1990, Ch. 4; @humphreys1990, Ch. 6].</p>
-  <p>This holds when $A$ is symmetrizable, that is, when there are positive numbers $d_i$ with $d_ia_{ij}=d_ja_{ji}$. Then $(\alpha_i,\alpha_j)=d_ia_{ij}$ is a symmetric bilinear form on the span of the simple roots, the eigenvalues of $A$ are real, and their signs give the signature of the form. When a matrix is not symmetrizable, its eigenvalues need not be real, and it is of indefinite type.</p>
-  <p>For a diagram of affine type the kernel of the form is spanned by $\delta=\sum_ic_i\alpha_i$, with positive integers $c_i$, the numbers on the nodes. A diagram of indefinite type is hyperbolic when every proper connected subdiagram is of finite or affine type [@kac1990, Ch. 5].</p>
+  <p>The eigenvalues of $A$ decide the type of a connected diagram. It is of <strong>finite type</strong> when they are all positive, of <strong>affine type</strong> when one is $0$ and the others are positive, and of <strong>indefinite type</strong> otherwise [@kac1990, Ch. 4; @humphreys1990, Ch. 6].</p>
+  <p>This holds when $A$ is <strong>symmetrizable</strong>, that is, when there are positive numbers $d_i$ with $d_ia_{ij}=d_ja_{ji}$. Then $(\alpha_i,\alpha_j)=d_ia_{ij}$ is a symmetric bilinear form on the span of the simple roots, the eigenvalues of $A$ are real, and their signs give the signature of the form. When a matrix is not symmetrizable, its eigenvalues need not be real, and it is of indefinite type.</p>
+  <p>For a diagram of affine type the kernel of the form is spanned by $\delta=\sum_ic_i\alpha_i$, with positive integers $c_i$, the numbers on the nodes. A diagram of indefinite type is <strong>hyperbolic</strong> when every proper connected subdiagram is of finite or affine type [@kac1990, Ch. 5].</p>
 </section>
 
 <section aria-labelledby="sec-coxeter">
@@ -113,9 +113,9 @@ references:
     <figcaption class="caption" id="cox-note" aria-live="polite"></figcaption>
   </figure>
   <p class="dk-absent" id="cox-absent" hidden>The figure needs a connected diagram of finite type, of rank at least $2$.</p>
-  <p>For a diagram of finite type the Weyl or Coxeter group $W$ is finite. A Coxeter element $c=s_1s_2\cdots s_n$, the product of the simple reflections in any order, has order $h$, the Coxeter number, and its eigenvalues are</p>
+  <p>For a diagram of finite type the Weyl or Coxeter group $W$ is finite. A <strong>Coxeter element</strong> $c=s_1s_2\cdots s_n$, the product of the simple reflections in any order, has order $h$, the <strong>Coxeter number</strong>, and its eigenvalues are</p>
   $$\mathrm{e}^{2\pi\mathrm{i}\,m_1/h},\ \dots,\ \mathrm{e}^{2\pi\mathrm{i}\,m_n/h},$$
-  <p>where $m_1\le\dots\le m_n$ are the exponents [@humphreys1990, Ch. 3]. The Coxeter plane is the plane on which $c$ acts by the rotation through $2\pi/h$. The $nh$ roots fall into $n$ orbits of $c$, each of $h$ roots, and each orbit projects to the plane as a regular $h$-gon [@humphreys1990, Ch. 3]. Each pair of exponents $m$ and $h-m$ gives a plane on which $c$ turns by $2\pi m/h$; from rank $3$ on, the figure projects the roots to one of these planes, and for depth to one more direction.</p>
+  <p>where $m_1\le\dots\le m_n$ are the <strong>exponents</strong> [@humphreys1990, Ch. 3]. The <strong>Coxeter plane</strong> is the plane on which $c$ acts by the rotation through $2\pi/h$. The $nh$ roots fall into $n$ orbits of $c$, each of $h$ roots, and each orbit projects to the plane as a regular $h$-gon [@humphreys1990, Ch. 3]. Each pair of exponents $m$ and $h-m$ gives a plane on which $c$ turns by $2\pi m/h$; from rank $3$ on, the figure projects the roots to one of these planes, and for depth to one more direction.</p>
 </section>
 
 <section aria-labelledby="sec-heights">
@@ -125,7 +125,7 @@ references:
     <figcaption class="caption" id="roots-cap" aria-live="polite"></figcaption>
   </figure>
   <p class="dk-absent" id="heights-absent" hidden>With a bond labelled $m$, some roots have coefficients that are not integers, such as $2\cos(\pi/m)$, and the roots have no heights.</p>
-  <p>A positive root $\beta=\sum_ic_i\alpha_i$ has height $\sum_ic_i$. For a diagram of finite type the numbers of positive roots of heights $1,2,3,\dots$ form a partition, and the conjugate partition is formed by the exponents [@kostant1959]. So there are $n$ roots of height $1$, the simple roots, and the highest root has height $m_n=h-1$.</p>
+  <p>A positive root $\beta=\sum_ic_i\alpha_i$ has <strong>height</strong> $\sum_ic_i$. For a diagram of finite type the numbers of positive roots of heights $1,2,3,\dots$ form a partition, and the conjugate partition is formed by the exponents [@kostant1959]. So there are $n$ roots of height $1$, the simple roots, and the highest root has height $m_n=h-1$.</p>
   <p>For a diagram of affine type a real root plus $r\delta$ is again a real root, where $r$ is the $r$ of the name $\mathrm{X}_\ell^{(r)}$, so the numbers repeat. For affine and indefinite types there are infinitely many real roots, and the figure counts them up to height $30$.</p>
 </section>
 </div>

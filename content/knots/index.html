@@ -183,13 +183,13 @@ references:
     <div class="kn-skein kn-skein-caps" id="skein-caps"></div>
     <figcaption class="caption" id="skein-cap" aria-live="polite"></figcaption>
   </figure>
-  <p>To compute the HOMFLYPT polynomial $P(a,z)$ of a diagram, we change the diagram one crossing at a time. First we choose a crossing: in the pictures above it is ringed in red, and clicking another crossing chooses that one. Keeping everything else as it is, we can make it positive ($L_+$), negative ($L_-$), or open it along the orientations of the strands ($L_0$). These are the three pictures, and our diagram is the shaded one. Their polynomials are tied by the skein relation [@freyd1985; @przytycki1987]</p>
+  <p>To compute the HOMFLYPT polynomial $P(a,z)$ of a diagram, we change the diagram one crossing at a time. First we choose a crossing: in the pictures above it is ringed in red, and clicking another crossing chooses that one. Keeping everything else as it is, we can make it positive ($L_+$), negative ($L_-$), or open it along the orientations of the strands ($L_0$). These are the three pictures, and our diagram is the shaded one. Their polynomials are tied by the <strong>skein relation</strong> [@freyd1985; @przytycki1987]</p>
   $$a\,P(L_+)-a^{-1}P(L_-)=z\,P(L_0),\qquad P(\text{unknot})=1$$
   <p>We solve it for the shaded diagram,</p>
   $$\begin{aligned}P(L_+)&=a^{-2}P(L_-)+a^{-1}z\,P(L_0),\\ P(L_-)&=a^{2}P(L_+)-a\,z\,P(L_0),\end{aligned}$$
   <p>and work out the other two diagrams in the same way [@lickorish1987]. In the end each diagram is reduced to an unlink of $c$ components, and in this situation</p>
   $$P=\left(\frac{a-a^{-1}}{z}\right)^{c-1}.$$
-  <p>The other polynomials are values of $P$. Setting $a=t^{-1}$ and $z=t^{1/2}-t^{-1/2}$ gives the Jones polynomial [@jones1985]; setting $a=1$ gives Conway’s polynomial, and from it the Alexander polynomial [@conway1970]:</p>
+  <p>The other polynomials are values of $P$. Setting $a=t^{-1}$ and $z=t^{1/2}-t^{-1/2}$ gives the <strong>Jones polynomial</strong> [@jones1985]; setting $a=1$ gives <strong>Conway’s polynomial</strong>, and from it the <strong>Alexander polynomial</strong> [@conway1970]:</p>
   $$V(t)=P\bigl(t^{-1},\,t^{1/2}-t^{-1/2}\bigr),\qquad \nabla(z)=P(1,z),\qquad \Delta(t)=\nabla\bigl(t^{1/2}-t^{-1/2}\bigr).$$
 </section>
 <section aria-labelledby="sec-bracket">
@@ -203,7 +203,7 @@ references:
   $$\langle D\rangle=\sum A^{\,a-b}\,\bigl(-A^2-A^{-2}\bigr)^{\ell-1}.$$
   <p>The second and third Reidemeister moves [@reidemeister1927] leave $\langle D\rangle$ unchanged and the first multiplies it by $-A^{\pm3}$, so correcting for the writhe $w$ gives the Jones polynomial [@kauffman1987]:</p>
   $$V(t)=\bigl(-A^{3}\bigr)^{-w}\langle D\rangle\Bigr|_{A=t^{-1/4}}$$
-  <p>The span of $V$, its highest power of $t$ less its lowest, is at most the crossing number, with equality for an alternating diagram that has no crossing a twist would undo.</p>
+  <p>The <strong>span</strong> of $V$, its highest power of $t$ less its lowest, is at most the crossing number, with equality for an alternating diagram that has no crossing a twist would undo.</p>
 </section>
 <section aria-labelledby="sec-group">
   <h2 class="section-title" id="sec-group">The group of the complement</h2>
@@ -214,9 +214,9 @@ references:
   <p>The fundamental group of the complement of the link can be read off a diagram (Wirtinger; see [@fox1962]). We cut the diagram wherever it passes under itself; each piece gives a generator, which is the loop once round it. In the picture above the pieces are named, with their orientations marked, and clicking a crossing shows its relation: with $x_j$ the piece on top, and $x_i$ and $x_k$ the pieces that end and begin under it,</p>
   $$x_k=x_j\,x_i\,x_j^{-1}\ \ \text{(positive)},\qquad x_k=x_j^{-1}\,x_i\,x_j\ \ \text{(negative)}.$$
   <p>One relation follows from the others, and a generator that a relation gives in terms of the others can be left out; what remains is the presentation beside the diagram at the top, where clicking a generator draws all of them as loops.</p>
-  <p>A knot’s group is $\mathbb{Z}$ only for the unknot [@papakyriakopoulos1957]. Fox’s free derivatives of the relations, with every generator sent to $t$, give a matrix whose determinant, with a row and a column left out, is $\Delta(t)$ up to $\pm t^k$ [@alexander1928; @fox1962]; the determinant of the link is $\abs{\Delta(-1)}$. At $t=-1$ a relation reads</p>
+  <p>A knot’s group is $\mathbb{Z}$ only for the unknot [@papakyriakopoulos1957]. Fox’s free derivatives of the relations, with every generator sent to $t$, give a matrix whose determinant, with a row and a column left out, is $\Delta(t)$ up to $\pm t^k$ [@alexander1928; @fox1962]; the <strong>determinant</strong> of the link is $\abs{\Delta(-1)}$. At $t=-1$ a relation reads</p>
   $$2x_j\equiv x_i+x_k \pmod p,$$
-  <p>and numbers on the pieces that satisfy it at every crossing are a colouring mod $p$ (shown by <em>Colouring</em>): a homomorphism of the group to the dihedral group of order $2p$, onto it for a prime $p$ if the colouring is not constant. There is one exactly when $p$ divides the determinant. Homomorphisms onto other finite groups tell many knots apart [@riley1971]; beside the diagram at the top are those onto $S_3$, $S_4$ and $S_5$, up to conjugation.</p>
+  <p>and numbers on the pieces that satisfy it at every crossing are a <strong>colouring</strong> mod $p$ (shown by <em>Colouring</em>): a homomorphism of the group to the dihedral group of order $2p$, onto it for a prime $p$ if the colouring is not constant. There is one exactly when $p$ divides the determinant. Homomorphisms onto other finite groups tell many knots apart [@riley1971]; beside the diagram at the top are those onto $S_3$, $S_4$ and $S_5$, up to conjugation.</p>
 </section>
 <section aria-labelledby="sec-signature">
   <h2 class="section-title" id="sec-signature">Signature</h2>
@@ -224,22 +224,22 @@ references:
     <svg class="kn-small halo" id="chess" role="img" aria-label="The diagram with its regions shaded like a chessboard"></svg>
     <figcaption class="caption" id="chess-cap" aria-live="polite"></figcaption>
   </figure>
-  <p>The signature comes from a surface that the link bounds. We shade the regions of the diagram like a chessboard, as in the picture above, and join the shaded regions by a half-twisted band at each crossing. Let $\eta(c)=\pm1$ say which way the band at crossing $c$ twists. Goeritz’s matrix $G$ has a row and a column for each white region but one, with $-\sum\eta(c)$ over the crossings that two regions share off the diagonal, and on it what makes each row, with the region left out, sum to zero. Then, with $\varepsilon(c)$ the sign of the crossing,</p>
+  <p>The signature comes from a surface that the link bounds. We shade the regions of the diagram like a chessboard, as in the picture above, and join the shaded regions by a half-twisted band at each crossing. Let $\eta(c)=\pm1$ say which way the band at crossing $c$ twists. <strong>Goeritz’s matrix</strong> $G$ has a row and a column for each white region but one, with $-\sum\eta(c)$ over the crossings that two regions share off the diagonal, and on it what makes each row, with the region left out, sum to zero. Then, with $\varepsilon(c)$ the sign of the crossing,</p>
   $$\sigma(L)=\operatorname{sign}G-\sum_{\eta(c)=\varepsilon(c)}\eta(c),$$
   <p>the sum running over the crossings where the surface cannot be oriented along with the link [@gordon1978]. The right-handed trefoil has signature $-2$.</p>
 </section>
 <section aria-labelledby="sec-genus">
   <h2 class="section-title" id="sec-genus">Genus, braid index and volume</h2>
   <p>These are least values over all diagrams, or come from the geometry of the complement: a diagram bounds them, and fixes them where the bounds meet.</p>
-  <p>Opening every crossing along the orientations leaves $s$ loops, the Seifert circles. Spanning them by discs, joined by a half-twisted band at each crossing, gives a surface with the link as its edge [@seifert1935], of genus $\tfrac12(n-s+1)$ for a knot. So the genus $g$ of a knot satisfies</p>
+  <p>Opening every crossing along the orientations leaves $s$ loops, the <strong>Seifert circles</strong>. Spanning them by discs, joined by a half-twisted band at each crossing, gives a surface with the link as its edge [@seifert1935], of genus $\tfrac12(n-s+1)$ for a knot. So the genus $g$ of a knot satisfies</p>
   $$\tfrac12\operatorname{span}\Delta\le g\le\tfrac12\,(n-s+1),$$
   <p>with equality throughout for an alternating diagram [@crowell1959; @murasugi1958].</p>
-  <p>A closed braid on $b$ strands has $b$ Seifert circles, and the braid index is the least $s$ over all diagrams [@yamada1987]; the powers of $a$ in $P$ bound it from below [@franks1987; @morton1986]:</p>
+  <p>A closed braid on $b$ strands has $b$ Seifert circles, and the <strong>braid index</strong> is the least $s$ over all diagrams [@yamada1987]; the powers of $a$ in $P$ bound it from below [@franks1987; @morton1986]:</p>
   $$\tfrac12\operatorname{span}_a P+1\le b\le s.$$
-  <p>The Arf invariant of a knot is $0$ when its determinant is $\pm1$ mod $8$, and $1$ when it is $\pm3$ mod $8$ [@levine1966].</p>
-  <p>Most links are hyperbolic: their complement has a complete metric of constant curvature $-1$, whose volume is an invariant [@thurston1978]; torus links, sums, split links and satellites are not. To find the volume, we add two points, above and below the diagram, and the complement falls into four tetrahedra at each crossing [@dthurston1999]; squashing an edge from each added point onto the link and simplifying leaves an ideal triangulation. Each tetrahedron is then a shape $z$ in the upper half-plane, and Thurston’s equations ask that round every edge the shapes multiply to $1$ and that every cusp be complete. Solving them by Newton’s method gives the hyperbolic structure, and</p>
+  <p>The <strong>Arf invariant</strong> of a knot is $0$ when its determinant is $\pm1$ mod $8$, and $1$ when it is $\pm3$ mod $8$ [@levine1966].</p>
+  <p>Most links are <strong>hyperbolic</strong>: their complement has a complete metric of constant curvature $-1$, whose volume is an invariant [@thurston1978]; torus links, sums, split links and satellites are not. To find the volume, we add two points, above and below the diagram, and the complement falls into four tetrahedra at each crossing [@dthurston1999]; squashing an edge from each added point onto the link and simplifying leaves an ideal triangulation. Each tetrahedron is then a shape $z$ in the upper half-plane, and Thurston’s equations ask that round every edge the shapes multiply to $1$ and that every cusp be complete. Solving them by Newton’s method gives the hyperbolic structure, and</p>
   $$\operatorname{vol}=\sum_t D(z_t),\qquad D(z)=\operatorname{Im}\operatorname{Li}_2(z)+\arg(1-z)\log\abs{z},$$
-  <p>the Bloch–Wigner dilogarithm being the volume of an ideal tetrahedron of shape $z$ [@thurston1978; @weeks2005].</p>
+  <p>the <strong>Bloch–Wigner dilogarithm</strong> being the volume of an ideal tetrahedron of shape $z$ [@thurston1978; @weeks2005].</p>
 </section>
 <section aria-labelledby="sec-names">
   <h2 class="section-title" id="sec-names">Names</h2>

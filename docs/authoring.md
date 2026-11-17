@@ -94,6 +94,8 @@ The body runs edge to edge, so wrap content in `<div class="wrap">` (the site's 
 
 The theme spaces this out: the figure's section sits close under the control bar (a `.section` right after the bar), the sections of text are 40px apart, a figure among them has room above and below and its caption centred under it, and a `.fig-bar` centres the figure's own controls on it (above it, or under it with a little room). Give each section's heading an `id` (`sec-…`, which the readouts can link to) and the section `aria-labelledby` it. See [design.md](design.md) for the components.
 
+In the text, a term is set in bold (`<strong>`) where it is defined, its words only, not its symbol (`the <strong>braid group</strong> $B_n$`), once on the page and never in the lede; and the name of one of the page's controls, where the text refers to it, is in italics, exactly as its label reads (`shown by <em>Colouring</em>`).
+
 A figure with readouts beside it uses `.split`: one column on a phone, and from 900px the picture on the left and the readouts on the right. While longer readouts scroll, the picture stays in view under the control bar:
 
 ```html
