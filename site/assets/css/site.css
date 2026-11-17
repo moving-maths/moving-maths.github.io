@@ -1,0 +1,243 @@
+/* Site chrome: navigation, footer, home and topic pages, cards, and the
+ * frame around each page. Pages should not need to touch it.
+ */
+
+.skip-link { position: absolute; left: -9999px; top: 8px; z-index: 100; background: var(--surface); padding: 8px 12px; border-radius: 6px; font-family: var(--sans); font-size: 14px; }
+.skip-link:focus { left: 8px; }
+
+/* topic capsules (.topics) are a theme component: see theme.css */
+
+/* ---------- navigation ---------- */
+/* Sticky, with a soft fade instead of a rule once the page has scrolled
+   (site.js sets html.is-scrolled). It stacks above a page's
+   .control-bar, which slides up under it once its section has scrolled past;
+   while the bar is stuck below it, the bar's own fade takes over. */
+.site-nav { position: sticky; top: 0; z-index: 70; background: var(--paper); }
+.site-nav::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--fade); pointer-events: none;
+  background: linear-gradient(var(--paper), color-mix(in srgb, var(--paper) 0%, transparent));
+  opacity: 0; transition: opacity .2s;
+}
+.is-scrolled .site-nav::after { opacity: 1; }
+.is-scrolled:has(.control-bar.is-stuck) .site-nav::after { opacity: 0; }
+.site-nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--nav-h); }
+.brand {
+  display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; white-space: nowrap;
+  font-family: var(--sans); font-size: 16px; font-weight: 600; letter-spacing: -.014em;
+}
+.brand:hover { color: var(--ink); }
+/* the trefoil, with a control point that site.js sends round the knot on hover */
+.logo { width: 26px; height: 26px; color: var(--accent); flex: none; overflow: visible; }
+.logo-point { fill: var(--accent-2); } /* its white ring is a gap in the strands (build/logo.mjs) */
+.site-nav nav { display: flex; gap: 2px; font-family: var(--sans); font-size: 14.5px; font-weight: 500; letter-spacing: -.006em; }
+.site-nav nav a { color: var(--ink-2); text-decoration: none; padding: 6px 10px; border-radius: 6px; transition: color .12s, background-color .12s; }
+.site-nav nav a:hover { color: var(--ink); background: var(--sunken); }
+.site-nav nav a[aria-current="page"] { color: var(--ink); }
+@media (max-width: 480px) {
+  .brand { font-size: 15.5px; gap: 8px; }
+  .logo { width: 24px; height: 24px; }
+  .site-nav nav a { padding: 6px 8px; }
+}
+
+/* ---------- footer ---------- */
+.site-foot { margin-top: 96px; padding-block: 22px 40px; font-family: var(--sans); font-size: 13px; color: var(--ink-3); }
+.site-foot p { margin: 0; }
+.site-foot .foot-meta { margin-bottom: 6px; }
+.site-foot a { color: var(--ink-2); text-decoration: none; }
+.site-foot a:hover { color: var(--ink); text-decoration: underline; }
+
+/* ---------- page heads ---------- */
+.page-head { padding-top: 56px; padding-bottom: 28px; }
+.page-head .eyebrow { margin-bottom: 10px; }
+/* standalone pages (About): room between sections */
+.page-head > .prose > h1 { margin-bottom: 32px; }
+.page-head > .prose > h2 { margin: 48px 0 14px; }
+.page-head > .prose > p { margin-bottom: 1.1em; }
+.hero { padding-top: 72px; padding-bottom: 48px; }
+.hero h1 { font-size: clamp(30px, 4.4vw, 44px); font-weight: 500; letter-spacing: -.028em; line-height: 1.12; max-width: 15em; margin: 0 0 24px; }
+@media (max-width: 600px) { .hero { padding-top: 44px; padding-bottom: 32px; } }
+
+/* ---------- home: a row of cards per topic ---------- */
+/* The row scrolls sideways under its heading. It runs to the edges of the
+   window, padded so that its cards line up with the page column: three to a
+   column from 900px, two and a bit on tablets, one and a bit on phones, so
+   the next card shows at the edge. */
+.page-home .hero { padding-bottom: 0; }
+.shelf { margin-top: 56px; }
+.shelf-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 16px; }
+.shelf-head h2 { margin: 0; }
+/* a heading that is a link (a topic's row; a page's title, to the page itself, without the
+   parameters of a link to an example): the heading's colour, the accent under the pointer */
+.shelf-head h2 a, .entry-head h1 a { color: var(--ink); text-decoration: none; transition: color .12s; }
+.shelf-head h2 a:hover, .entry-head h1 a:hover { color: var(--accent-ink); }
+.shelf-count { font-family: var(--sans); font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.shelf-track {
+  --shelf-gap: 28px;
+  --shelf-pad: max(var(--gutter), (100% - var(--page-max)) / 2 + var(--gutter));
+  display: flex; gap: var(--shelf-gap); overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 6px var(--shelf-pad) 10px; scroll-padding-inline: var(--shelf-pad);
+  scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.shelf-track::-webkit-scrollbar { display: none; }
+.shelf-track > .card { flex: none; width: calc(100% - 48px); scroll-snap-align: start; }
+/* on a touch screen a swipe, however fast, moves the row one card; quick
+   swipes in a row move it on further (not with a mouse, whose arrows and
+   dots jump several cards at once) */
+@media (hover: none) and (pointer: coarse) { .shelf-track > .card { scroll-snap-stop: always; } }
+@media (min-width: 600px) { .shelf-track > .card { width: calc((100% - var(--shelf-gap)) / 2.2); } }
+@media (min-width: 900px) { .shelf-track > .card { width: calc((100% - 2 * var(--shelf-gap)) / 3); } }
+@media (max-width: 600px) { .shelf-track { --shelf-gap: 20px; } .shelf { margin-top: 44px; } }
+
+/* While a row holds more than fits (site.js marks it .is-scrollable):
+   - beyond the page column, a sliver of the next card shows, fading out
+     quickly (over --shelf-fade, from where it starts);
+   - under the row, apart from the cards, a dot for each card, a pill over
+     those in view, clicked or dragged to scroll; arrows either side of them
+     scroll the row by the cards in view, faint at an end (not on touch
+     screens, where a swipe does it);
+   - a card cut off by an edge (.is-partial) is a button that brings it in:
+     no link, no hover;
+   - a mouse can drag the row (.is-dragging while it does). */
+.shelf-track {
+  --shelf-fade: 40px;
+  --shelf-in: max(0px, var(--shelf-pad) - var(--shelf-gap));
+  --shelf-out: max(0px, var(--shelf-in) - var(--shelf-fade));
+  --shelf-mask: linear-gradient(to right,
+    transparent var(--shelf-out), #000 var(--shelf-in),
+    #000 calc(100% - var(--shelf-in)), transparent calc(100% - var(--shelf-out)));
+}
+.shelf.is-scrollable .shelf-track { -webkit-mask-image: var(--shelf-mask); mask-image: var(--shelf-mask); }
+@media (hover: hover) and (pointer: fine) { .shelf.is-scrollable .shelf-track { cursor: grab; } }
+.shelf-track.is-dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; -webkit-user-select: none; }
+.shelf-track.is-dragging .card-link { pointer-events: none; }
+.shelf-track > .card.is-partial { cursor: pointer; }
+.shelf-track > .card.is-partial > * { pointer-events: none; }
+.shelf-pos { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 12px; }
+/* the arrows: quiet, a circle only under the pointer; faint at an end */
+.shelf-arrow {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer; background: transparent; color: var(--ink-2);
+  transition: opacity .2s, background-color .12s, color .12s, transform .12s;
+}
+.shelf-arrow svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; width: 16px; height: 16px; }
+.shelf-arrow:hover:not(:disabled) { background: var(--sunken); color: var(--ink); }
+.shelf-arrow:active:not(:disabled) { transform: scale(.92); }
+.shelf-arrow:disabled { opacity: .3; cursor: default; }
+.shelf-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) { .shelf-arrow { display: none; } }
+/* the dots: one to a card; a pill lies over the dots of the cards in view and
+   slides as the row scrolls (site.js sets --at, where it starts, and --span,
+   how many it covers). A click on a dot brings its card in; a drag along them
+   scrubs the row. The hit area is taller than the dots. */
+.shelf-bar {
+  --dot: 6px; --pitch: 14px;
+  position: relative; display: flex; align-items: center; gap: calc(var(--pitch) - var(--dot));
+  padding: 10px 4px; cursor: pointer; touch-action: none;
+}
+.shelf-dot {
+  flex: none; width: var(--dot); height: var(--dot); border-radius: 50%;
+  background: color-mix(in srgb, var(--ink-3) 35%, var(--surface));
+  transition: background-color .12s, transform .15s var(--ease);
+}
+.shelf-dot:hover { background: var(--ink-3); transform: scale(1.25); }
+.shelf-thumb {
+  position: absolute; top: 50%; left: calc(4px + var(--at, 0) * var(--pitch));
+  width: calc(var(--span, 1) * var(--pitch) - var(--pitch) + var(--dot)); height: var(--dot); margin-top: calc(var(--dot) / -2);
+  border-radius: calc(var(--dot) / 2); background: var(--ink-2); pointer-events: none;
+}
+.shelf-bar.is-dragging .shelf-thumb { background: var(--ink); }
+
+/* ---------- cards ---------- */
+.card-grid { display: grid; gap: 44px 28px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+.card { display: flex; flex-direction: column; min-width: 0; }
+.card-link { display: block; color: inherit; text-decoration: none; }
+.card-link:focus-visible { outline: none; }
+.card-img {
+  position: relative; display: block; aspect-ratio: 1200 / 630; border-radius: var(--radius); overflow: hidden; background: var(--surface);
+  box-shadow: 0 0 0 1px var(--rule-2);
+  transition: box-shadow .3s cubic-bezier(.3, .7, .2, 1);
+}
+.card-img img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .7s cubic-bezier(.3, .7, .2, 1); }
+.card-ph { display: grid; place-items: center; width: 100%; height: 100%; background: var(--sunken); }
+.card-ph .logo { width: 48px; height: 48px; color: var(--rule); }
+.card-link:hover .card-img, .card-link:focus-visible .card-img {
+  box-shadow: 0 0 0 1px var(--rule), 0 18px 36px -22px rgba(23, 25, 30, .38);
+}
+.card-link:hover .card-img img { transform: scale(1.035); }
+.card-link:focus-visible .card-img { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* a draft, seen only in a dev build (npm run dev): a label on the picture */
+.card-draft {
+  position: absolute; top: 10px; left: 10px; padding: 3px 9px; border-radius: 6px;
+  font-family: var(--sans); font-size: 12px; font-weight: 500; line-height: 1.5; color: var(--ink-2);
+  background: var(--surface); box-shadow: 0 0 0 1px var(--rule), 0 1px 3px -1px rgba(23, 25, 30, .2);
+}
+.card-title {
+  display: grid; font-family: var(--sans); font-size: 16.5px; font-weight: 600; letter-spacing: -.014em; line-height: 1.3;
+  margin: 16px 0 6px; color: var(--ink);
+}
+/* On hover the accent-coloured copy of the title is wiped in from the left,
+   and with it an underline under each of its lines, so the colour and the
+   underline draw in together. */
+.card-title > .ct { grid-area: 1 / 1; }
+.card-title > .ct-hover {
+  color: var(--accent); clip-path: inset(-.3em 100% -.3em 0);
+  transition: clip-path .55s cubic-bezier(.3, .7, .2, 1);
+}
+.ct-hover > .ct-line { background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat; padding-bottom: 1px; }
+.card-link:hover .ct-hover, .card-link:focus-visible .ct-hover { clip-path: inset(-.3em 0 -.3em 0); }
+.card-desc { font-family: var(--sans); font-size: 14.5px; line-height: 1.55; letter-spacing: -.003em; color: var(--ink-2); margin: 0; }
+.card-desc .katex { font-size: 1.06em; }
+.card-topics { margin-top: 12px; }
+.card-topics a { height: 24px; padding: 0 10px; font-size: 12px; }
+
+/* ---------- topics ---------- */
+.topic-list { list-style: none; padding: 0; margin: 0; max-width: 720px; }
+.topic-list li { padding: 18px 0 20px; border-top: 1px solid var(--rule-2); }
+.topic-list li:last-child { border-bottom: 1px solid var(--rule-2); }
+.topic-list a { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: var(--ink); text-decoration: none; }
+.topic-name { font-family: var(--sans); font-size: 19px; font-weight: 600; letter-spacing: -.014em; transition: color .12s; }
+.topic-list a:hover .topic-name { color: var(--accent-ink); }
+.topic-count { font-family: var(--sans); font-size: 13px; color: var(--ink-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.topic-list p { margin: 4px 0 0; color: var(--ink-2); font-size: 15.5px; }
+
+/* ---------- page frame ---------- */
+.entry-head { padding-top: 52px; padding-bottom: 6px; }
+@media (max-width: 700px) { .entry-head { padding-top: 24px; } }
+.entry-topics { margin-bottom: 14px; }
+.entry-head h1 { margin: 0 0 28px; max-width: 22em; }
+.entry-body { min-height: 40vh; }
+.entry-foot { margin-top: 72px; padding-top: 24px; border-top: 1px solid var(--rule-2); }
+.refs h2 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 10px; }
+.refs ol { margin: 0 0 22px; padding-left: 1.5em; font-size: 15px; line-height: 1.55; color: var(--ink-2); max-width: 78ch; }
+.refs li { margin: 6px 0; padding-left: 4px; }
+.refs li::marker { font-family: var(--sans); font-size: 12.5px; color: var(--ink-3); }
+.refs cite { font-style: italic; }
+/* the entry a citation jumped to: a light blue that fades after a few seconds
+   (site.js restarts it when the same entry is chosen again) */
+.refs li { border-radius: 4px; }
+.refs li:target { animation: ref-flash 3.5s ease-in forwards; }
+@keyframes ref-flash {
+  0%, 45% { background-color: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft); }
+  100% { background-color: transparent; box-shadow: 0 0 0 4px transparent; }
+}
+/* citations ([@key] in the text, build/cite.mjs): numbers that link to the list,
+   with the reference in a card (site.js) when pointed at, focused or tapped */
+.cite { white-space: nowrap; isolation: isolate; } /* so a number's background can sit behind the brackets */
+.cite-ref { position: relative; color: var(--accent-ink); text-decoration: none; font-variant-numeric: tabular-nums; }
+/* the hover background, a little wider than the number but behind the text
+   (brackets included), so nothing moves; and a larger target for a finger */
+.cite-ref::before { content: ""; position: absolute; inset: -1px -3px; z-index: -1; border-radius: 4px; }
+.cite-ref::after { content: ""; position: absolute; inset: -4px -3px; }
+.cite-ref:hover::before, .cite-ref[aria-expanded="true"]::before { background: var(--accent-soft); }
+.cite-card {
+  position: absolute; z-index: 40; /* under the sticky navigation and control bar */
+  width: max-content; max-width: min(26rem, calc(100vw - 24px)); box-sizing: border-box;
+  padding: 10px 14px 11px; font-size: 14.5px; line-height: 1.5; color: var(--ink-2);
+  background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.cite-card[hidden] { display: none; }
+.cite-card cite { font-style: italic; }
+.cite-card-n { font-family: var(--sans); font-size: 12.5px; color: var(--ink-3); margin-right: 6px; }
+.cite-card-go { display: block; width: max-content; margin-top: 6px; font-family: var(--sans); font-size: var(--text-label); color: var(--accent-ink); }
+.related { margin-top: 80px; }
+.related h2 { font-size: 18px; margin-bottom: 22px; }

@@ -1,0 +1,104 @@
+/* Amoebas and tropical curves.
+   Phone: the amoeba, the polynomial, then the name, the legend and the
+   readouts. Wide: the amoeba on the left; on the right its name and legend,
+   the polynomial and the readouts.
+   Then the sections of text, two with a figure: the lifted Newton polygon in
+   "The tropical limit", and the area against log t in "Area". Each changes the
+   amoeba at the top, out of view, so each has a small copy of it beside it
+   (under it on a phone: the theme's .fig-pair and .fig-copy). */
+
+/* Data colours by meaning; main.js reads the same names through MM.color.
+   Yellow is the handles and blue the selection, so the data start at green. */
+body {
+  --amoeba: var(--c3);      /* the amoeba, filled pale */
+  --trop: var(--ink);       /* the tropical curve, and the roof and subdivision it is dual to */
+  --real: var(--c4);        /* the real points of the curve */
+  --roof: var(--ink);       /* the faces of the roof over the lifted points, faint */
+}
+
+/* the amoeba large beside its name, formula and readouts (nothing under it in its column) */
+.am { --split-main: 1.45fr; --split-below: 24px; }
+
+/* ---------- the amoeba ---------- */
+.am-plane { position: relative; }
+/* (two fingers zoom it and move it, MM.pinchZoom; a mouse or a pen moves it, .pannable) */
+#canvas { display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); }
+#canvas.is-over:not(.is-panning) { cursor: pointer; }
+
+/* ---------- the lifted Newton polygon (its control, Rotate, above it) ---------- */
+.am-lift { position: relative; max-width: 440px; margin: 0 auto; }
+/* (it turns under a drag, MM.turnDrag; main.js gives it the shape of the picture of the curve
+   in view, its aspect ratio) */
+#lift-cv { display: block; width: 100%; aspect-ratio: 6 / 5; }
+
+/* the handles (.handle, MM.handle): elements of their own over the canvas, so that only they
+   take over touch and they can hold the keyboard focus. Placed by main.js. Their ring is grey;
+   the selected coefficient's blue, the one pointed at red. */
+.am-handle { --handle-size: 32px; cursor: ns-resize; }
+/* phone: the points lie closer together; the handles are drawn smaller, in the same box */
+@media (max-width: 520px) { .am-handle > .handle-art { width: 26px; height: 26px; margin: 3px; } }
+.am-handle, .ch-handle { --handle-ring: var(--ink-2); }
+.am-handle.is-sel { --handle-ring: var(--accent); }
+.am-handle.is-hover { --handle-ring: var(--highlight); }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+/* phone: the polynomial straight under the amoeba, so that it shows while a term changes */
+@media (max-width: 899.98px) {
+  .am-fblock { order: -1; border-top: 0; padding-top: 0; }
+}
+
+/* the polynomial, written out and edited in place: a click on a sign changes
+   it, a drag on the rest of a term changes its power of t (main.js) */
+.am-formula { margin: 0; font-size: 16.5px; line-height: 2.1; user-select: none; -webkit-user-select: none; }
+.am-tm { white-space: nowrap; border-radius: 4px; }
+.am-sign {
+  appearance: none; border: 0; background: none; margin: 0; padding: 0; border-radius: 4px;
+  font: inherit; color: inherit; line-height: 1.5; cursor: pointer;
+}
+.am-sign.is-lead { color: var(--ink-3); }
+/* (a line height of their own, the same as the chosen term's label below, so that their
+   grounds, on hover or chosen, are the height of that label's) */
+.am-body { display: inline-block; padding: 0 2px; border-radius: 4px; line-height: 1.5; cursor: ew-resize; }
+.am-sign:hover, .am-body:hover { background: var(--sunken); }
+.am-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.am-tm.is-sel { color: var(--accent-ink); }
+.am-tm.is-hover { color: var(--highlight); }
+/* the term being edited (once a term is clicked, its slider shows): in the formula, and as
+   its slider's label, alike: blue on light blue */
+.am-fblock.is-editing .am-tm.is-sel { color: var(--accent-ink); }
+.am-fblock.is-editing .am-tm.is-sel .am-body, .am-chosen { color: var(--accent-ink); background: var(--accent-soft); }
+.am-chosen { display: inline-block; padding: 0 2px; border-radius: 4px; line-height: 1.5; }
+/* in the label, the monomial lighter: it is the power of t that the slider changes */
+.am-chosen .am-mono { color: color-mix(in srgb, var(--accent-ink) 45%, var(--accent-soft)); }
+/* t, and the height of the term clicked, each on a line of its own under the formula: its value
+   and a slider. The value keeps one width, so that the slider stays put as it changes. */
+.am-param { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-size: 16.5px; }
+.am-pv { flex: none; width: 5.4em; white-space: nowrap; }
+.am-param input[type="range"] { flex: 1 1 auto; min-width: 0; max-width: 300px; }
+.am-fblock .hint { margin: 6px 0 0; }
+/* t, under a rule of its own, apart from the formula and the chosen term */
+.am-trow { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--rule-2); }
+
+/* legend marks, drawn in the figure's colours: the amoeba filled pale, as it is drawn (no edge) */
+.am-mark { display: inline-block; width: 13px; height: 13px; border-radius: 3px; flex: none; background: color-mix(in srgb, var(--c) 40%, var(--surface)); }
+.legend-line.trop { --c: var(--trop); }
+.legend-line.real { --c: var(--real); --line-width: 2.2; }
+/* the weight of an edge of the tropical curve, in a small ring, as in the picture */
+.am-wt { width: 17px; height: 17px; flex: none; overflow: visible; }
+.am-wt circle { fill: var(--surface); stroke: var(--trop); stroke-width: 1; }
+.am-wt text { font-family: var(--sans); font-size: 11px; text-anchor: middle; fill: var(--ink); }
+
+/* ---------- the area against log t ---------- */
+/* drawn one unit to a pixel (main.js), so that its labels keep the size of the text's */
+#chart { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; overflow: visible; }
+.ch-grid { stroke: var(--rule-2); stroke-width: 1; }
+.ch-axis { stroke: var(--rule); stroke-width: 1; }
+.ch-bound { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.ch-num { font-size: 12.5px; fill: var(--ink-3); }
+.ch-curve { fill: none; stroke: var(--amoeba); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+/* a click on the chart puts t there */
+#chart { cursor: pointer; }
+/* the handle at the formula's t (MM.handle), which a drag moves along the curve; a line down to the axis */
+.ch-guide { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 2; }
+.ch-handle { cursor: ew-resize; }
+.ch-hit { fill: transparent; }

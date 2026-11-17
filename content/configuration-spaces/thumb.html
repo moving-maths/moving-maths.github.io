@@ -1,0 +1,93 @@
+<!-- The card image (npm run thumbs): the page's first view, three ordered
+     points in the plane, up to translation and scale, as a point of S³ seen in
+     R³: the collisions x1 = x2, x1 = x3, x2 = x3 are three circles, each linked
+     with the other two, paler where they are further away, and the
+     configuration the page starts from is the red dot. Drawn as the page draws
+     it, with heavier marks so that it reads at card size. Computed with
+     confspaces.js. -->
+<script src="confspaces.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), CS = window.ConfSpaces, TAU = 2 * Math.PI;
+  // the page's first view of R³, and the points it starts from
+  const mm = (A, B) => A.map((row) => B[0].map((_, j) => row.reduce((s, x, k) => s + x * B[k][j], 0)));
+  const mv = (M, v) => M.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+  const rotX = (t) => { const c = Math.cos(t), s = Math.sin(t); return [[1, 0, 0], [0, c, -s], [0, s, c]]; };
+  const rotZ = (t) => { const c = Math.cos(t), s = Math.sin(t); return [[c, -s, 0], [s, c, 0], [0, 0, 1]]; };
+  const VIEW = mm(rotX(1.36), mm([[1, 0, 0], [0, 0, 1], [0, -1, 0]], rotZ(Math.PI / 2)));
+  const HOME = [[0.3, 0.36], [0.92, 0.25], [0.57, 0.7]];
+  const curves = CS.collisionCurves(true, 600);
+  const rad = Math.max(...curves.flatMap((c) => c.pts.map((p) => Math.hypot(p[0], p[1], p[2]))));
+  // perspective, as on the page, then fitted to the image
+  const view = (p) => { const v = mv(VIEW, p), f = 14 / (14 - v[2] / rad); return [f * v[0], f * v[1], v[2] / rad]; };
+  const all = curves.flatMap((c) => c.pts.map(view));
+  const x0 = Math.min(...all.map((p) => p[0])), x1 = Math.max(...all.map((p) => p[0]));
+  const y0 = Math.min(...all.map((p) => p[1])), y1 = Math.max(...all.map((p) => p[1]));
+  const k = Math.min((W - 420) / (x1 - x0), (H - 150) / (y1 - y0));
+  const proj = (p) => { const v = view(p); return [W / 2 + k * (v[0] - (x0 + x1) / 2), H / 2 - k * (v[1] - (y0 + y1) / 2), v[2]]; };
+  const rgb = (name) => MM.color(name).match(/[\d.]+/g).map(Number).slice(0, 3);
+  const mix = (a, b, t) => 'rgb(' + a.map((x, i) => Math.round(x + (b[i] - x) * t)).join(',') + ')';
+
+  const BAND = 9, HALO = 10;
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    const paper = MM.color('surface'), white = rgb('surface');
+    const bands = curves.map((c) => ({ pair: c.pair, P: c.pts.map(proj), rgb: rgb('cs-c' + (c.pair[0] + 1) + (c.pair[1] + 1)) }));
+    // paler further away, as on the page (there with opacity, here mixed with the page colour)
+    const tone = (b, z) => mix(b.rgb, white, 1 - Math.max(0.45, Math.min(1, 0.7 + 0.3 * z)));
+    const strand = (b, from, to) => {
+      cx.lineCap = 'round';
+      cx.lineWidth = BAND;
+      for (let i = from; i < to; i++) {
+        const p = b.P[(i + b.P.length) % b.P.length], q = b.P[(i + 1 + b.P.length) % b.P.length];
+        cx.strokeStyle = tone(b, (p[2] + q[2]) / 2);
+        cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke();
+      }
+    };
+    // each circle whole, then, at each crossing, the strand in front again over a
+    // halo of the page colour, so that the one behind is cut where it passes under
+    for (const b of bands) strand(b, 0, b.P.length);
+    const over = [];
+    for (let a = 0; a < bands.length; a++) for (let c = a + 1; c < bands.length; c++) {
+      const A = bands[a].P, B = bands[c].P;
+      for (let i = 0; i < A.length; i++) for (let j = 0; j < B.length; j++) {
+        const p = A[i], p2 = A[(i + 1) % A.length], r = B[j], r2 = B[(j + 1) % B.length];
+        const d = (p2[0] - p[0]) * (r2[1] - r[1]) - (p2[1] - p[1]) * (r2[0] - r[0]);
+        if (Math.abs(d) < 1e-9) continue;
+        const t = ((r[0] - p[0]) * (r2[1] - r[1]) - (r[1] - p[1]) * (r2[0] - r[0])) / d;
+        const s = ((r[0] - p[0]) * (p2[1] - p[1]) - (r[1] - p[1]) * (p2[0] - p[0])) / d;
+        if (t < 0 || t > 1 || s < 0 || s > 1) continue;
+        over.push(p[2] + t * (p2[2] - p[2]) > r[2] + s * (r2[2] - r[2]) ? { b: bands[a], i } : { b: bands[c], i: j });
+      }
+    }
+    for (const { b, i } of over) {
+      // about 40 px of the strand either side of the crossing
+      let lo = i, hi = i, len = 0;
+      while (len < 40) { len += Math.hypot(b.P[(hi + 1) % b.P.length][0] - b.P[hi % b.P.length][0], b.P[(hi + 1) % b.P.length][1] - b.P[hi % b.P.length][1]); hi++; }
+      len = 0;
+      while (len < 40) { const m = (lo + b.P.length) % b.P.length, l = (lo - 1 + b.P.length) % b.P.length; len += Math.hypot(b.P[m][0] - b.P[l][0], b.P[m][1] - b.P[l][1]); lo--; }
+      cx.lineCap = 'butt';
+      cx.lineWidth = BAND + HALO;
+      cx.strokeStyle = paper;
+      cx.beginPath();
+      for (let m = lo; m <= hi; m++) { const p = b.P[(m + b.P.length) % b.P.length]; if (m === lo) cx.moveTo(p[0], p[1]); else cx.lineTo(p[0], p[1]); }
+      cx.stroke();
+      strand(b, lo, hi);
+    }
+    // each circle named where it is furthest out
+    const mid = [W / 2, H / 2];
+    for (const b of bands) {
+      let best = b.P[0], bd = -1;
+      for (const p of b.P) { const d = Math.hypot(p[0] - mid[0], p[1] - mid[1]); if (d > bd) { bd = d; best = p; } }
+      const ux = (best[0] - mid[0]) / bd, uy = (best[1] - mid[1]) / bd;
+      MM.canvasLabel(cx, '$x_' + (b.pair[0] + 1) + '=x_' + (b.pair[1] + 1) + '$', best[0] + ux * 34, best[1] + uy * 34,
+        { size: 34, align: ux > 0.35 ? 'left' : ux < -0.35 ? 'right' : 'center', baseline: 'middle', color: MM.color('ink-2') });
+    }
+    // the configuration the page starts from
+    const [px, py] = proj(CS.point3(HOME, true));
+    cx.beginPath(); cx.arc(px, py, 16, 0, TAU); cx.fillStyle = paper; cx.fill();
+    cx.beginPath(); cx.arc(px, py, 12, 0, TAU); cx.fillStyle = MM.color('cs-config'); cx.fill();
+  }
+  MM.onFonts(draw);
+})();
+</script>

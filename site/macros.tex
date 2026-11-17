@@ -1,0 +1,50 @@
+% Site-wide TeX macros, available on every page, at build time and in the
+% browser (MM.tex). Pages can add their own under `macros:` in front matter.
+% Supported: \newcommand, \renewcommand, \DeclareMathOperator(*).
+
+% Number systems
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\ZZ}{\mathbb{Z}}
+\newcommand{\QQ}{\mathbb{Q}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\CC}{\mathbb{C}}
+\newcommand{\FF}{\mathbb{F}}
+\newcommand{\PP}{\mathbb{P}}
+\newcommand{\AA}{\mathbb{A}}
+
+% Operators
+\DeclareMathOperator{\Hom}{Hom}
+\DeclareMathOperator{\End}{End}
+\DeclareMathOperator{\Aut}{Aut}
+\DeclareMathOperator{\Spec}{Spec}
+\DeclareMathOperator{\Proj}{Proj}
+\DeclareMathOperator{\Sym}{Sym}
+\DeclareMathOperator{\Stab}{Stab}
+\DeclareMathOperator{\Ker}{Ker}
+\DeclareMathOperator{\Coker}{Coker}
+
+\DeclareMathOperator{\id}{id}
+\DeclareMathOperator*{\colim}{colim}
+
+% Brackets
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\angles}[1]{\left\langle #1 \right\rangle}
+
+% Groups
+\DeclareMathOperator{\GL}{GL}
+\DeclareMathOperator{\SL}{SL}
+\DeclareMathOperator{\PGL}{PGL}
+\DeclareMathOperator{\SO}{SO}
+\DeclareMathOperator{\SU}{SU}
+\DeclareMathOperator{\Sp}{Sp}
+
+% Real and imaginary parts as operators (KaTeX's defaults are ℜ and ℑ)
+\DeclareMathOperator{\Im}{Im}
+\DeclareMathOperator{\Re}{Re}
+\DeclareMathOperator{\tr}{tr}
+
+% Configuration spaces
+\DeclareMathOperator{\Conf}{Conf}
+\DeclareMathOperator{\UConf}{UConf}
+\DeclareMathOperator{\Ran}{Ran}

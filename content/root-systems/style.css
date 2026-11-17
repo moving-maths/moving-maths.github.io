@@ -1,0 +1,72 @@
+/* Root systems of rank two and three.
+   Phone: the figure, the name of the system, the lists of systems, then the readouts. Wide:
+   the figure and the lists under it on the left, readouts on the right. Then the sections of
+   text. */
+
+/* Data colours by meaning; main.js reads the same names through MM.color. */
+body {
+  /* The real roots and their mirrors take the site's blue, which is also the
+     accent: the chamber of the handle, cut out by mirrors, is a tint of it. The
+     imaginary roots are red, apart from the data colours (nothing else on the page is
+     red); the odd roots of a superalgebra take green and orange. */
+  --root-real: var(--c1);   /* real roots and their mirrors; even roots of a superalgebra */
+  --root-imag: var(--red);   /* imaginary roots */
+  --root-iso: var(--c3);    /* odd isotropic roots */
+  --root-odd: var(--c2);    /* odd roots that are not isotropic */
+}
+
+/* the plane beside its readouts, in view while they scroll (.split in theme.css), with the
+   line and the lists under it */
+.rs { --split-main: 1.25fr; --split-below: 180px; }
+/* On a phone the two columns become one list, so that the name of the system comes
+   straight under the figure, then the lists. */
+@media (max-width: 899.98px) {
+  .rs > .split-main, .rs > .split-side { display: contents; }
+  .rs .side-head { order: 1; }
+  .rs .strip-block { order: 2; }
+  .rs .side-block:not(.side-head) { order: 3; }
+  .rs .side-block.side-more { order: 4; } /* (the description last, as before) */
+}
+
+/* ---------- the plane ---------- */
+.rs-plane { position: relative; }
+#canvas { display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); }
+/* (in rank three it turns, or moves, under a drag: MM.turnDrag; it zooms by pinching: MM.pinchZoom) */
+#canvas.is-over-root:not(.turnable:active) { cursor: pointer; }
+
+/* the handle (.handle, MM.handle): an element of its own over the canvas, so that only it
+   takes over touch (a swipe on the figure still scrolls the page) and it can hold the
+   keyboard focus. Positioned by main.js with a transform. */
+.rs-handle.is-back > .handle-art { opacity: .5; } /* on the far side of the sphere, or out of the window: shown at the edge */
+
+.rs-main .hint { margin-top: 10px; }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+/* Beside the figure: the name of the system (with the α of D(2,1;α), or the a and b of a
+   hyperbolic system of rank 2, under it), the legend, its description, the diagram, the
+   selected root. On a phone the description goes last, so that the legend and the diagram
+   are straight under the figure. */
+/* the legend (.dot, .swatch, .legend-line, in ink): the standard chamber's simple roots faint, mirrors */
+.dot.faint { --dot-ring: var(--ink-3); }
+.legend-line.faint { --c: var(--ink-3); --line-width: 1.25; }
+.legend-line.mirror { --c: var(--root-real); --line-width: 1.25; }
+.legend-line.mirror.iso { --c: var(--root-iso); }
+#pos { font-size: 15px; line-height: 1.6; min-height: 5em; }
+#pos p { margin: 0 0 .45em; }
+#sel { min-height: 5.6em; }
+#sel p { margin: 0; }
+#sel .rs-sel-name { font-size: 17px; margin-bottom: 2px; }
+.rs-kind { white-space: nowrap; }
+
+/* Dynkin diagram: built by main.js, each node with its root underneath */
+#dynkin { min-height: 54px; margin: 2px 0 8px; }
+#dynkin svg { display: block; overflow: visible; }
+.dk-line { stroke: var(--ink); stroke-width: 1.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.dk-line.heavy { stroke-width: 3.2; }
+.dk-node { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+.dk-node.b { fill: var(--ink); }
+.dk-name { font-size: 13px; text-anchor: middle; }
+.dk-name.start { text-anchor: start; }
+.dk-bond { font-size: 11.5px; text-anchor: middle; fill: var(--ink-2); }
+.rs-key { font-size: var(--text-label); color: var(--ink-3); }
+.dk-key { display: inline-block; width: 15px; height: 15px; vertical-align: -3px; margin-right: 4px; overflow: visible; }

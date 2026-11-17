@@ -1,0 +1,141 @@
+/* Knots.
+   Phone: the diagram, the table, the name, the link in space, then the readouts.
+   Wide: the diagram and the table on the left; on the right the name, the link in
+   space and the readouts. What the numbers are follows as page text, each part
+   with a small figure of the diagram in view. */
+
+/* Colours by meaning; main.js reads the same names through MM.color.
+   The components of a link take the data colours in turn, blue (the site's own
+   trefoil), orange, green, purple, magenta, teal, as lines (--cN-line); red is the
+   page's mark for what is picked. Blue is also the selection, so a colouring and the
+   loops of a state start at green. */
+body {
+  --k-0: var(--c1-line); --k-1: var(--c2-line); --k-2: var(--c3-line); --k-3: var(--c4-line); --k-4: var(--c5-line); --k-5: var(--c6-line);
+  /* the link in space: the same hues at full strength, since it pales them itself with depth and light */
+  --tube-0: var(--c1); --tube-1: var(--c2); --tube-2: var(--c3); --tube-3: var(--c4); --tube-4: var(--c5); --tube-5: var(--c6);
+  --caught: var(--highlight); /* the crossings a pull is caught on (and the crossing picked) */
+  --col-0: var(--c3-line); --col-1: var(--c2-line); --col-2: var(--c4-line); --col-3: var(--c5-line);
+  --col-4: var(--c6-line); --col-5: var(--c7-line); --col-6: var(--ink-3);
+  --loop-0: var(--c3-line); --loop-1: var(--c2-line); --loop-2: var(--c4-line); --loop-3: var(--c5-line); --loop-4: var(--c6-line); --loop-5: var(--c7-line);
+  --region: var(--c1-soft); /* the shaded regions of a chessboard colouring */
+}
+
+.kn { --split-main: 1.25fr; }
+
+/* the two modes, Reshape and Draw: an icon and a word in each segment */
+.kn-mode { display: inline-flex; align-items: center; gap: 5px; }
+.kn-mode svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.kn-mode svg .ring { stroke-width: 1.3px; }
+
+/* ---------- the diagram ---------- */
+.kn-stagebox { position: relative; }
+#stage {
+  display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--rule-2); --split-below: 150px;
+}
+.kn-strand { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.kn-arrow { stroke: none; }
+.kn-strand.is-new { stroke: var(--ink-2); stroke-width: 2.4; }
+/* what takes the pointer: the strands, to pull them, and each crossing, to change it */
+.kn-hit { fill: none; stroke: transparent; stroke-width: 24; stroke-linecap: round; stroke-linejoin: round; pointer-events: stroke; } /* (.draggable) */
+#stage.is-pulling, #stage.is-pulling .kn-hit, #stage.is-pulling .kn-x { cursor: grabbing; }
+/* a crossing: its ring, red (the page's mark: blue is a component's colour), shows it under the
+   pointer, with the focus and while its menu is open */
+.kn-x { cursor: pointer; outline: none; }
+.kn-x .pad { fill: transparent; }
+.kn-x .ring { fill: none; stroke: var(--highlight); stroke-width: 1.6; opacity: 0; transition: opacity .12s; }
+.kn-x:hover .ring { opacity: .55; }
+.kn-x:focus-visible .ring, .kn-x.is-open .ring { opacity: 1; stroke-width: 2; }
+.kn-caught { fill: none; stroke: var(--caught); stroke-width: 2; }
+/* a component picked out by a click on its strand: a band of the selection colour under it */
+.kn-sel { fill: none; stroke: var(--accent); stroke-opacity: .22; stroke-width: 13; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+/* an arrow: which way its component runs; clicked, the component turns round */
+.kn-dir { cursor: pointer; outline: none; }
+.kn-dir.is-still { pointer-events: none; }
+.kn-dir .pad { fill: transparent; }
+.kn-dir:focus-visible .pad { stroke: var(--accent); stroke-width: 2; }
+/* two strands brought together: where they would be joined */
+.kn-near { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 3 3; pointer-events: none; }
+.kn-near.is-open { stroke-dasharray: none; stroke-width: 2; }
+/* a generator's loop round its arc: over the arc where it passes over (its gap of
+   the ground hides the arc there), broken where it passes under */
+/* the generators' loops: light grey, the one picked out in the presentation in ink
+   (the strands are coloured, the first blue) */
+.kn-loop { fill: none; stroke: var(--ink-3); stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+.kn-loop-gap { fill: none; stroke: var(--surface); stroke-width: 7; stroke-linecap: round; pointer-events: none; }
+.kn-loop-arrow { fill: var(--ink-3); stroke: none; pointer-events: none; }
+.kn-loop.is-chosen { stroke: var(--ink); }
+.kn-loop-arrow.is-chosen { fill: var(--ink); }
+/* the generators in the presentation, which show their loops */
+/* (dotted lines under clickable maths are borders: KaTeX does not take an underline) */
+.kn-gen { appearance: none; border: 0; border-bottom: 1px dotted currentColor; margin: 0; padding: 0 1px; font: inherit; color: var(--accent-ink); background: none; border-radius: 4px 4px 0 0; cursor: pointer; }
+.kn-gen:hover { background: var(--sunken); }
+.kn-gen[aria-pressed="true"] { background: var(--accent-soft); border-bottom-color: transparent; border-radius: 4px; }
+.kn-gen:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* drawing: the whole frame takes the pointer, and a swipe on it does not scroll */
+#stage.is-drawing { cursor: crosshair; touch-action: none; }
+#stage.is-drawing .kn-hit, #stage.is-drawing .kn-x { pointer-events: none; }
+/* a colouring: the arcs in the colours of their numbers, each with its number */
+.kn-num { font-size: 13px; text-anchor: middle; fill: var(--ink); pointer-events: none; user-select: none; -webkit-user-select: none; } /* (on a halo: .halo) */
+#hint { min-height: 2.9em; }
+
+/* ---------- the four things a crossing can be (.fig-menu), or tools as in the bar (.btn-icon)
+   for a component picked out; the hint while drawing (.fig-overlay) ---------- */
+.kn-menu > .btn:not(.btn-icon) { padding: 3px; }
+.kn-menu > .btn:not(.btn-icon) > svg { display: block; width: 36px; height: 36px; }
+.kn-menu > .btn:not(.btn-icon) > svg path { fill: none; stroke-width: 2.6; stroke-linecap: round; }
+
+/* ---------- the table of knots and links (.strip-block): each a small diagram ---------- */
+.kn-mini { --strip-picture-height: 46px; min-width: 0; width: 58px; padding: 4px 3px 2px; }
+.kn-mini > svg { width: 46px; }
+.kn-mini path { fill: none; stroke: currentColor; stroke-width: .085; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- the link in space ---------- */
+/* (it turns under a drag: MM.turnDrag) */
+#space { display: block; width: 100%; max-width: 340px; aspect-ratio: 4 / 3; margin: 2px auto 0; }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+/* (a line kept for the name; a link with no common name has no line under it: nothing is held for it) */
+#name { min-height: 1.5em; }
+.side-block > .kv { margin-top: 8px; }
+
+/* ---------- the figures in the text ---------- */
+.kn-small { display: block; width: 100%; max-width: 360px; aspect-ratio: 1; margin: 0 auto; }
+.kn-skein { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.kn-skein figure { position: relative; margin: 0; min-width: 0; padding: 4px 4px 0; border-radius: 8px 8px 0 0; }
+/* the names and polynomials, a row of their own under the diagrams (each under its own) */
+.kn-pcap { min-width: 0; padding: 0 4px 6px; border-radius: 0 0 8px 8px; }
+/* the button that shows a picture's diagram as the main picture, in its corner */
+.kn-show { position: absolute; top: 4px; right: 4px; }
+html.is-dialog-open .kn-show { visibility: hidden; } /* (not in Save image's picture of the figure) */
+/* the diagram being worked out: the other two are what its polynomial is made from */
+.kn-skein figure.is-current, .kn-pcap.is-current { background: var(--accent-soft); }
+.kn-skein figure > svg { display: block; width: 100%; aspect-ratio: 1; }
+.kn-skein .kn-plabel { font-size: 30px; text-anchor: start; }
+.kn-skein .kn-pname { text-align: center; font-size: 14px; color: var(--ink-2); margin-top: 2px; }
+.kn-skein .kn-pval { text-align: center; font-size: 14px; overflow-wrap: anywhere; margin-top: 2px; }
+/* the diagrams to work out in turn, and the steps taken */
+.kn-into { appearance: none; border: 0; border-bottom: 1px dotted currentColor; margin: 0; padding: 1px 4px 0; font: inherit; color: var(--accent-ink); background: none; border-radius: 4px 4px 0 0; cursor: pointer; }
+.kn-into:hover { background: var(--sunken); }
+.kn-into:focus-visible, .kn-crumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* from the HOMFLYPT polynomial in the readouts to its working */
+.kn-how { font-family: var(--sans); font-size: var(--text-label); }
+/* the steps of the working, on a band of their own above it */
+.kn-path { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 14px; color: var(--ink-2); margin: 0 0 10px; padding: 5px 8px; background: var(--sunken); border-radius: 8px; }
+.kn-path:empty { display: none; }
+.kn-crumb { appearance: none; border: 0; margin: 0; padding: 1px 4px; font: inherit; color: inherit; background: none; border-radius: 4px; }
+button.kn-crumb { color: var(--accent-ink); cursor: pointer; }
+button.kn-crumb:hover { background: var(--sunken); }
+.kn-sep { color: var(--ink-3); }
+.kn-small .kn-x, .kn-skein .kn-x { cursor: pointer; }
+.kn-small .kn-x .pad, .kn-skein .kn-x .pad { fill: transparent; }
+/* the crossing picked: red, the page's mark for what is picked or explained (no
+   component is red; the first is blue, as the selection is) */
+.kn-small .kn-x .ring, .kn-skein .kn-x .ring { fill: none; stroke: var(--highlight); stroke-width: 1.6; opacity: 0; transition: opacity .12s; }
+.kn-small .kn-x:hover .ring, .kn-skein .kn-x:hover .ring { opacity: .55; }
+.kn-small .kn-x:focus-visible .ring, .kn-skein .kn-x:focus-visible .ring, .kn-x.is-picked .ring { opacity: 1; stroke-width: 2; }
+.kn-small text, .kn-skein text { font-size: 13px; text-anchor: middle; fill: var(--ink); pointer-events: none; } /* (on a halo: .halo) */
+.kn-region { fill: var(--region); stroke: none; }
+/* (the strokes keep their width however small the figure is drawn) */
+.kn-small .kn-strand, .kn-skein .kn-strand { stroke-width: 2.2; vector-effect: non-scaling-stroke; }
+.kn-small .kn-x .ring, .kn-skein .kn-x .ring { vector-effect: non-scaling-stroke; }

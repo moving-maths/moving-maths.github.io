@@ -1,0 +1,359 @@
+---
+title: Components
+description: Every component and token of the theme, in its states. Built only by npm run dev.
+dev_only: true
+wide: true
+---
+<style>
+  .gal-sec { margin: 44px 0; }
+  .gal-sec > h2 { margin-bottom: 4px; }
+  .gal-sec > p { color: var(--ink-2); max-width: 70ch; }
+  .gal-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); margin-top: 16px; }
+  .gal-item { border: 1px solid var(--rule-2); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; align-content: start; }
+  .gal-item > code { font-size: 12px; color: var(--ink-3); }
+  .gal-swatches { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 16px; }
+  .gal-swatch { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; align-items: center; font-size: 13px; }
+  .gal-swatch > span:first-child { grid-row: span 2; width: 34px; height: 34px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+  .gal-swatch code { font-size: 11.5px; color: var(--ink-3); }
+  .gal-log { font-family: var(--mono); font-size: 12px; color: var(--ink-3); min-height: 1.5em; }
+  .gal-logo .logo { width: 96px; height: 96px; }
+  .gal-type > * { margin: 0 0 10px; }
+  .gal-data { display: grid; gap: 8px 18px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); margin-top: 22px; }
+  .gal-data > div { display: flex; align-items: center; gap: 9px; }
+  .gal-data svg { width: 36px; height: 14px; flex: none; }
+  .gal-data path { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; }
+  .gal-data .fill { width: 22px; height: 14px; border-radius: 3px; background: var(--c-soft); }
+  .gal-menu { position: relative; min-height: 150px; }
+  .gal-menu .menu { position: static; width: max-content; }
+  .gal-stage { position: relative; display: block; width: 100%; height: 120px; background: var(--sunken); border-radius: var(--radius-sm); }
+</style>
+
+<p class="lede">The theme's tokens and components, each in its states. Change a token or a component's rule in <code>site/assets/css/theme.css</code> and check it here; every page uses the same ones. See <code>docs/design.md</code>.</p>
+
+<section class="gal-sec">
+  <h2>Colours</h2>
+  <p>Blue is the primary accent (selected, links, focus); yellow the secondary (handles you can move). Data colours belong to the mathematics in figures, used in order; the first is the blue accent. Each has a pale <code>-soft</code> for fills, a <code>-line</code> for thick lines in several colours, and a darker <code>-text</code> for text and thin lines. Red is the mark (<code>--highlight</code>) and yellow the handle, outside the sequence; for a line or text in yellow use <code>--accent-2-strong</code>.</p>
+  <div class="gal-swatches" id="swatches"></div>
+  <div class="gal-data" id="data-colours" aria-label="The eight data colours as a dot, a swatch, a badge, a stroke, a line, a soft fill and text"></div>
+</section>
+
+<section class="gal-sec gal-type">
+  <h2>Type</h2>
+  <h1>Page title, Inter 560</h1>
+  <h2 class="section-title">Section title</h2>
+  <h3>Panel or sub-section heading</h3>
+  <p class="lede">A lede: what the reader will see and do, with maths such as $\pi_1(S^1) \cong \ZZ$ and $\mathbb{1}_A$.</p>
+  <p>Body text in Inter 16px. Inline maths $\Conf_k(\RR^n) = \{(x_1, \dots, x_k) : x_i \ne x_j\}$ sits at 1.1em; display maths:</p>
+  $$\chi(M) = \sum_i (-1)^i \dim H_i(M; \QQ), \qquad \frac{a+b}{2} \ge \sqrt{ab}.$$
+  <p class="caption">A caption, 14.5px in --ink-2.</p>
+  <p class="label">A label, 13px</p>
+  <p class="hint">A hint: how to use the figure.</p>
+  <p class="eyebrow"><a href="#">An eyebrow link</a></p>
+</section>
+
+<section class="gal-sec">
+  <h2>Buttons</h2>
+  <div class="gal-grid">
+    <div class="gal-item"><div class="btn-row"><button class="btn" type="button">Random</button><button class="btn" type="button" aria-pressed="true">Auto-rotate</button><button class="btn" type="button" disabled>Disabled</button></div><code>.btn, [aria-pressed="true"], :disabled</code></div>
+    <div class="gal-item"><div class="btn-row"><button class="btn btn-sm" type="button">Small</button><button class="btn btn-sm" type="button" aria-checked="true" role="radio">Chosen</button><button class="btn btn-quiet" type="button">Quiet</button></div><code>.btn-sm, .btn-quiet</code></div>
+    <div class="gal-item"><div class="btn-row"><button class="btn btn-icon" type="button" aria-label="Previous"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button><button class="btn btn-sm btn-icon" type="button" aria-label="Next"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button><button class="btn btn-sm btn-icon" type="button" aria-label="Next" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></button></div><code>.btn-icon (with an aria-label)</code></div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Segmented controls</h2>
+  <p>The indicator slides to the chosen segment; pages set <code>aria-checked</code> (or <code>aria-pressed</code>, <code>aria-selected</code>) and the slide follows.</p>
+  <div class="gal-grid">
+    <div class="gal-item">
+      <div class="control"><span class="label">$n$</span>
+        <mm-seg value="2" aria-label="n" id="demo-seg"><button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button></mm-seg>
+      </div>
+      <div class="gal-log" id="demo-seg-log">change events appear here</div>
+      <code>&lt;mm-seg value="2"&gt;&lt;button value="1"&gt;…</code>
+    </div>
+    <div class="gal-item">
+      <mm-seg value="sym" block aria-label="space"><button value="conf">$\Conf_3(\RR^2)$</button><button value="sym">$\Sym^3(\RR^2)$</button><button value="ran">$\Ran(\RR^2)$</button></mm-seg>
+      <code>&lt;mm-seg block&gt; with maths</code>
+    </div>
+    <div class="gal-item">
+      <div class="seg" role="radiogroup" aria-label="plain" id="plain-seg"><button type="button" role="radio" aria-checked="false">Lie algebra</button><button type="button" role="radio" aria-checked="true">Group</button></div>
+      <code>.seg markup with the page's own handler</code>
+    </div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Tabs</h2>
+  <mm-tabs value="t-a" aria-label="Demo tabs">
+    <mm-tab id="t-a"><span slot="label">Type $A_2$</span><p class="caption">The first panel. The underline slides between tabs; arrow keys move along them.</p></mm-tab>
+    <mm-tab id="t-b"><span slot="label">Type $B_2$</span><p class="caption">The second panel.</p></mm-tab>
+    <mm-tab id="t-c"><span slot="label">$\mathfrak h/\!/W$ and $H/\!/W$</span><p class="caption">The third panel.</p></mm-tab>
+  </mm-tabs>
+  <p class="hint"><code>&lt;mm-tabs&gt;&lt;mm-tab id="…"&gt;&lt;span slot="label"&gt;…&lt;/span&gt;…</code>, or <code>.tabs &gt; .tab[aria-selected]</code> markup.</p>
+</section>
+
+<section class="gal-sec">
+  <h2>Toggles and sliders</h2>
+  <div class="gal-grid">
+    <div class="gal-item">
+      <mm-toggle pressed>Paper’s generator arrows</mm-toggle>
+      <mm-toggle>Edge and vertex types</mm-toggle>
+      <code>&lt;mm-toggle pressed&gt;</code>
+    </div>
+    <div class="gal-item">
+      <mm-slider min="0" max="360" step="1" value="120" unit="°">Rotate everything by $g$</mm-slider>
+      <code>&lt;mm-slider min max step value unit&gt;label&lt;/mm-slider&gt;</code>
+    </div>
+    <div class="gal-item">
+      <div class="slider-pair"><mm-slider plain min="1" max="8" step="1" value="3">$a$</mm-slider><mm-slider plain min="1" max="8" step="1" value="5">$b$</mm-slider></div>
+      <code>&lt;mm-slider plain&gt;, .slider-pair: a number in a name, its value plain text; two side by side</code>
+    </div>
+    <div class="gal-item">
+      <input type="range" min="0" max="1" step="0.01" value="0.3" aria-label="t">
+      <code>input[type=range]: blue fill, yellow thumb, a halo on hover</code>
+    </div>
+    <div class="gal-item">
+      <mm-select value="plane" aria-label="The space X"><button value="line">$\RR$</button><button value="circle">$S^1$</button><button value="plane">$\RR^2$</button><button value="torus">$T^2$</button><button value="mobius">Möbius band</button></mm-select>
+      <code>&lt;mm-select value&gt;&lt;button value&gt;…&lt;/mm-select&gt;: many choices in little room</code>
+    </div>
+    <div class="gal-item">
+      <mm-menu id="demo-menu" aria-label="Move the point"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11"/></svg></mm-menu>
+      <div class="gal-log" id="demo-menu-log"></div>
+      <code>&lt;mm-menu aria-label&gt;an icon&lt;/mm-menu&gt;, el.items = [{ value, label, disabled }]: an action with several targets, one click</code>
+    </div>
+    <div class="gal-item">
+      <mm-zoom min="1" max="8" value="2" aria-label="Zoom"></mm-zoom>
+      <code>&lt;mm-zoom min max value&gt;: a magnification on a logarithmic track; hidden on a touch screen, where the picture zooms by pinching (MM.pinchZoom)</code>
+    </div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Typed numbers</h2>
+  <p>For a value given exactly, beside the handle or slider that reaches it by dragging: fractions are fine, and what the box cannot take is marked until it is put right or Escape goes back.</p>
+  <div class="gal-grid">
+    <div class="gal-item">
+      <mm-numbers id="demo-numbers" value="2,1" min="0" max="20" integer aria-label="lambda">$\lambda$</mm-numbers>
+      <div class="gal-log" id="demo-numbers-log">type 3, 1 and press Enter; 1/2 is marked</div>
+      <code>&lt;mm-numbers value="2,1" min max integer&gt;</code>
+    </div>
+    <div class="gal-item">
+      <mm-slider id="demo-exact" exact min="-6" max="6" step="any" value="1">Level $k$</mm-slider>
+      <div class="gal-log" id="demo-exact-log">type −4/3 in the box</div>
+      <code>&lt;mm-slider exact step="any"&gt;: change → detail { value, exact }</code>
+    </div>
+    <div class="gal-item">
+      <div><input class="field" value="0.25" aria-label="a value" size="6"> <input class="field" value="x" aria-invalid="true" aria-label="a wrong value" size="6"></div>
+      <code>.field, [aria-invalid="true"]</code>
+    </div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Menus and dialogs</h2>
+  <p>The two things that float over the page, with <code>--shadow</code>. The page's tools at the end of the control bar are a menu; Save image is a dialog.</p>
+  <div class="gal-grid">
+    <div class="gal-item gal-menu">
+      <div class="menu" role="menu" aria-label="Example"><button type="button" role="menuitem">Copy link</button><button type="button" role="menuitem">Save image…</button><button type="button" role="menuitem" disabled>Reset</button></div>
+      <code>.menu (role menu, items role menuitem)</code>
+    </div>
+    <div class="gal-item">
+      <div><button type="button" class="btn" id="demo-dialog-open">Open a dialog</button></div>
+      <dialog class="dialog" id="demo-dialog" aria-labelledby="demo-dialog-title"><h2 class="dialog-title" id="demo-dialog-title">A dialog</h2><button type="button" class="btn btn-quiet btn-icon dialog-close" data-close aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button><p>Its title is a panel heading, its close button in the corner, its buttons at the bottom right.</p><div class="dialog-actions"><button type="button" class="btn btn-quiet" data-close>Cancel</button><button type="button" class="btn" data-close>Done</button></div></dialog>
+      <code>&lt;dialog class="dialog"&gt;, .dialog-title, .dialog-close, .dialog-actions</code>
+    </div>
+    <div class="gal-item">
+      <div style="position: relative; height: 150px; background: var(--sunken); border-radius: var(--radius-sm)">
+        <p class="fig-overlay">Drop a point on another to collide them.</p>
+        <div class="fig-menu" role="menu" aria-label="Example" style="left: 24px; top: 64px"><button type="button" class="btn btn-sm btn-icon" role="menuitem" aria-label="Reverse"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5.5h9.5"/><path d="M10 3l2.5 2.5L10 8"/><path d="M13 10.5H3.5"/><path d="M6 8l-2.5 2.5L6 13"/></svg></button><button type="button" class="btn btn-sm btn-icon" role="menuitem" aria-label="Remove"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7"/><path d="M11.5 4.5l-7 7"/></svg></button></div>
+      </div>
+      <code>.fig-overlay, .fig-menu: over a picture, a hint and a menu beside what it acts on</code>
+    </div>
+    <div class="gal-item">
+      <p class="see-also">The same type in <a href="#">Dynkin diagrams</a> and <a href="#">Highest weight representations</a>.</p>
+      <code>.see-also, under a figure</code>
+    </div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Handles and strips</h2>
+  <p>Tab to a handle or a point to see its focus ring; the strip is one stop for Tab, with the arrow keys, Home and End along it.</p>
+  <div class="gal-grid">
+    <div class="gal-item">
+      <div class="gal-stage">
+        <div class="handle draggable" id="demo-handle" role="slider" tabindex="0" aria-label="A handle" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="transform: translate(70px, 60px)"></div>
+        <div class="handle draggable" id="demo-handle-grey" role="slider" tabindex="0" aria-label="A handle with a grey ring" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="transform: translate(150px, 60px); --handle-ring: var(--ink-2); --handle-size: 32px"></div>
+      </div>
+      <code>.handle.draggable, MM.handle(el); --handle-ring, --handle-size</code>
+    </div>
+    <div class="gal-item">
+      <svg class="gal-stage" id="demo-points" viewBox="0 0 280 120" aria-label="Points that are handles">
+        <g class="draggable" tabindex="0" role="button" aria-label="A point"><circle class="focus-ring" cx="60" cy="60" r="10.5"/><circle class="handle-point" cx="60" cy="60" r="6.5"/></g>
+        <circle class="snap-ring" cx="140" cy="60" r="17"/>
+        <g class="draggable" tabindex="0" role="button" aria-label="A double point"><circle class="focus-ring" cx="140" cy="60" r="13"/><circle class="handle-point" cx="140" cy="60" r="9"/><text class="handle-num" x="140" y="63.8">2</text></g>
+        <g class="draggable" id="demo-handle-svg" tabindex="0" role="slider" aria-label="A handle in an SVG" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" transform="translate(220 60)"></g>
+      </svg>
+      <code>.handle-point, .handle-num, .snap-ring, .focus-ring; MM.handle(g, r)</code>
+    </div>
+    <div class="gal-item" style="grid-column: 1 / -1">
+      <section class="strip-block" aria-labelledby="demo-strip-h">
+        <div class="strip-head">
+          <h3 class="label" id="demo-strip-h">Polygons</h3>
+          <mm-seg id="demo-strip-family" value="convex" aria-label="Which polygons the strip shows"><button value="convex">Convex</button><button value="star">Star</button></mm-seg>
+        </div>
+        <div class="strip" id="demo-strip" role="toolbar" aria-labelledby="demo-strip-h"></div>
+      </section>
+      <div class="gal-log" id="demo-strip-log"></div>
+      <code>.strip-block &gt; .strip-head, .strip &gt; .strip-group[data-family] &gt; .strip-item (svg, .strip-name); MM.strip(el, { control, pick })</code>
+    </div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Readouts, chips, legends, topics</h2>
+  <div class="gal-grid">
+    <div class="gal-item"><div class="readout" aria-live="polite"><div class="readout-title">$S_{\mathrm{reg}}$ <span class="label">the dragged point</span></div>$x = \operatorname{diag}(1.15, -0.55) \mapsto (\operatorname{tr}, \det) = (0.60, -0.63)$</div><code>.readout, .readout-title</code></div>
+    <div class="gal-item"><div class="btn-row"><span class="chip">$\{\alpha\}$</span><span class="chip chip-mono">λ=(1,1,1)</span><span class="badge c4">1|2|3</span><span class="badge c2">12|3</span></div><div class="legend"><span class="legend-item"><span class="dot c1"></span>point 1</span><span class="legend-item"><span class="dot c2"></span>point 2</span><span class="legend-item"><span class="swatch c6"></span>type $\{2\}$</span><span class="legend-item"><span class="swatch c8"></span>type $\{1\}$</span></div><code>.chip, .badge, .legend, .dot, .swatch</code></div>
+    <div class="gal-item"><div class="legend"><span class="legend-item"><span class="dot c1"></span>positive root</span><span class="legend-item"><span class="dot hollow c1"></span>negative root</span><span class="legend-item"><span class="dot ringed"></span>simple root</span><span class="legend-item"><svg class="legend-line c1" viewBox="0 0 22 10" aria-hidden="true"><path d="M1 5H21"/></svg>a mirror</span><span class="legend-item"><svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true"><path d="M1 5H21" stroke-dasharray="5 4"/></svg>the null line</span><span class="legend-item"><span class="swatch c1"></span>the chamber</span></div><code>.dot.hollow, .dot.ringed, .legend-line (an svg 22 × 10 with a path, in --c and --line-width)</code></div>
+    <div class="gal-item"><div class="split-side"><section class="side-block side-head"><h2 class="side-title">$\mathrm{B}_2$ <span class="side-kind">finite type</span></h2><p class="side-sub">The root system of $\mathfrak{so}_5$.</p><div class="legend"><span class="legend-item"><span class="dot c1"></span>long root</span><span class="legend-item"><span class="dot c6"></span>short root</span></div></section><section class="side-block"><dl class="kv"><dt>Roots</dt><dd>$8$</dd><dt>Weyl group</dt><dd>of order $8$</dd></dl></section></div><code>.split-side &gt; .side-block (.side-head: .side-title, .side-kind, .side-sub, a legend)</code></div>
+    <div class="gal-item"><p class="topics"><a href="#">Topology</a><a href="#">Higher algebra</a><a href="#">Representation theory</a></p><code>.topics &gt; a</code></div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Panels, notes, definitions, tables</h2>
+  <div class="gal-grid">
+    <figure class="panel"><div class="panel-head"><h3>The space</h3><span class="panel-sub">drag the point</span></div><p class="caption">A panel holds one figure and its controls.</p></figure>
+    <div class="gal-item"><div class="note"><h4>A note</h4><p>A quiet aside.</p></div><div class="note red"><h4>A tinted note</h4><p>The printed relation is wrong.</p></div></div>
+    <div class="gal-item"><dl class="kv"><dt>Stabiliser</dt><dd>$\Stab_W(\mathfrak l) = \{1, s_\alpha\}$</dd><dt>Quotient</dt><dd>$W(\mathfrak l) = 1$</dd></dl></div>
+  </div>
+  <div class="scroll-x" style="margin-top:18px"><table class="data-table"><thead><tr><th>Variety $X$</th><th class="num">$\chi$</th><th>Framed</th><th>Highest row</th></tr></thead><tbody><tr><td>$\mathbb P^1$</td><td class="num">$2$</td><td>no</td><td>spin</td></tr><tr><td>$E$</td><td class="num">$0$</td><td>yes</td><td>framed</td></tr></tbody></table></div>
+  <div class="gal-grid"><div class="gal-item"><div class="scroll-x"><table class="data-table data-table-sm"><thead><tr><th>$k$</th><th class="num">$b_0$</th><th class="num">$b_1$</th><th class="num">$b_2$</th></tr></thead><tbody><tr><td>$1$</td><td class="num">$1$</td><td class="num">$2$</td><td class="num">$1$</td></tr><tr class="is-on"><td>$2$</td><td class="num">$1$</td><td class="num">$4$</td><td class="num">$5$</td></tr><tr><td>$3$</td><td class="num">$1$</td><td class="num">$6$</td><td class="num">$14$</td></tr></tbody></table></div><code>.data-table.data-table-sm, tr.is-on: compact, for a narrow column; the row selected</code></div></div>
+</section>
+
+<section class="gal-sec">
+  <h2>Figure labels</h2>
+  <p>Labels on canvases and in SVG use KaTeX's glyphs: <code>MM.canvasLabel</code>, <code>MM.svgLabel</code>.</p>
+  <div class="gal-grid">
+    <div class="gal-item"><canvas id="demo-canvas" style="width:100%;height:120px"></canvas><code>MM.canvasLabel(ctx, 'nearest pair: $x_1, x_2$', …)</code></div>
+    <div class="gal-item"><svg id="demo-svg" viewBox="0 0 320 120" style="width:100%;height:auto"></svg><code>MM.svgLabel(text, '$S_{\mathrm{reg}}$')</code></div>
+  </div>
+</section>
+
+<section class="gal-sec">
+  <h2>Mark</h2>
+  <p>Hover the knot: the control point travels round it, under each crossing.</p>
+  <div class="gal-logo"><a class="brand" href="#" id="gal-brand" aria-label="Logo (hover to play)"></a></div>
+</section>
+
+<script>
+(function () {
+  // colour swatches, read from the tokens themselves
+  var names = ['paper', 'surface', 'sunken', 'ink', 'ink-2', 'ink-3', 'rule', 'rule-2', 'accent', 'accent-ink', 'accent-soft', 'accent-2', 'accent-2-strong', 'accent-2-soft',
+    'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'red', 'highlight', 'good', 'bad', 'handle'];
+  var box = document.getElementById('swatches');
+  names.forEach(function (n) {
+    var d = document.createElement('div');
+    d.className = 'gal-swatch';
+    d.innerHTML = '<span style="background:var(--' + n + ')"></span><span>--' + n + '</span><code>' + MM.color(n) + '</code>';
+    box.appendChild(d);
+  });
+  // each data colour as the components and figures use it
+  var data = document.getElementById('data-colours');
+  for (var i = 1; i <= 8; i++) {
+    var row = document.createElement('div');
+    row.className = 'c' + i;
+    row.innerHTML = '<span class="dot c' + i + '"></span><span class="swatch c' + i + '"></span><span class="badge c' + i + '">c' + i + '</span>'
+      + '<svg viewBox="0 0 36 14" aria-hidden="true"><path d="M2 11C10 11 12 3 18 3s8 8 16 8"/></svg>'
+      + '<svg viewBox="0 0 36 14" aria-hidden="true"><path d="M2 11C10 11 12 3 18 3s8 8 16 8" style="stroke: var(--c' + i + '-line); stroke-width: 3"/></svg><span class="fill"></span>'
+      + '<span style="color: var(--c' + i + '-text)">text</span>';
+    data.appendChild(row);
+  }
+  // a component's change events
+  document.getElementById('demo-seg').addEventListener('change', function (e) {
+    document.getElementById('demo-seg-log').textContent = 'change → value ' + e.detail.value;
+  });
+  document.getElementById('demo-numbers').addEventListener('change', function (e) {
+    document.getElementById('demo-numbers-log').textContent = 'change → value [' + e.detail.value.join(', ') + ']';
+  });
+  document.getElementById('demo-exact').addEventListener('change', function (e) {
+    if (e.detail && e.detail.exact) document.getElementById('demo-exact-log').textContent = 'change → value ' + e.detail.value + ', exact';
+  });
+  var menu = document.getElementById('demo-menu');
+  menu.items = [{ value: 'left', label: 'Move it left' }, { value: 'right', label: 'Move it right' }, { value: 'up', label: 'Move it up', disabled: true }];
+  menu.addEventListener('change', function (e) {
+    document.getElementById('demo-menu-log').textContent = 'change → value ' + e.detail.value;
+  });
+  var dialog = document.getElementById('demo-dialog');
+  document.getElementById('demo-dialog-open').addEventListener('click', function () { dialog.showModal(); });
+  dialog.addEventListener('click', function (e) { if (e.target.closest('[data-close]')) dialog.close(); });
+  // the plain .seg markup, with the page's own handler
+  var plain = document.getElementById('plain-seg');
+  plain.addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    plain.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-checked', String(x === b)); });
+  });
+  // handles, and a strip of pictures
+  MM.handle(document.getElementById('demo-handle'));
+  MM.handle(document.getElementById('demo-handle-grey'));
+  MM.handle(document.getElementById('demo-handle-svg'));
+  var stripEl = document.getElementById('demo-strip'), NS = 'http://www.w3.org/2000/svg';
+  [['convex', [[3], [4, 5, 6]]], ['star', [[5, 7], [8]]]].forEach(function (f) {
+    f[1].forEach(function (ns) {
+      var g = document.createElement('div');
+      g.className = 'strip-group';
+      g.dataset.family = f[0];
+      ns.forEach(function (n) {
+        var b = document.createElement('button'), svg = document.createElementNS(NS, 'svg'), path = document.createElementNS(NS, 'path'), d = '', step = f[0] === 'star' ? (n === 8 ? 3 : 2) : 1;
+        b.type = 'button';
+        b.className = 'strip-item';
+        b.dataset.key = f[0] + n;
+        for (var i = 0; i <= n; i++) { var a = 2 * Math.PI * i * step / n - Math.PI / 2; d += (i ? 'L' : 'M') + (22 + 15 * Math.cos(a)).toFixed(1) + ' ' + (24 + 15 * Math.sin(a)).toFixed(1); }
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', 'currentColor');
+        path.setAttribute('stroke-width', '1.2');
+        svg.setAttribute('viewBox', '0 0 44 44');
+        svg.setAttribute('width', '44');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.appendChild(path);
+        b.appendChild(svg);
+        b.insertAdjacentHTML('beforeend', '<span class="strip-name">' + (f[0] === 'star' ? '{' + n + '/' + step + '}' : n + '-gon') + '</span>');
+        g.appendChild(b);
+      });
+      stripEl.appendChild(g);
+    });
+  });
+  var strip = MM.strip(stripEl, {
+    control: document.getElementById('demo-strip-family'),
+    pick: function (b) { strip.light(b); document.getElementById('demo-strip-log').textContent = 'pick → ' + b.dataset.key; },
+  });
+  strip.light(stripEl.querySelector('[data-key="convex4"]'));
+  // figure labels
+  var cv = document.getElementById('demo-canvas');
+  function draw() {
+    var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = r.width * dpr; cv.height = r.height * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    MM.canvasLabel(ctx, 'nearest pair: $x_1, x_2$', 12, 30, { size: 15, color: MM.color('ink') });
+    MM.canvasLabel(ctx, '$\\Delta_{12} = \\{x_1 = x_2\\}$', 12, 64, { size: 15, color: MM.color('c4') });
+    MM.canvasLabel(ctx, '$\\mathfrak p_\\alpha \\quad \\mathbb C^\\times \\quad \\mathbb 1_A \\quad x\'$', 12, 98, { size: 15, color: MM.color('ink-2') });
+  }
+  MM.onFonts(draw);
+  window.addEventListener('resize', draw);
+  var svg = document.getElementById('demo-svg');
+  [['$S_{\\mathrm{reg}}$ and $s_\\alpha \\mathfrak b$', 30], ['$\\operatorname{tr}^2 = 4\\det$', 66], ['image of $C_+$', 102]].forEach(function (l) {
+    var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', 12); t.setAttribute('y', l[1]); t.setAttribute('font-size', 16);
+    svg.appendChild(t);
+    MM.svgLabel(t, l[0]);
+  });
+  // a big copy of the mark
+  var mark = document.querySelector('.site-nav .brand svg');
+  if (mark) document.getElementById('gal-brand').appendChild(mark.cloneNode(true));
+})();
+</script>

@@ -1,0 +1,134 @@
+---
+title: Dynkin diagrams
+description: 'Draw a Dynkin or Coxeter diagram and read off its type, finite, affine, hyperbolic or indefinite.'
+tags: [representation-theory]
+date: 2026-11-10
+katex_runtime: true
+styles: [style.css]
+scripts: [dynkin.js, main.js]
+references:
+  - key: humphreys1990
+    authors: J. E. Humphreys
+    title: Reflection groups and Coxeter groups
+    note: 'Cambridge Studies in Advanced Mathematics 29, Cambridge University Press (1990)'
+  - key: kac1990
+    authors: V. G. Kac
+    title: Infinite-dimensional Lie algebras
+    note: 3rd ed., Cambridge University Press (1990)
+  - key: kostant1959
+    authors: B. Kostant
+    title: The principal three-dimensional subgroup and the Betti numbers of a complex simple Lie group
+    note: Amer. J. Math. 81 (1959), 973–1032
+---
+<div class="wrap">
+  <p class="lede">A Dynkin diagram is a picture of a Cartan matrix. Its type, finite, affine, hyperbolic or indefinite, is decided by a symmetric form. For the roots themselves, in rank two and three, see <a href="/root-systems/">Root systems</a>.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <mm-seg id="mode" value="draw" aria-label="What a drag on the diagram does">
+    <button value="draw" title="Drag from a node to draw a bond"><span class="dk-mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2 7-7a1.4 1.4 0 0 1 2 2l-7 7z"/><path d="M9.3 4.3l2.4 2.4"/></svg>Draw</span></button>
+    <button value="move" title="Drag a node to move it, or across the frame to select several"><span class="dk-mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12"/><path d="M6.2 3.8 8 2l1.8 1.8M6.2 12.2 8 14l1.8-1.8M3.8 6.2 2 8l1.8 1.8M12.2 6.2 14 8l-1.8 1.8"/></svg>Move</span></button>
+  </mm-seg>
+  <div class="control">
+    <button type="button" class="btn btn-sm btn-icon" id="clear" aria-label="Clear" title="Clear"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10"/><path d="M6.5 4.5V3h3v1.5"/><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+  </div>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split dk" id="figure">
+    <div class="split-main dk-main">
+      <div class="dk-stagebox">
+        <svg id="stage" role="group" aria-label="The diagram. Each node and each bond can be selected; a selected bond can be changed."></svg>
+        <div class="fig-menu dk-menu" id="menu" role="menu" hidden></div>
+      </div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+      <section class="strip-block" aria-labelledby="table-h">
+        <div class="strip-head">
+          <h3 class="label" id="table-h">Dynkin and Coxeter diagrams</h3>
+          <mm-seg id="family" value="finite" aria-label="Which diagrams the list shows">
+            <button value="finite">Finite</button><button value="affine">Affine</button><button value="hyperbolic">Hyperbolic</button>
+          </mm-seg>
+        </div>
+        <div class="strip" id="strip" role="toolbar" aria-labelledby="table-h"></div>
+      </section>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="type">
+        <h2 class="side-title" id="type"></h2>
+        <mm-slider id="rank" plain min="1" max="12" step="1" value="4" hidden>$n$</mm-slider>
+        <mm-slider id="dihedral" plain min="1" max="7" step="1" value="1" hidden>$m$</mm-slider>
+        <div class="slider-pair" id="hyp" hidden>
+          <mm-slider id="hyp-a" plain min="1" max="8" step="1" value="3">$a$</mm-slider>
+          <mm-slider id="hyp-b" plain min="1" max="8" step="1" value="3">$b$</mm-slider>
+        </div>
+        <div id="note" aria-live="polite"></div>
+      </section>
+      <section class="side-block" aria-label="About the diagram">
+        <dl class="kv" id="about"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="matrix-h">
+        <h3 class="label" id="matrix-h">Cartan matrix</h3>
+        <div class="scroll-x" id="matrix"></div>
+        <p class="caption" id="matrix-tau" hidden>$\tau=(1+\sqrt5)/2$</p>
+      </section>
+    </div>
+  </figure>
+  <p class="see-also" id="see-also" hidden></p>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section aria-labelledby="sec-matrix">
+  <h2 class="section-title" id="sec-matrix">The Cartan matrix</h2>
+  <p>A Cartan matrix is a square matrix $A=(a_{ij})$ of integers with $a_{ii}=2$, with $a_{ij}\le0$ for $i\ne j$, and with $a_{ij}=0$ exactly when $a_{ji}=0$ (a generalized Cartan matrix in [@kac1990, Ch. 1]). The simple roots $\alpha_1,\dots,\alpha_n$ of a <a href="/root-systems/">root system</a> give a Cartan matrix, with entries</p>
+  $$a_{ij}=\frac{2(\alpha_i,\alpha_j)}{(\alpha_i,\alpha_i)}.$$
+  <p>The Dynkin diagram of a Cartan matrix has a node for each $i$. Nodes $i$ and $j$ are joined when $a_{ij}\ne0$, by $\max(\lvert a_{ij}\rvert,\lvert a_{ji}\rvert)$ lines, with an arrow pointing to node $i$ when $\lvert a_{ij}\rvert>1$; for a root system, the arrow points to the shorter root. When $a_{ij}a_{ji}>4$ they are joined instead by one thick line labelled $\lvert a_{ij}\rvert,\lvert a_{ji}\rvert$ [@kac1990, Ch. 4]. So a single line is $a_{ij}=a_{ji}=-1$, and a double line with its arrow pointing to node $i$ is $a_{ij}=-2$ and $a_{ji}=-1$.</p>
+  <p>A Coxeter diagram may also have bonds labelled $m$, which stand for $a_{ij}=a_{ji}=-2\cos(\pi/m)$ [@humphreys1990, Ch. 5]. The reflections $s_i(\alpha_j)=\alpha_j-a_{ij}\alpha_i$ generate the Weyl group of a Cartan matrix [@kac1990, Ch. 3], or the Coxeter group of a Coxeter diagram.</p>
+</section>
+
+<section aria-labelledby="sec-type">
+  <h2 class="section-title" id="sec-type">Finite, affine and indefinite</h2>
+  <figure>
+    <svg id="spectrum" role="img"></svg>
+    <figcaption class="caption" id="form-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The eigenvalues of $A$ decide the type of a connected diagram. It is of finite type when they are all positive, of affine type when one is $0$ and the others are positive, and of indefinite type otherwise [@kac1990, Ch. 4; @humphreys1990, Ch. 6].</p>
+  <p>This holds when $A$ is symmetrizable, that is, when there are positive numbers $d_i$ with $d_ia_{ij}=d_ja_{ji}$. Then $(\alpha_i,\alpha_j)=d_ia_{ij}$ is a symmetric bilinear form on the span of the simple roots, the eigenvalues of $A$ are real, and their signs give the signature of the form. When a matrix is not symmetrizable, its eigenvalues need not be real, and it is of indefinite type.</p>
+  <p>For a diagram of affine type the kernel of the form is spanned by $\delta=\sum_ic_i\alpha_i$, with positive integers $c_i$, the numbers on the nodes. A diagram of indefinite type is hyperbolic when every proper connected subdiagram is of finite or affine type [@kac1990, Ch. 5].</p>
+</section>
+
+<section aria-labelledby="sec-coxeter">
+  <h2 class="section-title" id="sec-coxeter">The Coxeter plane</h2>
+  <figure id="cox" hidden>
+    <div class="fig-bar">
+      <div class="control" id="plane-control" hidden><span class="label">Exponent $m$</span>
+        <div class="seg" id="plane" role="group" aria-label="The exponent of the plane"></div>
+      </div>
+      <button type="button" class="btn btn-sm" id="face" hidden>Reset</button>
+    </div>
+    <div class="legend" id="cox-legend"></div>
+    <canvas id="coxeter" role="img" tabindex="0"></canvas>
+    <figcaption class="caption" id="cox-note" aria-live="polite"></figcaption>
+  </figure>
+  <p class="dk-absent" id="cox-absent" hidden>The figure needs a connected diagram of finite type, of rank at least $2$.</p>
+  <p>For a diagram of finite type the Weyl or Coxeter group $W$ is finite. A Coxeter element $c=s_1s_2\cdots s_n$, the product of the simple reflections in any order, has order $h$, the Coxeter number, and its eigenvalues are</p>
+  $$\mathrm{e}^{2\pi\mathrm{i}\,m_1/h},\ \dots,\ \mathrm{e}^{2\pi\mathrm{i}\,m_n/h},$$
+  <p>where $m_1\le\dots\le m_n$ are the exponents [@humphreys1990, Ch. 3]. The Coxeter plane is the plane on which $c$ acts by the rotation through $2\pi/h$. The $nh$ roots fall into $n$ orbits of $c$, each of $h$ roots, and each orbit projects to the plane as a regular $h$-gon [@humphreys1990, Ch. 3]. Each pair of exponents $m$ and $h-m$ gives a plane on which $c$ turns by $2\pi m/h$; from rank $3$ on, the figure projects the roots to one of these planes, and for depth to one more direction.</p>
+</section>
+
+<section aria-labelledby="sec-heights">
+  <h2 class="section-title" id="sec-heights">Heights and exponents</h2>
+  <figure>
+    <svg id="heights" role="img"></svg>
+    <figcaption class="caption" id="roots-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p class="dk-absent" id="heights-absent" hidden>With a bond labelled $m$, some roots have coefficients that are not integers, such as $2\cos(\pi/m)$, and the roots have no heights.</p>
+  <p>A positive root $\beta=\sum_ic_i\alpha_i$ has height $\sum_ic_i$. For a diagram of finite type the numbers of positive roots of heights $1,2,3,\dots$ form a partition, and the conjugate partition is formed by the exponents [@kostant1959]. So there are $n$ roots of height $1$, the simple roots, and the highest root has height $m_n=h-1$.</p>
+  <p>For a diagram of affine type a real root plus $r\delta$ is again a real root, where $r$ is the $r$ of the name $\mathrm{X}_\ell^{(r)}$, so the numbers repeat. For affine and indefinite types there are infinitely many real roots, and the figure counts them up to height $30$.</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

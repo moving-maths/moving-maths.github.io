@@ -1,0 +1,18 @@
+# The order of topics, and of the pages in each, on the home page (a row
+# of cards per topic), the topic pages and the topics index. Read by
+# build/order.mjs; see docs/authoring.md.
+
+# How to order the pages within a topic, unless the topic sets its own
+# `sort`:
+#   listed   the pages listed under the topic, in that order; any of
+#            its others after them, most recently updated first (the default)
+#   updated  most recently updated first
+sort: listed
+
+# Topics in the order they are shown. A topic left out comes after these, in
+# the order of site/tags.yml. Under each, its pages (folder names) in
+# order: either a list, or `pages: [...]` with `sort: updated` beside it.
+topics:
+  algebraic-geometry: [amoebas, hilbert-schemes]
+  representation-theory: [root-systems, dynkin-diagrams, highest-weight-representations]
+  topology: [knots, configuration-spaces]

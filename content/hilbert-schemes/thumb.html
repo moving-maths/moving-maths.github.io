@@ -1,0 +1,99 @@
+<!-- The card image (npm run thumbs): on the left, a double point and a point in
+     the plane, as the page draws them with heavier marks: the curve y = a(x) of
+     their ideal, which passes through the double point along the direction it
+     remembers, the doubled vertical line at it and the line at the point; on the
+     right the staircase of the ideal, 1, x, x², with the leading terms x³ and y at
+     its corners in the colours of their generators. Computed with hilbert.js and
+     drawn with curves.js, as on the page. -->
+<script src="hilbert.js"></script>
+<script src="curves.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), HS = window.Hilbert, CV = window.Curves, TAU = 2 * Math.PI;
+  // a double point at (−1.1, −0.5), come together along the direction (5, 4), and a point at (1.3, 0.7)
+  const cl = [{ p: [-110, -50], dual: HS.merge(HS.pointDual(), [5, 4]) }, { p: [130, 70], dual: HS.pointDual() }];
+  const I = HS.ideal(cl, [1, 10]);
+
+  // the plane: a square on the left
+  const S = 560, X0 = 40, Y0 = (H - S) / 2, R = 2.3, k = S / (2 * R);
+  const X = (x) => X0 + S / 2 + x * k, Y = (y) => Y0 + S / 2 - y * k;
+  const rgb = (name) => {
+    const c = document.createElement('canvas').getContext('2d');
+    c.fillStyle = MM.color(name); c.fillRect(0, 0, 1, 1);
+    return Array.from(c.getImageData(0, 0, 1, 1).data.slice(0, 3));
+  };
+
+  function drawPlane() {
+    cx.save();
+    cx.beginPath(); cx.rect(X0, Y0, S, S); cx.clip();
+    // the grid and the axes
+    cx.lineWidth = 2;
+    cx.strokeStyle = MM.color('rule-2');
+    cx.beginPath();
+    for (let i = -2; i <= 2; i++) { if (!i) continue; cx.moveTo(X(i), Y0); cx.lineTo(X(i), Y0 + S); cx.moveTo(X0, Y(i)); cx.lineTo(X0 + S, Y(i)); }
+    cx.stroke();
+    cx.strokeStyle = MM.color('rule');
+    cx.beginPath(); cx.moveTo(X(0), Y0); cx.lineTo(X(0), Y0 + S); cx.moveTo(X0, Y(0)); cx.lineTo(X0 + S, Y(0)); cx.stroke();
+    // the curves of the generators, drawn as the page draws them, heavier
+    const dpr = window.devicePixelRatio || 1, n = Math.round(S * dpr), img = new ImageData(n, n);
+    CV.draw(I.gens.map((g, i) => ({ terms: HS.toFloat(g.terms), rgb: rgb('curve-' + i), alpha: 1, width: 5 * dpr })),
+      { W: n, H: n, x0: -R, y0: R, k: k * dpr }, img.data);
+    const off = document.createElement('canvas');
+    off.width = n; off.height = n;
+    off.getContext('2d').putImageData(img, 0, 0);
+    cx.drawImage(off, X0, Y0, S, S);
+    // the direction the double point remembers, with its handle
+    const f = HS.germFrame(cl[0].dual), P = [cl[0].p[0] / 100, cl[0].p[1] / 100], L = 0.42;
+    const a = [P[0] - L * Math.cos(f.angle), P[1] - L * Math.sin(f.angle)], b = [P[0] + L * Math.cos(f.angle), P[1] + L * Math.sin(f.angle)];
+    cx.strokeStyle = MM.color('germ');
+    cx.lineWidth = 5;
+    cx.lineCap = 'round';
+    cx.beginPath(); cx.moveTo(X(a[0]), Y(a[1])); cx.lineTo(X(b[0]), Y(b[1])); cx.stroke();
+    cx.restore();
+    const dot = (x, y, r) => {
+      cx.beginPath(); cx.arc(x, y, r, 0, TAU);
+      cx.fillStyle = MM.color('handle'); cx.fill();
+      cx.lineWidth = 2.6; cx.strokeStyle = MM.color('accent-2-strong'); cx.stroke();
+    };
+    dot(X(b[0]), Y(b[1]), 9);
+    dot(X(cl[1].p[0] / 100), Y(cl[1].p[1] / 100), 13);
+    dot(X(P[0]), Y(P[1]), 18);
+    cx.fillStyle = MM.color('ink');
+    cx.font = MM.font('mono', 22, 600);
+    cx.textAlign = 'center';
+    cx.textBaseline = 'middle';
+    cx.fillText('2', X(P[0]), Y(P[1]) + 1);
+  }
+
+  // the staircase: on the right
+  function drawStair() {
+    const c = 118, ox = 680, oy = 444;
+    const box = (i, j) => [ox + i * c, oy - (j + 1) * c];
+    cx.lineWidth = 2.5;
+    for (const m of I.stair) {
+      const [x, y] = box(m[0], m[1]);
+      cx.fillStyle = MM.color('sunken'); cx.fillRect(x, y, c, c);
+      cx.strokeStyle = MM.color('rule'); cx.strokeRect(x, y, c, c);
+      const name = m[0] === 0 && m[1] === 0 ? '$1$' : '$' + (m[0] ? 'x' + (m[0] > 1 ? '^{' + m[0] + '}' : '') : '') + (m[1] ? 'y' : '') + '$';
+      MM.canvasLabel(cx, name, x + c / 2, y + c / 2, { size: 44, align: 'center', baseline: 'middle', color: MM.color('ink') });
+    }
+    I.gens.forEach((g, i) => {
+      const [x, y] = box(g.lead[0], g.lead[1]), col = MM.color('gen-' + i);
+      cx.save();
+      cx.setLineDash([10, 8]);
+      cx.strokeStyle = col; cx.lineWidth = 3;
+      cx.strokeRect(x + 6, y + 6, c - 12, c - 12);
+      cx.restore();
+      const name = '$' + (g.lead[0] ? 'x' + (g.lead[0] > 1 ? '^{' + g.lead[0] + '}' : '') : '') + (g.lead[1] ? 'y' : '') + '$';
+      MM.canvasLabel(cx, name, x + c / 2, y + c / 2, { size: 44, align: 'center', baseline: 'middle', color: col });
+    });
+  }
+
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    drawPlane();
+    drawStair();
+  }
+  MM.onFonts(draw);
+})();
+</script>

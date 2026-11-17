@@ -1,0 +1,14 @@
+# Site-wide settings. Read by build/config.mjs.
+title: Moving Maths
+tagline: Interactive pictures of mathematics
+# Absolute URL of the deployed site, no trailing slash. Used for canonical
+# links, social cards, the feed and the sitemap.
+url: https://moving-maths.github.io
+# Source repository. Used for the "Report an error" links.
+repo: https://github.com/moving-maths/moving-maths.github.io
+licence:
+  holder: the Moving Maths contributors
+  content: CC BY 4.0
+  content_url: https://creativecommons.org/licenses/by/4.0/
+  code: MIT
+  code_url: https://opensource.org/license/mit

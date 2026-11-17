@@ -1,0 +1,946 @@
+/* Moving Maths theme: design tokens, base typography and shared components.
+ * Pages build on these; see docs/design.md. Light only.
+ *
+ * Principles: one white surface, hairlines instead of boxes where possible,
+ * Inter for all text, KaTeX's Computer Modern for mathematics (in formulas and in
+ * figure labels alike), sentence case everywhere, colour reserved for data and
+ * the two accents: blue for "selected", yellow for "a handle you can move".
+ *
+ * Every component takes its look from its own tokens (the "component tokens"
+ * block below). To restyle a whole family (all sliders, all tabs), change its
+ * tokens or its one rule here. Pages may set tokens on their own elements but
+ * must not restyle a component's parts; the build warns when they do.
+ */
+
+/* ---------- fonts ---------- */
+/* All fonts are served with the site (see fonts/README.txt): no request to another server.
+   Inter is variable in weight and optical size; Noto Sans Math is the last resort for
+   rare symbols, fetched only when a page uses one. */
+@font-face { font-family: "Inter"; src: url("../fonts/Inter-Regular.woff2") format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("../fonts/Inter-Italic.woff2") format("woff2"); font-style: italic; font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("../fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("../fonts/IBMPlexMono-Medium.woff2") format("woff2"); font-style: normal; font-weight: 500; font-display: swap; }
+@font-face { font-family: "Noto Sans Math"; src: url("../fonts/NotoSansMath-Regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+/* Figure labels: KaTeX's glyphs for Unicode maths (x₁, 𝔭, ℂ, Σ₃), built by
+   tools/fonts/mm-math.py. The italic face is maths mode: italic letters, upright
+   digits. */
+@font-face { font-family: "MM Math"; src: url("../fonts/MMMath-Regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: block; }
+@font-face { font-family: "MM Math"; src: url("../fonts/MMMath-Italic.woff2") format("woff2"); font-style: italic; font-weight: 400; font-display: block; }
+/* KaTeX lacks 𝟙; BananaMath (from new-banana, a modified KaTeX_Main, OFL) supplies it
+   under KaTeX_Main's name for that one code point. \mathbb{1} is rewritten to 𝟙. */
+@font-face { font-family: "KaTeX_Main"; src: url("../fonts/BananaMath-Regular.woff2") format("woff2"); font-style: normal; font-weight: normal; font-display: swap; unicode-range: U+1D7D9; }
+/* \mathbb A–Z and k: the double-struck Computer Modern of the dsfont package. */
+@font-face { font-family: "Banana Math"; src: url("../fonts/BananaMath-Regular.woff2") format("woff2"); font-style: normal; font-weight: normal; font-display: swap; unicode-range: U+41-5A, U+6B; }
+
+/* ---------- design tokens ---------- */
+:root {
+  color-scheme: light;
+
+  /* surfaces and ink */
+  --paper: #ffffff;      /* page background */
+  --surface: #ffffff;    /* panels, figures, controls */
+  --sunken: #f5f5f3;     /* tracks, wells, readouts, hover backgrounds */
+  --ink: #17191e;        /* body text, strong strokes */
+  --ink-2: #4b505b;      /* secondary text */
+  --ink-3: #6b707b;      /* captions, labels, axes (4.5:1 on --sunken) */
+  --rule: #e3e3df;       /* borders, dividers */
+  --rule-2: #eeeeeb;     /* faint dividers, grid lines */
+
+  /* accents. Primary, a blue (hue 202): the selected state, links, focus,
+     the logo. Secondary, yellow: handles you can move (slider thumbs, the logo's
+     control point) and the text selection. Blue text uses --accent-ink, which is
+     dark enough to read; yellow is never used for text. Blue is also the first
+     data colour, --c1; yellow is not a data colour. */
+  --accent: #197eb8;
+  --accent-ink: #126291;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --accent-2: #f2b51e;
+  --accent-2-strong: #c98d00;
+  --accent-2-soft: color-mix(in srgb, var(--accent-2) 20%, var(--surface));
+
+  /* data colours: categorical, used in this order (a figure that needs n colours takes
+     --c1 … --cn): blue (the accent), orange, green, purple, magenta, teal, olive, brown.
+     Light enough to tell apart as fills, dots and thick lines. For text and thin lines,
+     use --cN-text, the colour a shade darker, as saturated; for thick lines in several colours at once (a
+     link's strands, the curves of an ideal) --cN-line, the colour with 10% white.
+     Red is not among them: it marks what is picked (--highlight); nor is yellow, the
+     handle (--handle). */
+  --c1: var(--accent);  /* blue */
+  --c2: #d7822c;  /* orange */
+  --c3: #4f9e57;  /* green */
+  --c4: #956bcc;  /* purple */
+  --c5: #d369ac;  /* magenta */
+  --c6: #4fa3a0;  /* teal */
+  --c7: #a49b3d;  /* olive */
+  --c8: #a07054;  /* brown */
+  --c1-soft: color-mix(in srgb, var(--c1) 12%, var(--surface));
+  --c2-soft: color-mix(in srgb, var(--c2) 14%, var(--surface));
+  --c3-soft: color-mix(in srgb, var(--c3) 13%, var(--surface));
+  --c4-soft: color-mix(in srgb, var(--c4) 12%, var(--surface));
+  --c5-soft: color-mix(in srgb, var(--c5) 12%, var(--surface));
+  --c6-soft: color-mix(in srgb, var(--c6) 13%, var(--surface));
+  --c7-soft: color-mix(in srgb, var(--c7) 14%, var(--surface));
+  --c8-soft: color-mix(in srgb, var(--c8) 13%, var(--surface));
+  --c1-line: color-mix(in oklab, var(--c1) 90%, var(--surface));
+  --c2-line: color-mix(in oklab, var(--c2) 90%, var(--surface));
+  --c3-line: color-mix(in oklab, var(--c3) 90%, var(--surface));
+  --c4-line: color-mix(in oklab, var(--c4) 90%, var(--surface));
+  --c5-line: color-mix(in oklab, var(--c5) 90%, var(--surface));
+  --c6-line: color-mix(in oklab, var(--c6) 90%, var(--surface));
+  --c7-line: color-mix(in oklab, var(--c7) 90%, var(--surface));
+  --c8-line: color-mix(in oklab, var(--c8) 90%, var(--surface));
+  --c1-text: oklch(from var(--c1) calc(l - 0.04) c h);
+  --c2-text: oklch(from var(--c2) calc(l - 0.04) c h);
+  --c3-text: oklch(from var(--c3) calc(l - 0.04) c h);
+  --c4-text: oklch(from var(--c4) calc(l - 0.04) c h);
+  --c5-text: oklch(from var(--c5) calc(l - 0.04) c h);
+  --c6-text: oklch(from var(--c6) calc(l - 0.04) c h);
+  --c7-text: oklch(from var(--c7) calc(l - 0.04) c h);
+  --c8-text: oklch(from var(--c8) calc(l - 0.04) c h);
+  /* outside the sequence: red, the mark */
+  --red: #d63429;
+  --red-soft: color-mix(in srgb, var(--red) 11%, var(--surface));
+
+  /* meaning */
+  --highlight: var(--red);  /* the thing being pointed at, hovered or picked */
+  --good: var(--c3-text);
+  --bad: var(--red);
+  --handle: var(--accent-2); /* draggable points in figures, if a page wants them to read as handles */
+
+  /* type: Inter for all text; "MM Math" (KaTeX's glyphs) for mathematics outside
+     KaTeX, i.e. labels in SVG and on canvases. --serif is the same face, kept as
+     a name for "set this as mathematics". */
+  --sans: "Inter", "MM Math", "Noto Sans Math", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --math: "MM Math", "KaTeX_Main", "Times New Roman", serif;
+  --serif: var(--math);
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* text roles */
+  --text-body: 16px;
+  --text-lede: 18px;
+  --text-caption: 14.5px;
+  --text-control: 13.5px;
+  --text-label: 13px;
+
+  /* shape and motion */
+  --radius: 10px;
+  --radius-sm: 7px;
+  --shadow: 0 1px 2px rgba(23, 25, 30, .05), 0 6px 20px -10px rgba(23, 25, 30, .16);
+  --ease: cubic-bezier(.3, .7, .2, 1);
+  --page-max: 1200px;
+  --gutter: 24px;
+
+  /* sticky header: the site navigation, then a page's .control-bar.
+     --bar-h is set by site.js to the control bar's height (0 if none). */
+  --nav-h: 56px;
+  --bar-h: 0px;
+  --fade: 18px;
+}
+@media (max-width: 600px) { :root { --gutter: 16px; --nav-h: 52px; } }
+/* (a browser without relative colours writes text in the colours themselves) */
+@supports not (color: oklch(from red l c h)) {
+  :root { --c1-text: var(--c1); --c2-text: var(--c2); --c3-text: var(--c3); --c4-text: var(--c4); --c5-text: var(--c5); --c6-text: var(--c6); --c7-text: var(--c7); --c8-text: var(--c8); }
+}
+
+/* ---------- component tokens ---------- */
+:root {
+  /* button (.btn); "on" is aria-pressed / aria-checked / aria-selected */
+  --btn-height: 32px;
+  --btn-radius: var(--radius-sm);
+  --btn-font-size: var(--text-control);
+  --btn-bg: var(--surface);
+  --btn-border: var(--rule);
+  --btn-text: var(--ink);
+  --btn-hover-bg: color-mix(in srgb, var(--sunken) 55%, var(--surface));
+  --btn-hover-border: color-mix(in srgb, var(--ink) 22%, var(--rule));
+  --btn-on-bg: var(--accent-soft);
+  --btn-on-border: color-mix(in srgb, var(--accent) 45%, var(--surface));
+  --btn-on-text: var(--accent-ink);
+
+  /* segmented control (.seg, <mm-seg>): a track, and an indicator that slides
+     to the chosen segment */
+  --seg-height: 28px;
+  --seg-font-size: var(--text-control);
+  --seg-radius: 9px;
+  --seg-item-radius: 6px;
+  --seg-track: var(--sunken);
+  --seg-text: var(--ink-2);
+  --seg-on-text: var(--ink);
+  --seg-indicator: var(--surface);
+  --seg-indicator-shadow: 0 1px 2px rgba(23, 25, 30, .12), 0 0 0 .5px rgba(23, 25, 30, .1);
+  --seg-hover: color-mix(in srgb, var(--ink) 5%, transparent);   /* a segment that is not chosen, under the pointer */
+  --seg-speed: .32s;
+
+  /* tabs (.tabs > .tab, <mm-tabs>): an underline that slides to the chosen tab */
+  --tab-font-size: 14px;
+  --tab-text: var(--ink-3);
+  --tab-on-text: var(--ink);
+  --tab-indicator: var(--accent);
+  --tab-hover-indicator: color-mix(in srgb, var(--ink) 22%, var(--surface));   /* under a tab that is not chosen, on hover */
+  --tab-indicator-height: 2px;
+  --tab-speed: .32s;
+
+  /* an overflowing segmented control or tab list fades at the edge with more beyond */
+  --edge-fade: 28px;
+
+  /* toggle (.toggle, <mm-toggle>) */
+  --toggle-box: color-mix(in srgb, var(--ink) 50%, var(--surface));   /* 3:1, like any control's edge */
+  --toggle-on: var(--accent);
+
+  /* slider (input[type=range], <mm-slider>): blue fill, yellow thumb */
+  --slider-height: 4px;
+  --slider-track: color-mix(in srgb, var(--ink) 12%, var(--surface));
+  --slider-fill: var(--accent);
+  --slider-thumb-size: 18px;
+  --slider-thumb: var(--accent-2);
+  --slider-thumb-ring: var(--accent);
+  --slider-thumb-halo: color-mix(in srgb, var(--accent) 14%, transparent);   /* round the thumb, on hover and while dragged */
+  --slider-focus-ring: var(--accent);
+  --slider-value-width: 5ch;      /* <mm-slider>: the least width of its value; it is as wide as the longest value its range and step allow, and keeps that width */
+  --zoom-width: 112px;            /* <mm-zoom>: the slider between its magnifiers */
+
+  /* a copy of the main picture beside a figure in the text (.fig-copy) */
+  --fig-copy-size: 224px;
+
+  /* handle (.handle, MM.handle): a yellow dot in a gap of the ground, ringed; a point that
+     is itself a handle (.handle-point) has a darker rim instead of the ring */
+  --handle-size: 44px;                   /* the box of a .handle over a picture (its drawing fills it) */
+  --handle-ring: var(--accent);
+  --handle-rim: var(--accent-2-strong);
+  --handle-shadow: drop-shadow(0 1px 1.5px color-mix(in srgb, var(--ink) 25%, transparent));
+
+  /* strip of pictures to choose from (.strip, MM.strip): the one shown is pressed, in blue */
+  --strip-picture-height: 44px;
+  --strip-hover: var(--sunken);
+  --strip-on-bg: var(--accent-soft);
+  --strip-on-text: var(--accent-ink);
+
+  /* text box (.field: <mm-numbers>, the value of an exact <mm-slider>) */
+  --field-height: 28px;
+  --field-font-size: 12.5px;
+  --field-bg: var(--surface);
+  --field-border: var(--rule);
+  --field-hover-border: color-mix(in srgb, var(--ink) 22%, var(--rule));
+  --field-focus-border: var(--accent);
+  --field-invalid: var(--bad);
+
+  /* menu (.menu) and dialog (.dialog): the two things that float over the page */
+  --menu-bg: var(--surface);
+  --menu-border: var(--rule);
+  --dialog-bg: var(--surface);
+
+  /* text roles that pages colour by meaning */
+  --label-color: var(--ink-3);
+
+  /* tables */
+  --table-head-bg: transparent;
+
+  /* readouts, chips, notes, topic capsules */
+  --readout-bg: var(--sunken);
+  --chip-bg: var(--sunken);
+  --note-bg: var(--sunken);
+  --topic-bg: var(--sunken);
+  --topic-text: var(--ink-2);
+  --topic-on-bg: var(--accent-soft);
+  --topic-on-text: var(--accent-ink);
+
+  /* panels */
+  --panel-bg: var(--surface);
+  --panel-border: var(--rule);
+  --panel-radius: var(--radius);
+}
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html {
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--nav-h) + var(--bar-h) + 20px);
+  /* a link within the page glides to its place (at once under reduced motion, below); a script
+     that scrolls to keep a picture still passes behavior: 'instant' */
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-optical-sizing: auto;
+  font-size: var(--text-body);
+  line-height: 1.65;
+  letter-spacing: -.003em;
+  font-variant-numeric: lining-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+img, svg, canvas, video { max-width: 100%; }
+a { color: var(--accent-ink); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: .18em; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+a:hover { text-decoration-color: currentColor; }
+/* A formula in a link: KaTeX's boxes are inline blocks, which a link's underline does not reach,
+   so the formula takes the link's own text-decoration down through them. It is underlined where
+   the link is (and darkens with it on hover), and not where the link has no underline (the
+   header, the cards, citations). */
+a > .katex, a > .katex > .katex-html, a > .katex > .katex-html > .katex-base { text-decoration: inherit; }
+h1, h2, h3, h4 {
+  font-family: var(--sans); font-optical-sizing: auto; color: var(--ink);
+  font-weight: 600; line-height: 1.2; margin: 0 0 .5em; text-wrap: balance;
+}
+h1 { font-size: clamp(30px, 4.6vw, 42px); font-weight: 560; line-height: 1.1; letter-spacing: -.024em; }
+h2 { font-size: clamp(21px, 2.6vw, 24px); letter-spacing: -.016em; }
+h3 { font-size: 18px; letter-spacing: -.01em; }
+h4 { font-size: 15.5px; letter-spacing: -.005em; }
+h1 .katex, h2 .katex, h3 .katex { font-size: 1.06em; }
+p { margin: 0 0 .85em; }
+ul, ol { padding-left: 1.3em; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+sub, sup { line-height: 0; }
+small { font-size: 85%; }
+code, kbd, samp { font-family: var(--mono); font-size: .88em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+::selection { background: color-mix(in srgb, var(--accent-2) 38%, transparent); }
+[hidden] { display: none !important; }
+
+/* ---------- KaTeX, tuned for Inter (as in new-banana) ---------- */
+.katex { font-size: 1.1em; letter-spacing: 0; }
+.katex .mathbb, .katex .amsrm { font-family: "Banana Math", KaTeX_AMS; }
+.katex .frac-line { border-bottom-width: .1em !important; }   /* lines as heavy as Inter's strokes */
+.katex svg { max-width: none; }                               /* not the global 100%: \vec's arrow sits in a box of width 0 */
+.katex svg path { stroke: currentColor; stroke-width: 20; }
+.katex-mathml { user-select: none; }                          /* copy the formula once, not twice */
+:is(b, strong) .katex { font-weight: bold; }
+.tex-nowrap { white-space: nowrap; }                          /* a formula and the punctuation after it */
+.tex-nowrap .katex { white-space: normal; }                   /* (the formula itself may still break, where KaTeX lets it) */
+.tex-nowrap .katex .katex-base:last-child { display: inline; } /* (but not after its last part, an inline-block, which Chrome would) */
+.katex-display { margin: .8em 0; overflow-x: auto; overflow-y: hidden; padding: .1em 0; }
+/* a matrix (MM.matrix): its entries in a grid, between KaTeX's tall parentheses as tall as
+   the grid; a cell with .is-lit is lit, as the selection is */
+.mx-wrap { display: inline-flex; align-items: center; vertical-align: middle; }
+.mx-paren svg { display: block; fill: currentColor; }
+.mx-paren:last-child svg { transform: scaleX(-1); }
+.mx { display: inline-grid; grid-template-columns: repeat(var(--mx-n), auto); padding: 2px 0; }
+.mx-e { padding: 1px 7px; text-align: center; line-height: 1.4; }
+.mx-e.is-lit { background: var(--accent-soft); }
+
+/* ---------- layout ---------- */
+.wrap { max-width: var(--page-max); margin-inline: auto; padding-inline: var(--gutter); }
+.wrap-narrow { max-width: 760px; margin-inline: auto; padding-inline: var(--gutter); }
+.stack > * + * { margin-top: 16px; }
+.grid-2 { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.grid-3 { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.section { margin-block: 40px; }
+/* the figure right after the control bar sits close under it: its controls are there */
+.control-bar + .section { margin-top: 14px; }
+
+/* ---------- text roles ---------- */
+.lede { font-size: var(--text-lede); line-height: 1.6; color: var(--ink-2); max-width: 64ch; letter-spacing: -.008em; }
+.prose { max-width: 68ch; }
+/* a page's sections of text, after its panel, each with its .section-title; a figure among
+   them, its caption centred under it, and a row of its own controls (.fig-bar) centred on it */
+.prose > section + section { margin-top: 40px; }
+.prose figure { margin: 18px 0 22px; }
+.prose figcaption { margin: 10px auto 0; text-align: center; }
+.fig-bar { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 14px; }
+.fig-bar:not(:first-child) { margin-top: 8px; }   /* (under the picture) */
+/* body text, justified: the paragraphs of running text, and the lede (hyphenated, as every page is lang="en") */
+.lede, .prose p { text-align: justify; hyphens: auto; }
+.muted { color: var(--ink-3); }
+.small { font-size: var(--text-caption); }
+.mono { font-family: var(--mono); }
+.sans { font-family: var(--sans); }
+/* small headings and labels: sentence case, never letter-spaced capitals */
+.eyebrow, .label {
+  font-family: var(--sans); font-size: var(--text-label); font-weight: 500; line-height: 1.35;
+  letter-spacing: -.003em; color: var(--label-color); margin: 0 0 6px;
+}
+.eyebrow a { color: inherit; text-decoration: none; }
+.eyebrow a:hover { color: var(--ink); }
+.hint { font-family: var(--sans); font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); margin: 8px 0 0; text-wrap: pretty; }
+.caption, figcaption { font-size: var(--text-caption); line-height: 1.6; color: var(--ink-2); margin-top: 10px; max-width: 72ch; }
+/* under a figure: the same example in other pages */
+.see-also { font-size: var(--text-caption); line-height: 1.6; color: var(--ink-3); margin: 12px 0 0; }
+.section-title { font-size: clamp(21px, 2.6vw, 24px); margin: 0 0 14px; }
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- panels and figures ---------- */
+figure { margin: 0; }
+.panel {
+  background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--panel-radius);
+  padding: 16px 18px 18px; min-width: 0;
+}
+.panel-raised { box-shadow: var(--shadow); }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.panel-head h2, .panel-head h3 { font-size: 16px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+.panel-title { font-family: var(--sans); font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); margin: 0; }
+.panel-sub { font-family: var(--sans); font-size: var(--text-label); color: var(--ink-3); }
+.figure canvas, .figure svg, canvas.figure, svg.figure { display: block; width: 100%; height: auto; }
+
+/* A figure beside its readouts (.split, usually on a .panel): one column on a
+   phone; on a wide screen the picture (.split-main) on the left, the readouts
+   (.split-side) on the right, in proportion --split-main : 1. While longer
+   readouts scroll, the picture stays in view under the control bar.
+   .split-fit on the picture (or the box that holds it and its overlays) keeps
+   it short enough to show whole there, with --split-below for what follows
+   it in the column (a hint) and --fit-ratio for its width over its height.
+   site.js marks a column too tall to pin anyway .is-tall, and it scrolls. */
+.split { display: grid; gap: 20px 32px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) {
+  .split {
+    --split-top: calc(var(--nav-h) + var(--bar-h) + 16px);
+    grid-template-columns: minmax(0, var(--split-main, 1.2fr)) minmax(0, 1fr);
+    align-items: start; padding: 20px 24px 22px;
+  }
+  .split-main { position: sticky; top: var(--split-top); }
+  .split-main.is-tall { position: static; }
+  .split-fit {
+    max-width: calc(max(320px, 100vh - var(--split-top) - var(--split-below, 64px)) * var(--fit-ratio, 1));
+    margin-inline: auto;
+  }
+}
+/* The readouts (.split-side): blocks (.side-block) with a hairline between them. The first,
+   .side-head, names what the picture shows: its .side-title, a few grey words after it
+   (.side-kind), a line under it (.side-sub), a slider or two for a number in the name, and
+   the legend. On a wide screen neither it nor a .side-more, which goes on from it, has a
+   rule above it; on a phone, under the picture, every block has one. (A page that reorders
+   the blocks on a phone does it in its own CSS, with display: contents and order.) */
+.split-side { display: grid; gap: 18px; min-width: 0; align-content: start; }
+.side-block { min-width: 0; border-top: 1px solid var(--rule-2); padding-top: 16px; }
+@media (min-width: 900px) {
+  .side-head, .side-more { border-top: 0; padding-top: 0; }
+  .side-more { margin-top: -4px; }
+}
+.side-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 20px; margin: 0 0 4px; }
+.side-kind { font-size: var(--text-label); font-weight: 500; letter-spacing: 0; color: var(--ink-3); }
+.side-sub { font-size: 15px; line-height: 1.5; color: var(--ink-2); margin: 0; }
+.side-head > :is(mm-slider, .slider-pair) { max-width: 320px; margin-block: 12px; }
+.side-head > .legend { margin-top: 12px; }
+/* A figure in the text that changes the main picture, which by then is out of
+   view, has a small copy of that picture beside it (under it on a phone), so
+   that the change shows: .fig-pair holds the figure, then the .fig-copy.
+   MM.copyPicture fills the copy (or the page draws its own); it takes the
+   shape of the main picture, --fig-copy-ratio, its width over its height. */
+.fig-pair { display: grid; grid-template-columns: minmax(0, 1fr) var(--fig-copy-size); gap: 14px 24px; align-items: center; }
+.fig-pair > * { min-width: 0; }
+.fig-copy {
+  position: relative; width: var(--fig-copy-size); max-width: 100%; aspect-ratio: var(--fig-copy-ratio, 1);
+  border: 1px solid var(--rule-2); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface);
+}
+.fig-copy > :is(canvas, svg) { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+@media (max-width: 620px) {
+  .fig-pair { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .fig-pair > :first-child { width: 100%; }
+  .fig-pair > .fig-copy { width: min(var(--fig-copy-size), 66%); }
+}
+/* Over a picture (in a box with position: relative): a hint, grey on a veil of the ground,
+   centred near its top (a page may move it, to the bottom say), letting the pointer through;
+   and a menu beside the thing it acts on, placed by the page's script, in the .menu's box. */
+.fig-overlay {
+  position: absolute; z-index: 1; top: 10px; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); margin: 0; padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); text-align: center; pointer-events: none;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+.fig-menu {
+  position: absolute; z-index: 2; display: flex; gap: 4px; padding: 5px;
+  background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+canvas { user-select: none; -webkit-user-select: none; }
+/* An element dragged with pointer events: a swipe on it does not scroll the page.
+   Only on what is dragged, so that the page still scrolls elsewhere. It shows the grab
+   cursor, grabbing while held (a page's own cursor wins: these are of no specificity). */
+.draggable { touch-action: none; }
+:where(.draggable) { cursor: grab; }
+:where(.draggable:active) { cursor: grabbing; }
+/* A picture that turns under a drag (MM.turnDrag gives it .turnable while it turns): a swipe
+   up or down on it still scrolls the page, and one sideways turns it. A picture that a mouse
+   drag moves (the page's own drag; a finger scrolls the page): .pannable, and .is-panning
+   while it moves. Both show the grab cursor, grabbing while held. A picture that zooms
+   under two fingers (MM.pinchZoom gives it .zoomable): the browser leaves the pinch to the
+   page, and one finger still scrolls. */
+.turnable, .zoomable { touch-action: pan-y; }
+:where(.turnable, .pannable) { cursor: grab; }
+:where(.turnable:active, .pannable.is-panning) { cursor: grabbing; }
+
+/* The handle of a picture (MM.handle draws it): a yellow dot in a gap of the ground, ringed
+   (--handle-ring), with a soft shadow. Either a box of its own over the picture (.handle,
+   with .draggable, placed by the page's script with a transform), which grows a little
+   while held, or a group in an SVG. A point of the figure that is itself a handle
+   (.handle-point: the points of a configuration, which lie on the figure's lines, may be
+   many and carry a number, .handle-num) is the yellow dot alone, with a darker rim; a
+   dashed ring (.snap-ring) shows where a dragged one would land. */
+.handle {
+  position: absolute; left: 0; top: 0; width: var(--handle-size); height: var(--handle-size);
+  margin: calc(var(--handle-size) / -2) 0 0 calc(var(--handle-size) / -2); border-radius: 50%;
+}
+.handle-art { overflow: visible; filter: var(--handle-shadow); }
+.handle > .handle-art { display: block; width: 100%; height: 100%; max-width: none; transition: transform .12s var(--ease); }
+.handle:active > .handle-art { transform: scale(1.12); }
+.handle-ring { fill: var(--handle-ring); }
+.handle-gap { fill: var(--surface); }
+.handle-dot, .handle-point { fill: var(--handle); }
+.handle-point { stroke: var(--handle-rim); stroke-width: 1.3; }
+.handle-num { font-family: var(--mono); font-size: 11px; font-weight: 600; text-anchor: middle; fill: var(--ink); pointer-events: none; }
+.snap-ring { fill: none; stroke: var(--highlight); stroke-width: 2; stroke-dasharray: 3 3; pointer-events: none; }
+/* The keyboard focus of a shape in an SVG (a handle, a node, a box), drawn by the page as a
+   shape of its own in the group that takes the focus: in the accent, shown only while the
+   group has the focus (the group draws no outline then). */
+.focus-ring { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0; }
+:focus-visible > .focus-ring, :focus-visible > .handle-art > .focus-ring { opacity: 1; }
+.handle:focus-visible, :focus-visible:has(> .focus-ring) { outline: none; }
+/* SVG labels are mathematics by default; give words `font-family: var(--sans)`,
+   and variables `font-style: italic` (maths mode: italic letters, upright digits). */
+svg text { font-family: var(--math); fill: var(--ink); }
+/* a label on a halo of the ground, where it crosses lines: on a <text>, or on a group or an
+   <svg> for all the text in it */
+text.halo, .halo text { paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+
+/* ---------- controls ---------- */
+/* custom elements from components.js; they take the classes below */
+mm-tabs, mm-tab { display: block; }
+mm-toggle { display: inline-flex; }
+mm-slider { display: grid; }
+/* before set-up (until the parser has read the element): no flash of every panel */
+mm-seg:not(.seg) { display: inline-flex; gap: 2px; }
+mm-tab:not([role]) > [slot="label"] { display: none; }
+mm-tab:not([role]) ~ mm-tab:not([role]) { display: none; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-family: var(--sans); font-size: var(--text-control); color: var(--ink-3); }
+/* A control never grows wider than its row: a long segmented control scrolls inside it instead. */
+.control { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.control > .seg, .control > mm-seg { min-width: 0; }
+.control > .label { margin: 0; }
+button { font: inherit; color: inherit; }
+
+/* button */
+.btn {
+  appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-family: var(--sans); font-size: var(--btn-font-size); font-weight: 500; line-height: 1.2; letter-spacing: -.005em;
+  color: var(--btn-text); background: var(--btn-bg); border: 1px solid var(--btn-border); border-radius: var(--btn-radius);
+  padding: 6px 12px; min-height: var(--btn-height); cursor: pointer;
+  box-shadow: 0 1px 1px rgba(23, 25, 30, .04);
+  transition: background-color .12s, border-color .12s, color .12s;
+}
+.btn:hover { border-color: var(--btn-hover-border); background: var(--btn-hover-bg); }
+.btn:active { background: var(--sunken); }
+.btn[aria-pressed="true"], .btn[aria-checked="true"], .btn[aria-selected="true"] {
+  color: var(--btn-on-text); background: var(--btn-on-bg); border-color: var(--btn-on-border);
+}
+.btn:disabled { opacity: .45; cursor: default; }
+.btn-sm { --btn-height: 28px; --btn-font-size: 12.5px; --btn-radius: 6px; padding: 4px 9px; }
+.btn-quiet { --btn-bg: transparent; --btn-border: transparent; --btn-text: var(--ink-2); --btn-hover-bg: var(--sunken); --btn-hover-border: transparent; box-shadow: none; }
+.btn-quiet:hover { color: var(--ink); }
+/* a square button that shows only an icon (an <svg>, drawn in currentColor); give it an aria-label */
+.btn-icon { padding: 0; width: var(--btn-height); }
+.btn-icon svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* segmented control: buttons with aria-checked (role radio), aria-pressed or
+   aria-selected. site.js adds .seg-indicator, which slides to the chosen one;
+   without it the chosen button draws the indicator itself. */
+.seg {
+  position: relative; isolation: isolate;
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--seg-radius);
+  background: var(--seg-track); box-shadow: inset 0 0 0 1px rgba(23, 25, 30, .04);
+  max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+.seg::-webkit-scrollbar { display: none; }
+.seg > button {
+  position: relative; z-index: 1;
+  appearance: none; border: 0; background: transparent; cursor: pointer; white-space: nowrap;
+  font-family: var(--sans); font-size: var(--seg-font-size); font-weight: 500; letter-spacing: -.005em; color: var(--seg-text);
+  min-width: 32px; min-height: var(--seg-height); padding: 0 11px; border-radius: var(--seg-item-radius);
+  flex: none; /* keep its width: a control too wide for its row scrolls */
+  transition: color .15s, background-color .15s;
+}
+.seg > button:hover { color: var(--ink); }
+.seg > button:hover:not([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"], :disabled) { background: var(--seg-hover); }
+.seg > button:disabled { opacity: .45; cursor: default; }
+.seg > button:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
+  color: var(--seg-on-text); background: var(--seg-indicator); box-shadow: var(--seg-indicator-shadow);
+}
+.seg.has-indicator > button:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) { background: transparent; box-shadow: none; }
+.seg-indicator {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  border-radius: var(--seg-item-radius); background: var(--seg-indicator); box-shadow: var(--seg-indicator-shadow);
+  opacity: 0;
+}
+.seg-indicator.is-placed { opacity: 1; }
+.seg-indicator.is-moving { transition: transform var(--seg-speed) var(--ease), width var(--seg-speed) var(--ease), height var(--seg-speed) var(--ease); }
+/* the ring inside the button: the track scrolls, so it would clip a ring outside */
+.seg > button:focus-visible { outline-offset: -2px; }
+.seg-block { display: flex; width: 100%; }
+.seg-block > button { flex: 1; }
+.seg .katex { font-size: 1em; }
+
+/* toggle: a button with aria-pressed and a check box drawn before it */
+.toggle {
+  appearance: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--sans); font-size: var(--text-control); font-weight: 500; letter-spacing: -.005em; color: var(--ink-2);
+  background: none; border: 0; border-radius: var(--radius-sm); padding: 6px 8px 6px 4px; min-height: 32px;
+}
+.toggle:hover { color: var(--ink); }
+.toggle::before {
+  content: ""; width: 16px; height: 16px; border-radius: 4.5px; flex: none;
+  border: 1.5px solid var(--toggle-box); background: var(--surface) center / 12px no-repeat;
+  transition: background-color .12s, border-color .12s, box-shadow .12s;
+}
+.toggle:hover::before { border-color: var(--toggle-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--toggle-on) 14%, transparent); }
+.toggle:active::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--toggle-on) 20%, transparent); }
+.toggle[aria-pressed="true"] { color: var(--ink); }
+.toggle[aria-pressed="true"]::before {
+  background-color: var(--toggle-on); border-color: var(--toggle-on);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6 9.6 3.6' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* slider: a blue fill up to a yellow thumb. site.js keeps --fill in step with
+   the value, and --slider-blocked draws the values an <mm-slider> may not take
+   (its allow) dotted. */
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+  width: 100%; max-width: 280px; height: calc(var(--slider-thumb-size) + 8px); margin: 0;
+  --fill: 0%;
+}
+input[type="range"]:focus { outline: none; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--slider-height); border-radius: 999px;
+  background: var(--slider-blocked, linear-gradient(transparent, transparent)), linear-gradient(to right, var(--slider-fill) 0 var(--fill), var(--slider-track) var(--fill) 100%);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: var(--slider-thumb-size); height: var(--slider-thumb-size); border-radius: 50%;
+  margin-top: calc((var(--slider-height) - var(--slider-thumb-size)) / 2);
+  background: var(--slider-thumb); border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 0 var(--slider-thumb-halo);
+  transition: transform .12s var(--ease), box-shadow .15s var(--ease);
+}
+input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 6px var(--slider-thumb-halo); }
+input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.08); box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 9px var(--slider-thumb-halo); }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 0 0 2.5px var(--surface), 0 0 0 4.5px var(--slider-focus-ring); }
+input[type="range"]::-moz-range-track { height: var(--slider-height); border-radius: 999px; background: var(--slider-blocked, linear-gradient(transparent, transparent)), var(--slider-track); }
+input[type="range"]::-moz-range-progress { height: var(--slider-height); border-radius: 999px; background: var(--slider-fill); }
+input[type="range"]::-moz-range-thumb {
+  width: calc(var(--slider-thumb-size) - 4px); height: calc(var(--slider-thumb-size) - 4px); border-radius: 50%;
+  background: var(--slider-thumb); border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 0 var(--slider-thumb-halo);
+  transition: box-shadow .15s var(--ease);
+}
+input[type="range"]:hover::-moz-range-thumb { box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 6px var(--slider-thumb-halo); }
+input[type="range"]:active::-moz-range-thumb { box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 1px 3px rgba(23, 25, 30, .25), 0 0 0 9px var(--slider-thumb-halo); }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1px var(--slider-thumb-ring), 0 0 0 2.5px var(--surface), 0 0 0 4.5px var(--slider-focus-ring); }
+/* <mm-slider>: label, slider and value in one row */
+.slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+.slider > .label { grid-column: 1 / -1; margin: 0; }
+.slider > input[type="range"] { max-width: none; }
+/* the value keeps one width (--slider-value-chars, set by components.js from the
+   range and the step), so that the track does not change length as it changes */
+.slider > output { width: max(var(--slider-value-width), calc(var(--slider-value-chars, 0) * 1ch + 16px)); justify-content: flex-end; }
+/* <mm-slider plain>: its value as plain text, without the chip's ground; .slider-pair: two
+   sliders side by side */
+mm-slider[plain] { --chip-bg: transparent; }
+.slider-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+/* <mm-select>, <mm-menu>: a button that opens a list under it. The list is moved
+   to the end of the page while open and fixed there (components.js), above the
+   bar, so that a bar that scrolls sideways does not cut it off; it is as wide
+   as its items, and at least as the button. (Two classes: over .menu's place.) */
+mm-select, mm-menu { display: inline-flex; }
+.select-trigger { padding-right: 7px; gap: 5px; }
+.menu-trigger { padding: 0 5px 0 7px; gap: 2px; }
+.menu-trigger > svg:not(.select-chevron) { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.select-chevron { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
+.menu.popup-list { position: fixed; right: auto; z-index: 70; min-width: 0; width: max-content; max-width: calc(100vw - 16px); max-height: calc(100vh - 24px); overflow-y: auto; }
+.menu.popup-list > button { padding: 5px 12px; }
+.menu.popup-list > [aria-selected="true"] { color: var(--accent-ink); background: var(--accent-soft); }
+/* <mm-zoom>: a slider between a magnifier with − and one with +. On a touch screen
+   without a mouse it is not shown: the picture zooms by pinching (MM.pinchZoom). */
+mm-zoom { display: inline-flex; align-items: center; gap: 2px; }
+mm-zoom > input[type="range"] { width: var(--zoom-width); flex: none; }
+@media (hover: none) and (pointer: coarse) { mm-zoom { display: none; } }
+
+/* underline tabs: role=tablist > role=tab[aria-selected]. site.js adds
+   .tabs-indicator, an underline that slides to the chosen tab. The grey rule is
+   an inset shadow, inside the box, so the indicator covers it. */
+.tabs { position: relative; display: flex; gap: 4px; box-shadow: inset 0 -1px 0 var(--rule); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  appearance: none; background: none; border: 0; border-bottom: var(--tab-indicator-height) solid transparent;
+  font-family: var(--sans); font-size: var(--tab-font-size); font-weight: 500; letter-spacing: -.005em; color: var(--tab-text);
+  padding: 10px 12px; cursor: pointer; white-space: nowrap; transition: color .15s, border-color .15s;
+}
+.tab:hover { color: var(--ink); }
+.tab:hover:not([aria-selected="true"]) { border-bottom-color: var(--tab-hover-indicator); }
+.tab:focus-visible { outline-offset: -2px; }
+.tab[aria-selected="true"] { color: var(--tab-on-text); border-bottom-color: var(--tab-indicator); }
+.tabs.has-indicator > .tab[aria-selected="true"] { border-bottom-color: transparent; }
+.tab .tab-sub { font-weight: 400; color: var(--ink-3); margin-left: 6px; }
+.tabs-indicator {
+  position: absolute; left: 0; bottom: 0; height: var(--tab-indicator-height); pointer-events: none;
+  background: var(--tab-indicator); border-radius: 2px; opacity: 0;
+}
+.tabs-indicator.is-placed { opacity: 1; }
+.tabs-indicator.is-moving { transition: transform var(--tab-speed) var(--ease), width var(--tab-speed) var(--ease); }
+
+/* Segmented controls and tab lists scroll sideways when they overflow, without
+   a scrollbar; components.js marks an edge that has more beyond it, and that
+   edge fades out. (The mask's colour only sets its opacity.) */
+:is(.seg, .tabs, .control-bar > .wrap):is(.is-clipped-start, .is-clipped-end) {
+  --fade-start: 0px; --fade-end: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent);
+}
+:is(.seg, .tabs, .control-bar > .wrap).is-clipped-start { --fade-start: var(--edge-fade); }
+:is(.seg, .tabs, .control-bar > .wrap).is-clipped-end { --fade-end: var(--edge-fade); }
+
+/* a bar of controls that sticks under the site navigation while scrolling.
+   site.js adds .is-stuck while it is stuck, which shows a soft fade below it. */
+.control-bar {
+  position: sticky; top: var(--nav-h); z-index: 60;
+  background: var(--paper);
+}
+.control-bar::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 100%; height: var(--fade); pointer-events: none;
+  background: linear-gradient(var(--paper), color-mix(in srgb, var(--paper) 0%, transparent));
+  opacity: 0; transition: opacity .2s;
+}
+.control-bar.is-stuck::after { opacity: 1; }
+.control-bar > .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding-block: 10px; }
+/* On a phone, or in a short window, the bar is one row that scrolls sideways
+   (site.js fades an edge with more beyond it), so that it takes one row's height. */
+@media (max-width: 700px), (max-height: 500px) {
+  .control-bar > .wrap { flex-wrap: nowrap; gap: 8px 14px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .control-bar > .wrap::-webkit-scrollbar { display: none; }
+  .control-bar > .wrap > * { flex: none; }
+  .control-bar .control, .control-bar .control > :is(.seg, mm-seg) { max-width: none; }
+}
+/* The page's tools (example.js): a button at the end of the bar, always at the top
+   right of the column, whose menu has Copy link, Save image and Reset, and before it,
+   while the page's picture is out of view, a button that goes back to it; the row of
+   controls leaves room for them (for the second while it shows). */
+.control-bar.has-tools > .wrap { padding-right: calc(var(--gutter) + 44px); }
+.control-bar.has-tools.shows-goto > .wrap { padding-right: calc(var(--gutter) + 86px); }
+@media (max-width: 700px), (max-height: 500px) {
+  /* the row ends, and fades, just before the buttons */
+  .control-bar.has-tools > .wrap { margin-right: calc(max(0px, (100% - var(--page-max)) / 2) + var(--gutter) + 42px); padding-right: 0; }
+  .control-bar.has-tools.shows-goto > .wrap { margin-right: calc(max(0px, (100% - var(--page-max)) / 2) + var(--gutter) + 84px); }
+}
+.bar-goto.is-down svg { transform: scaleY(-1); }
+.bar-tools {
+  position: absolute; top: 10px; right: calc(max(0px, (100% - var(--page-max)) / 2) + var(--gutter));
+  min-height: calc(var(--seg-height) + 6px); /* a row of segmented controls */
+  display: flex; align-items: center; gap: 10px;
+}
+.bar-status { font-size: var(--text-label); color: var(--ink-2); white-space: nowrap; background: var(--paper); padding-left: 10px; }
+.bar-status:empty { display: none; }
+
+/* menu: a few actions under the button that opens it (role menu, items role menuitem) */
+.menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 1;
+  display: grid; min-width: 168px; padding: 5px;
+  background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.menu > button {
+  appearance: none; border: 0; background: none; cursor: pointer; text-align: left; white-space: nowrap;
+  font-family: var(--sans); font-size: var(--text-control); font-weight: 500; letter-spacing: -.005em; color: var(--ink-2);
+  min-height: 32px; padding: 6px 10px; border-radius: 5px;
+}
+.menu > button:hover:not(:disabled), .menu > button:focus-visible { color: var(--ink); background: var(--sunken); }
+.menu > button:focus-visible { outline-offset: -2px; }
+.menu > button:disabled { opacity: .45; cursor: default; }
+
+/* A strip of small pictures to choose from (diagrams, systems, knots), under a picture:
+   .strip-block holds a .strip-head (its label, and a segmented control of the families)
+   and the .strip, a toolbar (MM.strip does its keys) that scrolls sideways, of
+   .strip-group groups (one family shown at a time, a hairline between groups), each of
+   .strip-item buttons: a picture (an <svg>, in currentColor) over its .strip-name. The
+   one shown is pressed (aria-pressed), in blue. */
+.strip-block { border-top: 1px solid var(--rule-2); margin-top: 10px; padding-top: 12px; min-width: 0; }
+.strip-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.strip-block .label { margin: 0; }
+.strip { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; padding: 6px 0; margin-top: 2px; }
+.strip-group { display: flex; gap: 2px; flex: none; }
+.strip-group:not([hidden]) ~ .strip-group { padding-left: 8px; margin-left: 6px; border-left: 1px solid var(--rule-2); }
+.strip-item {
+  appearance: none; border: 0; background: none; margin: 0; padding: 4px 6px 2px; border-radius: var(--radius-sm);
+  font: inherit; color: var(--ink-2); cursor: pointer; flex: none; min-width: 46px;
+  display: grid; justify-items: center; align-content: start; gap: 0;
+}
+.strip-item > svg { display: block; height: var(--strip-picture-height); }
+.strip-name { font-size: 12.5px; line-height: 1.5; color: var(--ink-3); white-space: nowrap; }
+.strip-item:hover { background: var(--strip-hover); }
+.strip-item:focus-visible { outline-offset: -2px; }
+.strip-item[aria-pressed="true"] { background: var(--strip-on-bg); color: var(--strip-on-text); }
+.strip-item[aria-pressed="true"] .strip-name { color: var(--strip-on-text); }
+
+/* text box: numbers typed exactly. <mm-numbers> is a label and one; an exact
+   <mm-slider> shows its value in one. Invalid input is marked, not refused. */
+.field {
+  appearance: none; min-width: 0; height: var(--field-height); margin: 0; padding: 0 8px;
+  font-family: var(--mono); font-size: var(--field-font-size); font-variant-numeric: tabular-nums; color: var(--ink);
+  background: var(--field-bg); border: 1px solid var(--field-border); border-radius: var(--radius-sm);
+  transition: border-color .12s;
+}
+.field:hover { border-color: var(--field-hover-border); }
+.field:focus { border-color: var(--field-focus-border); }
+.field[aria-invalid="true"] { border-color: var(--field-invalid); }
+mm-numbers, .numbers { display: inline-flex; align-items: center; gap: 8px; }
+.numbers > .label { margin: 0; }
+.slider > .slider-value { justify-self: end; width: calc(max(var(--slider-value-width), var(--slider-value-chars, 0) * 1ch) + 18px); text-align: right; }
+
+/* dialog: <dialog class="dialog">, opened with showModal(), with a .dialog-title,
+   a close button (.dialog-close, a quiet icon button) in its corner and a row of
+   .dialog-actions */
+.dialog {
+  width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto;
+  margin: auto; padding: 20px 22px 18px; color: var(--ink); background: var(--dialog-bg);
+  border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+/* (older browsers give ::backdrop no custom properties: --ink at 22%, written out) */
+.dialog::backdrop { background: rgba(23, 25, 30, .22); }
+.dialog-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 14px; padding-right: 40px; }
+.dialog-close { position: absolute; top: 14px; right: 14px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* Save image (example.js): the picture as it will be saved, beside its options */
+.save-body { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 24px; align-items: start; }
+.save-preview { display: flex; align-items: center; justify-content: center; height: 340px; padding: 14px; background: var(--sunken); border-radius: var(--radius-sm); }
+.save-preview > canvas { display: block; max-width: 100%; max-height: 100%; background: var(--paper); box-shadow: 0 0 0 1px var(--rule-2); }
+.save-preview > .hint { margin: 0; text-align: center; }
+.save-options { display: grid; gap: 14px; }
+.save-option { display: grid; gap: 6px; justify-items: start; }
+.save-option > .label { margin: 0; }
+.save-row { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.save-size { margin: 0; }
+@media (max-width: 620px) {
+  .dialog { padding: 18px 16px 14px; }
+  .save-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .save-preview { height: min(240px, 34dvh); }
+}
+
+/* Larger targets for a finger, without changing a figure's size. (16px text in
+   a box keeps a phone from zooming in when it is tapped.) */
+@media (pointer: coarse) {
+  :root { --seg-height: 32px; --field-height: 32px; --field-font-size: 16px; }
+  .btn-sm { --btn-height: 32px; }
+}
+
+/* ---------- readouts, chips, legends ---------- */
+.readout {
+  background: var(--readout-bg); border-radius: var(--radius);
+  padding: 12px 16px; font-size: 15px; line-height: 1.6; min-height: 4.5em;
+}
+.readout-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 17px; margin-bottom: 4px; }
+.readout ul { margin: 4px 0 0; padding-left: 18px; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; background: var(--chip-bg);
+  border-radius: 6px; padding: 1px 8px; font-size: 14px; line-height: 1.6; white-space: nowrap;
+}
+.chip-mono { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.badge {
+  display: inline-block; font-family: var(--sans); font-size: 12px; font-weight: 600; line-height: 1.4;
+  font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 5px;
+  background: color-mix(in srgb, var(--c, var(--ink-3)) 64%, var(--ink)); color: var(--surface); /* white text at 4.5:1 on every data colour */
+}
+/* a rim a little darker than the fill keeps a light colour (yellow) visible on white. In a
+   legend, a point as the figure draws it: .hollow open, .ringed with a ring round it (in ink,
+   or --dot-ring) */
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--ink-3)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, var(--ink-3)) 72%, var(--ink)); flex: none; }
+.dot.hollow { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--c, var(--ink-3)); }
+.dot.ringed { margin: 0 3px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c, var(--ink-3)) 72%, var(--ink)), 0 0 0 2px var(--surface), 0 0 0 3.5px var(--dot-ring, var(--ink)); }
+.swatch { display: inline-block; width: 13px; height: 13px; border-radius: 3.5px; background: var(--c-soft, var(--sunken)); border: 1.5px solid color-mix(in srgb, var(--c, var(--ink-3)) 86%, var(--ink)); flex: none; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-family: var(--sans); font-size: var(--text-label); color: var(--ink-2); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+/* a line in a legend, as the figure draws it: <svg class="legend-line" viewBox="0 0 22 10">
+   with a path, in --c (ink) and --line-width (1.6) */
+.legend-line { display: inline-block; width: 22px; height: 10px; flex: none; }
+.legend-line path { fill: none; stroke: var(--c, var(--ink)); stroke-width: var(--line-width, 1.6); stroke-linecap: round; stroke-linejoin: round; }
+
+/* topic capsules (the site's tags) */
+.topics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; }
+.topics a {
+  display: inline-flex; align-items: center; height: 26px; padding: 0 11px; border-radius: 999px;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 500; letter-spacing: -.003em; white-space: nowrap;
+  color: var(--topic-text); background: var(--topic-bg); text-decoration: none;
+  transition: background-color .15s, color .15s;
+}
+.topics a:hover { color: var(--topic-on-text); background: var(--topic-on-bg); }
+.topics a:focus-visible { outline-offset: 1px; }
+
+/* data colour classes: set --c / --c-soft for the components above */
+.c1 { --c: var(--c1); --c-soft: var(--c1-soft); }
+.c2 { --c: var(--c2); --c-soft: var(--c2-soft); }
+.c3 { --c: var(--c3); --c-soft: var(--c3-soft); }
+.c4 { --c: var(--c4); --c-soft: var(--c4-soft); }
+.c5 { --c: var(--c5); --c-soft: var(--c5-soft); }
+.c6 { --c: var(--c6); --c-soft: var(--c6-soft); }
+.c7 { --c: var(--c7); --c-soft: var(--c7-soft); }
+.c8 { --c: var(--c8); --c-soft: var(--c8-soft); }
+.red { --c: var(--red); --c-soft: var(--red-soft); }
+
+/* ---------- notes, definitions, tables ---------- */
+/* a quiet aside; a colour class tints it very lightly */
+.note {
+  background: var(--note-bg); border-radius: var(--radius);
+  padding: 14px 18px; font-size: 15px;
+}
+.note:is(.c1, .c2, .c3, .c4, .c5, .c6, .c7, .c8, .red) { --note-bg: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.note > :last-child { margin-bottom: 0; }
+.note h3, .note h4 { font-size: 15.5px; margin-bottom: 6px; }
+
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 15px; }
+.kv dt { font-family: var(--sans); font-size: var(--text-label); color: var(--ink-3); padding-top: 3px; }
+.kv dd { margin: 0; min-width: 0; line-height: 1.55; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; } .kv dd { margin-bottom: 8px; } }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+.data-table th {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 500; color: var(--ink-3);
+  text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--rule); background: var(--table-head-bg);
+}
+.data-table td { padding: 7px 10px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--sunken) 60%, var(--surface)); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* the row selected; a compact table for a narrow column, its first column flush with the text */
+.data-table tbody tr.is-on { background: var(--accent-soft); }
+.data-table tbody tr.is-on > * { color: var(--accent-ink); }
+.data-table-sm :is(th, td) { padding: 4px 8px; }
+.data-table-sm :is(th, td):first-child { padding-left: 2px; }
+
+details > summary { cursor: pointer; font-family: var(--sans); font-size: var(--text-control); font-weight: 500; color: var(--ink-2); }
+
+/* Forced colours (Windows high contrast): the system repaints everything in its
+   own few colours and drops shadows, so the chosen and pressed states, drawn
+   here with backgrounds and shadows, are redrawn with system colours. */
+@media (forced-colors: active) {
+  .seg { outline: 1px solid CanvasText; outline-offset: -1px; }
+  .seg > button, .tab { forced-color-adjust: none; color: CanvasText; background: transparent; }
+  .seg > button:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]),
+  .btn:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
+    forced-color-adjust: none; color: HighlightText; background: Highlight; box-shadow: none;
+  }
+  .seg.has-indicator > button:is([aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) { background: transparent; }
+  .seg-indicator, .tabs-indicator { forced-color-adjust: none; background: Highlight; box-shadow: none; }
+  .tab { border-bottom-color: transparent; }
+  .tab[aria-selected="true"] { border-bottom-color: Highlight; }
+  .tabs.has-indicator > .tab[aria-selected="true"] { border-bottom-color: transparent; }
+  .seg > button:focus-visible, .tab:focus-visible { outline-color: CanvasText; }
+  .toggle[aria-pressed="true"]::before { forced-color-adjust: none; background-color: Highlight; border-color: Highlight; }
+  input[type="range"] {
+    forced-color-adjust: none;
+    --slider-track: CanvasText; --slider-fill: Highlight; --slider-thumb: Highlight;
+    --slider-thumb-ring: CanvasText; --slider-focus-ring: CanvasText; --surface: Canvas;
+  }
+  .strip-item[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  :is(.handle-art, .handle-point, .handle-num, .focus-ring, .snap-ring) { forced-color-adjust: none; }
+  .handle-ring { fill: CanvasText; }
+  .handle-gap { fill: Canvas; }
+  .handle-dot, .handle-point { fill: Highlight; }
+  .handle-point, .focus-ring { stroke: CanvasText; }
+  .handle-num { fill: HighlightText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

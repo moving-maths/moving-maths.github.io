@@ -1,0 +1,78 @@
+<!-- The card image (npm run thumbs): the page's first view, the root system A2,
+     drawn as the page draws it, with heavier marks so that it reads at card
+     size. The handle picks a direction; the roots on its side of the line are
+     positive (filled), the others negative (hollow); the simple roots are the
+     arrows, and the shaded wedge is the chamber of directions that give the
+     same positive roots. -->
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), TAU = 2 * Math.PI;
+  const ox = W / 2, oy = 350, R = 168;   // the origin, and the length of a root
+  const at = (deg, r) => [ox + r * Math.cos(deg * Math.PI / 180), oy - r * Math.sin(deg * Math.PI / 180)];
+  // the roots at 30° + 60°k; α1 at 30°, α2 at 150°, the highest root at 90°
+  const roots = [30, 90, 150, 210, 270, 330].map((a, k) => ({ a, p: at(a, R), positive: k < 3 }));
+  const line = (p, q) => { cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); };
+
+  function draw() {
+    const blue = MM.color('root-real'), ink = MM.color('ink');
+    cx.clearRect(0, 0, W, H);
+    // the negative side
+    cx.fillStyle = MM.color('sunken');
+    cx.fillRect(0, oy, W, H - oy);
+    // the chamber of the handle, between the mirrors at 60° and 120°
+    cx.beginPath();
+    cx.moveTo(ox, oy); cx.lineTo(...at(60, 900)); cx.lineTo(...at(120, 900)); cx.closePath();
+    cx.fillStyle = MM.rgba('accent', 0.11);
+    cx.fill();
+    // the circle the roots lie on
+    cx.lineWidth = 2.5;
+    cx.strokeStyle = MM.color('rule');
+    cx.beginPath(); cx.arc(ox, oy, R, 0, TAU); cx.stroke();
+    // the mirrors at 60° and 120° (the one at 0° is the line below)
+    cx.lineWidth = 2.5;
+    cx.strokeStyle = MM.rgba('root-real', 0.55);
+    for (const a of [60, 120]) line(at(a, 900), at(a + 180, 900));
+    // the line where the handle's functional vanishes
+    cx.lineWidth = 3;
+    cx.strokeStyle = ink;
+    line([0, oy], [W, oy]);
+    // from the origin to the handle
+    const hy = 112;
+    cx.setLineDash([2, 8]);
+    cx.lineCap = 'round';
+    cx.lineWidth = 3;
+    cx.strokeStyle = MM.color('ink-3');
+    line([ox, oy], [ox, hy + 24]);
+    cx.setLineDash([]);
+    // the simple roots, as arrows from the origin, and their names
+    for (const [i, r] of [[1, roots[0]], [2, roots[2]]]) {
+      const ux = Math.cos(r.a * Math.PI / 180), uy = -Math.sin(r.a * Math.PI / 180), len = R - 20;
+      const tx = ox + ux * len, ty = oy + uy * len, head = 26, wing = 10;
+      cx.lineWidth = 4.5;
+      cx.strokeStyle = ink;
+      line([ox, oy], [tx - ux * head * 0.6, ty - uy * head * 0.6]);
+      cx.beginPath();
+      cx.moveTo(tx, ty);
+      cx.lineTo(tx - ux * head - uy * wing, ty - uy * head + ux * wing);
+      cx.lineTo(tx - ux * head + uy * wing, ty - uy * head - ux * wing);
+      cx.closePath();
+      cx.fillStyle = ink;
+      cx.fill();
+      MM.canvasLabel(cx, '$\\alpha_' + i + '$', r.p[0] + ux * 46, r.p[1] - 22, { size: 42, align: 'center', baseline: 'middle', color: ink });
+    }
+    // the roots: filled when positive, hollow when negative
+    for (const r of roots) {
+      cx.beginPath();
+      cx.arc(r.p[0], r.p[1], r.positive ? 13 : 11.5, 0, TAU);
+      cx.fillStyle = r.positive ? blue : MM.color('surface');
+      cx.fill();
+      if (!r.positive) { cx.lineWidth = 3.5; cx.strokeStyle = blue; cx.stroke(); }
+    }
+    // the handle: yellow, ringed in blue
+    cx.beginPath(); cx.arc(ox, hy, 22, 0, TAU); cx.fillStyle = MM.color('accent'); cx.fill();
+    cx.beginPath(); cx.arc(ox, hy, 17.5, 0, TAU); cx.fillStyle = MM.color('surface'); cx.fill();
+    cx.beginPath(); cx.arc(ox, hy, 14, 0, TAU); cx.fillStyle = MM.color('handle'); cx.fill();
+  }
+  MM.onFonts(draw);
+})();
+</script>

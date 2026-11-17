@@ -1,0 +1,153 @@
+---
+title: Configuration spaces
+description: 'Ordered and unordered configuration spaces of manifolds, and their topology.'
+tags: [topology]
+date: 2026-11-11
+katex_runtime: true
+styles: [style.css]
+scripts: [confspaces.js, main.js]
+references:
+  - key: arnold1969
+    authors: V. I. Arnold
+    title: The cohomology ring of the colored braid group
+    note: Mat. Zametki 5 (1969), 227–231
+  - key: artin1947
+    authors: E. Artin
+    title: Theory of braids
+    note: Ann. of Math. 48 (1947), 101–126
+  - key: fadell1962
+    authors: E. Fadell, L. Neuwirth
+    title: Configuration spaces
+    note: Math. Scand. 10 (1962), 111–118
+  - key: knudsen2017
+    authors: B. Knudsen
+    title: Betti numbers and stability for configuration spaces via factorization homology
+    url: https://arxiv.org/abs/1405.6696
+    note: Algebr. Geom. Topol. 17 (2017), 3137–3187
+  - key: petersen2020
+    authors: D. Petersen
+    title: Cohomology of generalized configuration spaces
+    url: https://arxiv.org/abs/1807.07293
+    note: Compos. Math. 156 (2020), 251–298
+---
+<div class="wrap">
+  <p class="lede">The configuration spaces of a space $X$: the space of $k$-tuples of distinct points in $X$, or of $k$-element subsets when the points are unlabelled.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <div class="control"><span class="label">$X$</span>
+    <mm-select id="surface" value="plane" aria-label="The space X">
+      <button value="line" aria-label="The line">$\RR$</button><button value="circle" aria-label="The circle">$S^1$</button><button value="plane" aria-label="The plane">$\RR^2$</button><button value="sphere" aria-label="The sphere">$S^2$</button><button value="projective" aria-label="The projective plane">$\RR P^2$</button><button value="cylinder" aria-label="The cylinder">$S^1\times\RR$</button><button value="torus" aria-label="The torus">$T^2$</button><button value="mobius">Möbius band</button><button value="klein">Klein bottle</button>
+    </mm-select>
+  </div>
+  <div class="control"><span class="label">$k$</span>
+    <mm-seg id="count" value="3" aria-label="The number of points k">
+      <button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button>
+    </mm-seg>
+  </div>
+  <mm-seg id="mode" value="ordered" aria-label="Ordered or unordered points">
+    <button value="ordered" aria-label="Ordered points">$\Conf$</button><button value="unordered" aria-label="Unordered points">$\UConf$</button>
+  </mm-seg>
+  <div class="control cs-moves" id="moves" role="toolbar" aria-label="Moves"></div>
+  <mm-toggle id="trails" pressed>Paths</mm-toggle>
+  <mm-toggle id="spin" pressed>Rotate</mm-toggle>
+  <div class="control">
+    <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+  </div>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split cs" id="figure">
+    <div class="split-main">
+      <div class="cs-stagebox split-fit" id="stagebox">
+        <svg id="stage" role="group" aria-label="The surface as a square with its edges glued, and the points on it. Drag a point, or move it with the arrow keys."></svg>
+      </div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="title">
+        <h2 class="side-title" id="title"></h2>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block cs-space" aria-labelledby="space-h">
+        <h3 class="label" id="space-h"></h3>
+        <canvas id="space" role="img" tabindex="0"></canvas>
+        <div class="legend" id="space-legend"></div>
+      </section>
+      <section class="side-block side-more" aria-label="The space">
+        <dl class="kv" id="about"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="betti-h">
+        <h3 class="label" id="betti-h">Betti numbers</h3>
+        <div class="scroll-x"><table class="data-table data-table-sm" id="betti"></table></div>
+        <p class="hint" id="betti-note"></p>
+      </section>
+    </div>
+  </figure>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section id="why" aria-labelledby="why-h" hidden>
+  <h2 class="section-title" id="why-h">Why there’s no picture</h2>
+  <div id="why-text"></div>
+</section>
+
+<section id="plane-text" data-only="plane" aria-labelledby="sec-plane">
+  <h2 class="section-title" id="sec-plane">Three points in the plane</h2>
+  <p>The space $\Conf_3(\RR^2)$ of three points in the plane is homotopy equivalent to the $3$-sphere minus three circles. With the plane as $\CC$, the points are a vector $(x_1,x_2,x_3)$ of $\CC^3$. Moving them until their centre is $0$ puts them in the plane $x_1+x_2+x_3=0$, a copy of $\CC^2$, and scaling them to length $1$ puts them on its unit sphere $S^3$; neither changes the homotopy type. The collision $x_i=x_j$ is a complex line in that plane, which meets $S^3$ in a great circle $C_{ij}$:</p>
+  $$\Conf_3(\RR^2)\simeq S^3\setminus(C_{12}\cup C_{13}\cup C_{23}).$$
+  <p>The three circles are fibres of the Hopf fibration $S^3\to\CC P^1$, and any two of them are linked once; stereographic projection draws them as circles in space. How often a closed path goes round $C_{ij}$, its linking number with $C_{ij}$, is how often $x_j$ goes round $x_i$, the winding number of $x_j-x_i$ round $0$. The three numbers give the class of the path in $H_1\bigl(\Conf_3(\RR^2)\bigr)=\ZZ^3$.</p>
+  <p>Three unordered points, centred, are the roots of a cubic $z^3+az+b$. Scaling the roots by $t$ takes $(a,b)$ to $(t^2a,t^3b)$, so up to scale these cubics form $S^3$ again. Two roots coincide where $4a^3+27b^2=0$, which meets $S^3$ in a trefoil knot $K$:</p>
+  $$\UConf_3(\RR^2)\simeq S^3\setminus K.$$
+  <p>So the group of the trefoil, the fundamental group of its complement, is the braid group $B_3$. A swap of two points is a loop once round $K$.</p>
+</section>
+
+<section aria-labelledby="sec-braids">
+  <h2 class="section-title" id="sec-braids">Braids</h2>
+  <figure id="braid-fig">
+    <div class="cs-gens" id="gens" role="radiogroup" aria-label="Generators"></div>
+    <div class="fig-pair">
+      <div><canvas id="braid" role="img"></canvas></div>
+      <div class="fig-copy" id="braid-copy" aria-label="The points where the braid starts, as in the figure at the top"></div>
+    </div>
+    <figcaption class="caption" id="braid-cap"></figcaption>
+  </figure>
+  <p id="braid-absent" hidden></p>
+  <p>A braid of $k$ strands in $X$ is made of $k$ disjoint curves in $X\times[0,1]$, each meeting every level $X\times\{t\}$ once. Points moving in $X$ trace a braid, a strand for each point: a path in $\Conf_k(X)$ is a braid, and a loop, which brings each point back to its place, is a pure braid; a loop in $\UConf_k(X)$ may permute the points. Up to deformation the loops form the fundamental groups</p>
+  $$\begin{gathered}\pi_1\Conf_k(X)=P_k(X),\\ \pi_1\UConf_k(X)=B_k(X),\end{gathered}$$
+  <p>the pure braid group and the braid group of $X$.<span data-only="plane"> For the plane they are Artin’s braid groups.</span><span id="turns-text" data-only="surface"> Half a turn of two points about each other swaps them, a braid that is not pure. A whole turn, one point once round the other, is a pure braid.</span></p>
+  <p id="braids-case" hidden></p>
+  <p>Forgetting the last point is a fibration $\Conf_k(X)\to\Conf_{k-1}(X)$ whose fibre is $X$ minus $k-1$ points [@fadell1962]. The fibres are aspherical, so when $X$ is aspherical, so is $\Conf_k(X)$, and its homotopy type is determined by its braid group. That is so for every space here but the sphere and the projective plane, for which $\pi_3\Conf_k(X)\cong\pi_3(X)\cong\ZZ$.</p>
+  <p id="gens-text" data-only="surface">With the points in a row, the fibrations give generators [@fadell1962]: $P_k(X)$ is generated by the loops of each $x_j$ once round each $x_i$ with $i<j$, passing behind the points between them, and the loops of each point along generators of $\pi_1(X)$, the others held still.<span id="artin-text" data-only="plane"> For the plane these are Artin’s generators [@artin1947].</span> The swaps of neighbours in the row lift the transpositions that generate the permutations, so with the loops of $x_1$ they generate $B_k(X)$.</p>
+</section>
+
+<section aria-labelledby="sec-collisions">
+  <h2 class="section-title" id="sec-collisions">Collisions</h2>
+  <figure>
+    <div class="fig-pair">
+      <div class="scroll-x"><svg id="strata" role="group"></svg></div>
+      <div class="fig-copy" id="stage-copy" aria-label="The points, as in the figure at the top"></div>
+    </div>
+    <figcaption class="caption" id="stratum" aria-live="polite"></figcaption>
+  </figure>
+  <p>The collisions divide $X^k$ into strata, one for each way the points can coincide: for ordered points a partition of $\{1,\dots,k\}$ into blocks of points at one place, and for unordered points, in $\Sym^k(X)$, a partition of $k$, the multiplicities. A stratum of $\ell$ blocks is a copy of $\Conf_\ell(X)$, for unordered points divided by the permutations of the points of equal multiplicity. It has codimension $(k-\ell)\dim X$, and its closure also contains the strata got from it by merging blocks, below it in the figure.</p>
+  <div id="collide-case"></div>
+</section>
+
+<section aria-labelledby="sec-cohomology">
+  <h2 class="section-title" id="sec-cohomology">Cohomology</h2>
+  <p>The Betti numbers $b_i$ of a space are the dimensions of its rational cohomology groups $H^i$, and its Poincaré polynomial is $\sum_ib_it^i$.</p>
+  <div id="cohom-plane" data-only="plane">
+  <p>For $k$ ordered points in the plane the Poincaré polynomial is [@arnold1969]</p>
+  $$\sum_i b_i\bigl(\Conf_k(\RR^2)\bigr)\,t^i=\prod_{j=1}^{k-1}(1+jt).$$
+  <p>The factor $1+jt$ is the Poincaré polynomial of the plane minus $j$ points, the fibre of the fibration $\Conf_{j+1}(\RR^2)\to\Conf_j(\RR^2)$ that forgets $x_{j+1}$ [@fadell1962]: the Betti numbers are those of the product of the fibres. The cohomology ring is generated by classes $\omega_{ij}$ of degree $1$, where $\omega_{ij}$ of a loop is the number of times $x_j$ goes round $x_i$.</p>
+  </div>
+  <p id="cohom-case"></p>
+  <div id="chi-text"></div>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

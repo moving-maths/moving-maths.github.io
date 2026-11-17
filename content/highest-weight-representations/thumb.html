@@ -1,0 +1,93 @@
+<!-- The card image (npm run thumbs): the page's first view, the weights of
+     V(2,1) for sl3, drawn as the page draws them, with heavier marks so that
+     they read at card size: the weight lattice, the mirrors, the dominant
+     chamber, the roots as arrows, the hull of the weights, each weight with its
+     multiplicity, and the handle at the highest weight λ. Computed with
+     weights.js, as on the page. -->
+<script src="weights.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), HW = window.HighestWeight, TAU = 2 * Math.PI;
+  const A = HW.algebra('A2'), lam = [2, 1], ch = HW.character(A, lam);
+  const P = (mu) => A.pos(mu);
+  const unit = (v) => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+  const reach = Math.max(...ch.weights.map((w) => Math.hypot(...P(w.mu))));
+  const s = 222 / reach, ox = W / 2, oy = H / 2 + 14;
+  const at = (p) => [ox + s * p[0], oy - s * p[1]];
+  const line = (p, q) => { cx.beginPath(); cx.moveTo(p[0], p[1]); cx.lineTo(q[0], q[1]); cx.stroke(); };
+
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    const O = at([0, 0]), e = A.e.map(unit), L = 2000;
+    // the dominant chamber, and its walls
+    cx.beginPath();
+    cx.moveTo(O[0], O[1]);
+    cx.lineTo(O[0] + L * e[0][0], O[1] - L * e[0][1]);
+    cx.lineTo(O[0] + L * (e[0][0] + e[1][0]), O[1] - L * (e[0][1] + e[1][1]));
+    cx.lineTo(O[0] + L * e[1][0], O[1] - L * e[1][1]);
+    cx.closePath();
+    cx.fillStyle = MM.rgba('accent', 0.07);
+    cx.fill();
+    // the mirrors
+    cx.lineWidth = 2;
+    cx.strokeStyle = MM.color('rule');
+    for (const r of A.positive) { const d = unit(P(r.labels)); line([O[0] - L * d[1], O[1] - L * d[0]], [O[0] + L * d[1], O[1] + L * d[0]]); }
+    cx.lineWidth = 2.5;
+    cx.strokeStyle = MM.rgba('accent', 0.32);
+    for (const u of e) line(O, [O[0] + L * u[0], O[1] - L * u[1]]);
+    // the weight lattice
+    cx.fillStyle = MM.rgba('ink', 0.2);
+    for (let a = -9; a <= 9; a++) for (let b = -9; b <= 9; b++) {
+      const [x, y] = at(P([a, b]));
+      if (x < -5 || x > W + 5 || y < -5 || y > H + 5) continue;
+      cx.beginPath(); cx.arc(x, y, 2.6, 0, TAU); cx.fill();
+    }
+    // the hull of the weights
+    const hull = HW.orbit(A, lam).map(P).sort((p, q) => Math.atan2(p[1], p[0]) - Math.atan2(q[1], q[0])).map(at);
+    cx.beginPath();
+    hull.forEach((q, i) => (i ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1])));
+    cx.closePath();
+    cx.lineWidth = 3;
+    cx.strokeStyle = MM.rgba('wt', 0.4);
+    cx.stroke();
+    // the roots, as arrows from the origin
+    cx.strokeStyle = cx.fillStyle = MM.rgba('root', 0.75);
+    cx.lineWidth = 3;
+    for (const a of A.roots) {
+      const t = at(P(a)), d = Math.hypot(t[0] - O[0], t[1] - O[1]), ux = (t[0] - O[0]) / d, uy = (t[1] - O[1]) / d, hl = 17, hw = 7.5;
+      line(O, [t[0] - ux * hl * 0.6, t[1] - uy * hl * 0.6]);
+      cx.beginPath();
+      cx.moveTo(t[0], t[1]);
+      cx.lineTo(t[0] - ux * hl - uy * hw, t[1] - uy * hl + ux * hw);
+      cx.lineTo(t[0] - ux * hl + uy * hw, t[1] - uy * hl - ux * hw);
+      cx.closePath();
+      cx.fill();
+    }
+    cx.fillStyle = MM.color('ink');
+    cx.beginPath(); cx.arc(O[0], O[1], 4.5, 0, TAU); cx.fill();
+    // the weights, each with its multiplicity beside it
+    const pts = ch.weights.map((w) => ({ w, q: at(P(w.mu)) }));
+    cx.fillStyle = MM.color('wt');
+    for (const { q } of pts) { cx.beginPath(); cx.arc(q[0], q[1], 10.5, 0, TAU); cx.fill(); }
+    cx.font = MM.font('sans', 29, 500);
+    cx.textAlign = 'left';
+    cx.textBaseline = 'middle';
+    cx.lineJoin = 'round';
+    for (const { w, q } of pts) {
+      if (w.key === HW.key(lam)) continue; // under the handle; its multiplicity is 1
+      cx.lineWidth = 7;
+      cx.strokeStyle = MM.rgba('surface', 0.92);
+      cx.strokeText(String(w.mult), q[0] + 16, q[1] - 5);
+      cx.fillStyle = MM.color('ink-2');
+      cx.fillText(String(w.mult), q[0] + 16, q[1] - 5);
+    }
+    // the handle at λ, and its name
+    const [hx, hy] = at(P(lam));
+    cx.beginPath(); cx.arc(hx, hy, 22, 0, TAU); cx.fillStyle = MM.color('accent'); cx.fill();
+    cx.beginPath(); cx.arc(hx, hy, 18.5, 0, TAU); cx.fillStyle = MM.color('surface'); cx.fill();
+    cx.beginPath(); cx.arc(hx, hy, 14.5, 0, TAU); cx.fillStyle = MM.color('handle'); cx.fill();
+    MM.canvasLabel(cx, '$\\lambda$', hx, hy - 50, { size: 44, align: 'center', baseline: 'middle', color: MM.color('ink') });
+  }
+  MM.onFonts(draw);
+})();
+</script>

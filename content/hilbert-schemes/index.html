@@ -1,0 +1,159 @@
+---
+title: Hilbert schemes of points
+description: 'Move and collide points in the plane, and follow their ideal, its staircase and the monomial ideal it flows to.'
+tags: [algebraic-geometry]
+date: 2026-11-15
+katex_runtime: true
+macros:
+  \Hilb: '\operatorname{Hilb}'
+  \init: '\operatorname{in}'
+styles: [style.css]
+scripts: [hilbert.js, curves.js, main.js]
+references:
+  - key: bialynicki-birula1973
+    authors: A. Białynicki-Birula
+    title: Some theorems on actions of algebraic groups
+    note: Ann. of Math. 98 (1973), 480–497
+  - key: cox2015
+    authors: D. Cox, J. Little, D. O’Shea
+    title: Ideals, varieties, and algorithms
+    note: 'Springer, 4th ed. (2015). Ch. 2 (Gröbner bases)'
+  - key: eisenbud1995
+    authors: D. Eisenbud
+    title: Commutative algebra with a view toward algebraic geometry
+    note: 'Graduate Texts in Mathematics 150, Springer (1995). §15.8 (initial ideals as flat limits)'
+  - key: ellingsrud1987
+    authors: G. Ellingsrud, S. A. Strømme
+    title: On the homology of the Hilbert scheme of points in the plane
+    note: Invent. Math. 87 (1987), 343–352
+  - key: fogarty1968
+    authors: J. Fogarty
+    title: Algebraic families on an algebraic surface
+    note: Amer. J. Math. 90 (1968), 511–521
+  - key: haiman1998
+    authors: M. Haiman
+    title: '$t,q$-Catalan numbers and the Hilbert scheme'
+    note: Discrete Math. 193 (1998), 201–224
+  - key: nakajima1999
+    authors: H. Nakajima
+    title: Lectures on Hilbert schemes of points on surfaces
+    note: 'University Lecture Series 18, AMS (1999). Ch. 1 and 5'
+---
+<div class="wrap">
+  <p class="lede">The Hilbert scheme $\Hilb^n(\CC^2)$ is the space of zero-dimensional subschemes of length $n$ in the plane: sets of $n$ distinct points, and their limits as points collide. Each is cut out by an ideal $I\subset\CC[x,y]$ with $\dim\CC[x,y]/I=n$, so $\Hilb^n(\CC^2)$ is also the space of these ideals. The points in the figure are real.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <div class="control"><span class="label">Points</span>
+    <mm-seg id="count" value="3" aria-label="The number of points n">
+      <button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button><button value="5">5</button><button value="6">6</button>
+    </mm-seg>
+  </div>
+  <div class="control">
+    <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+  </div>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split hs" id="figure">
+    <div class="split-main hs-main">
+      <div class="hs-planebox split-fit" id="plane">
+        <canvas id="canvas" aria-hidden="true"></canvas>
+        <svg id="stage" role="group" aria-label="The points in the real plane, with the curves of the generators of their ideal. Each point can be moved with the arrow keys."></svg>
+        <div class="fig-menu hs-menu" id="menu" role="dialog" aria-label="The multiple point" hidden></div>
+        <p class="fig-overlay" id="drop-hint" hidden></p>
+      </div>
+      <section class="strip-block" aria-labelledby="strip-h">
+        <h3 class="label" id="strip-h">The monomial ideals in $\Hilb^{3}(\CC^2)$, by their number of rows</h3>
+        <div class="strip" id="strip" role="toolbar" aria-labelledby="strip-h"></div>
+      </section>
+    </div>
+    <div class="split-side" id="side">
+      <section class="side-block side-head" aria-labelledby="title">
+        <h2 class="side-title" id="title"></h2>
+        <p class="side-sub" id="sub"></p>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block" aria-labelledby="pres-h">
+        <h3 class="label" id="pres-h">Presentation of the ideal</h3>
+        <p class="hs-formula" id="formula" aria-live="polite"></p>
+        <svg id="stair" role="group" aria-label="The staircase of the ideal: its basis of monomials, with the leading terms of the generators at its corners, and the weight w that orders the monomials. The weight can be turned with the arrow keys."></svg>
+        <p class="caption" id="stair-cap" aria-live="polite"></p>
+      </section>
+      <section class="side-block" aria-label="About the ideal">
+        <dl class="kv" id="about"></dl>
+      </section>
+    </div>
+  </figure>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section aria-labelledby="sec-basis">
+  <h2 class="section-title" id="sec-basis">The ideal and its staircase</h2>
+  <figure>
+    <div class="hs-ladder" id="steps"><svg id="steps-svg" aria-hidden="true"></svg></div>
+    <ul class="sr-only" id="steps-list" aria-label="The monomials row by row, as in the staircase"></ul>
+    <figcaption class="caption" id="steps-cap"></figcaption>
+  </figure>
+  <p>The ideal $I$ consists of the polynomials $f$ that vanish at every chosen point: $f(p)=0$. At a point of multiplicity $k$ along a curve $\gamma$, with $\gamma(0)=p$, $f$ vanishes to order $k$ along the curve: $f(\gamma(s))=O(s^k)$. At a double point with direction $v$, this means $f(p)=\partial_vf(p)=0$.</p>
+  <p>The monomials $x^ay^b$ are ordered by their weight $w_1a+w_2b$, ties broken by the power of $y$, for the weight $w$ on the dial beside the staircase. A monomial is kept if no polynomial in $I$ has it as its leading term, its term of greatest weight. Otherwise $I$ contains a polynomial whose other terms are kept monomials:</p>
+  $$x^ay^b-\sum_{s\ \text{kept}}c_s\,s\ \in\ I.$$
+  <p>If $x^ay^b$ is not a multiple of an earlier leading term, this polynomial is a generator of $I$. The kept monomials are not in $I$. There are $n$ of them, they form the staircase, and they are a basis of $\CC[x,y]/I$. The generators, one at each corner of the staircase, form the reduced Gröbner basis of $I$ for this order [@cox2015, Ch. 2].</p>
+  <p id="shape-note"></p>
+  <figure>
+    <svg id="mult" role="group" aria-label="Multiplication by x and by y on the staircase: each box moves one step right or up; the monomials outside the staircase it reaches can be chosen, to show what they are in C[x,y]/I."></svg>
+    <figcaption class="caption" id="mult-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>Multiplication by $x$ and by $y$ on $\CC[x,y]/I$, in the basis of the staircase, are two commuting $n\times n$ matrices $X$ and $Y$. In the figure above, $x$ moves a box one step right and $y$ one step up; a monomial outside the staircase is a combination of boxes in $\CC[x,y]/I$. The joint eigenvalues of $X$ and $Y$ are the points, a point of multiplicity $k$ counted $k$ times. The vector $1$ is cyclic: the matrices applied to it span $\CC^n$. Two commuting $n\times n$ matrices with a cyclic vector, up to a change of basis, are a point of $\Hilb^n(\CC^2)$ [@nakajima1999, Ch. 1].</p>
+</section>
+
+<section aria-labelledby="sec-collide">
+  <h2 class="section-title" id="sec-collide">Colliding points</h2>
+  <figure>
+    <div class="hs-discrow">
+      <svg id="disc" role="group" aria-label="The real triple points at one place, as a disc whose opposite rim points are the same. The dot can be moved with the arrow keys."></svg>
+      <svg id="germ" role="img" aria-label="The triple point the dot stands for, at the origin"></svg>
+      <div class="fig-copy" id="plane-copy" aria-label="The points and the curves of their ideal, as in the figure at the top" hidden></div>
+    </div>
+    <figcaption class="caption" id="disc-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>When points collide, their ideal has a limit. As a point comes to another point $p$ along the direction $v$, their ideal converges to $(\ell_v)+\mathfrak m_p^2$, where $\ell_v$ is the equation of the line through $p$ along $v$ and $\mathfrak m_p$ is the ideal of $p$. This is the double point at $p$ with direction $v$. The double points at one place form a projective line $\PP^1$, and $\Hilb^2(\CC^2)$ is $\Sym^2(\CC^2)$ with its diagonal blown up.</p>
+  <p>Three points that come together along a curve $y=cx^2+\dots$ through the origin converge to the curvilinear triple point</p>
+  $$\bigl(y-cx^2,\ x^3\bigr).$$
+  <p>Three points that come from three directions at once converge to $\mathfrak m_p^2$. The disc above holds all the real triple points at one place: $\mathfrak m_p^2$ at its centre, and the triple points along straight lines on its rim, where opposite points are the same.</p>
+</section>
+
+<section aria-labelledby="sec-torus">
+  <h2 class="section-title" id="sec-torus">The torus and its fixed points</h2>
+  <figure>
+    <div class="hs-flowbox" id="flowbox">
+      <canvas id="flow" role="img" aria-label="The points flowing to the origin under the torus, with the curves of the generators of their ideal"></canvas>
+    </div>
+    <mm-slider id="flow-t" min="0" max="1" step="0.01" value="0" aria-label="The flow, from t = 1 to t = 0">$t$</mm-slider>
+    <figcaption class="caption" id="flow-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The torus $T=(\CC^\times)^2$ acts on the plane by scaling the coordinates, and so acts on $\Hilb^n(\CC^2)$. For the weight $w=(w_1,w_2)$, the points move to the origin along $t\mapsto(t^{w_1}x,\,t^{w_2}y)$ as $t$ goes from $1$ to $0$. Their ideal $I_t$ converges to the initial ideal of $I$, generated by the terms of greatest weight of the generators [@eisenbud1995, §15.8]:</p>
+  $$\lim_{t\to0}I_t=\init_w(I).$$
+  <p>The ticks on the dial of $w$ are the weights at which two terms of a generator weigh the same. For $w$ between two ticks, $\init_w(I)$ is the monomial ideal of the staircase; for $w$ on a tick, it is not monomial.</p>
+  <p>The points of $\Hilb^n(\CC^2)$ fixed by $T$ are the monomial ideals with $n$ monomials outside them, one for each partition of $n$; the strip under the picture shows them. The points that flow to the same fixed point form a cell [@bialynicki-birula1973], so the Euler characteristic of $\Hilb^n(\CC^2)$ is the number of partitions of $n$:</p>
+  $$\sum_{n\ge0}\chi\bigl(\Hilb^n(\CC^2)\bigr)\,q^n=\prod_{k\ge1}\frac{1}{1-q^k}.$$
+  <p>Its Betti numbers count the partitions by their number of rows, as the strip groups them: $b_{2i}$ is the number of partitions of $n$ into $n-i$ rows [@ellingsrud1987]. <span id="betti"></span></p>
+</section>
+
+<section aria-labelledby="sec-tangent">
+  <h2 class="section-title" id="sec-tangent">Tangent spaces at the fixed points</h2>
+  <figure>
+    <div class="hs-tpick" id="tpick" role="group" aria-label="The fixed points, by their partitions"></div>
+    <svg id="young" role="group" aria-label="The partition, as a diagram of boxes. Each box can be chosen, to show its arm, its leg and its two tangent weights."></svg>
+    <figcaption class="caption" id="young-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The tangent space to $\Hilb^n(\CC^2)$ at the fixed point $I_\lambda$ is $\Hom(I_\lambda,\CC[x,y]/I_\lambda)$. It splits into weight spaces for $T$: a homomorphism of weight $(d_1,d_2)$ takes each monomial $x^iy^j$ of $I_\lambda$ to a multiple of $x^{i+d_1}y^{j+d_2}$. Each box $s$ of the diagram of $\lambda$ gives two weights [@ellingsrud1987; @nakajima1999, Ch. 5; @haiman1998]. Its arm $a(s)$ is the number of boxes to its right, and its leg $l(s)$ the number of boxes above it, both grey in the figure; its weights are</p>
+  $$\bigl(-a(s)-1,\ l(s)\bigr)\quad\text{and}\quad\bigl(a(s),\ -l(s)-1\bigr)$$
+  <p>In the figure each weight is an arrow from a monomial outside the diagram to one inside. So the tangent space has dimension $2n$ at every fixed point. Every point flows to a fixed point, and the dimension of the tangent space can only grow in a limit, so it is $2n$ everywhere: $\Hilb^n(\CC^2)$ is smooth, of dimension $2n$ [@fogarty1968].</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

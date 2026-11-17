@@ -1,0 +1,46 @@
+<!-- The card image (npm run thumbs): the figure-eight knot, the page's own
+     example, as the page draws its diagram, broken where a strand passes under:
+     one knot, large, with a heavier line than on the page, so that it reads at
+     card size. Computed with knots.js and layout.js from table.js, as on the page. -->
+<script src="knots.js"></script>
+<script src="layout.js"></script>
+<script src="table.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), K = window.Knots, L = window.KnotLayout;
+  // the table's drawing of 4_1 (as main.js reads it)
+  const row = window.KnotTable.find((r) => r[0] === '4_1'), U = 1295 / 1.6, poly = [], text = row[3];
+  for (let i = 0; i < text.length; i += 4) poly.push([parseInt(text.slice(i, i + 2), 36) / U - 0.8, parseInt(text.slice(i + 2, i + 4), 36) / U - 0.8]);
+  const curve = L.spline(poly, [0, poly.length], 50), pts = curve.pts, N = pts.length, X = K.crossings(pts), over = row[4].split('').map(Number);
+  // centred in the card, as large as it fits with a margin
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const s = 0.86 * Math.min((W - 160) / (Math.max(...xs) - Math.min(...xs)), (H - 110) / (Math.max(...ys) - Math.min(...ys)));
+  const at = (p) => [W / 2 + s * (p[0] - mx), H / 2 - s * (p[1] - my)];
+  const WIDTH = 10.3, GAP = 40;
+
+  function draw() {
+    const ink = MM.color('k-0'), paper = MM.color('paper');
+    cx.clearRect(0, 0, W, H);
+    cx.lineJoin = 'round';
+    const line = (list, width, colour) => {
+      cx.strokeStyle = colour; cx.lineWidth = width;
+      cx.beginPath();
+      list.forEach((p, i) => { const q = at(p); if (i) cx.lineTo(q[0], q[1]); else cx.moveTo(q[0], q[1]); });
+      cx.stroke();
+    };
+    cx.lineCap = 'round';
+    line(pts.concat([pts[0]]), WIDTH, ink);
+    // at each crossing the strand that passes under is cut back, and the one over drawn again
+    X.forEach((c, k) => {
+      const t = over[k] ? c.b : c.a, piece = [];
+      for (let u = -10; u <= 10; u++) piece.push(pts[((Math.round(t) + u) % N + N) % N]);
+      cx.lineCap = 'butt';
+      line(piece, GAP, paper);
+      cx.lineCap = 'round';
+      line(piece, WIDTH, ink);
+    });
+  }
+  MM.onFonts(draw);
+})();
+</script>

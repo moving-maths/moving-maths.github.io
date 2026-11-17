@@ -1,0 +1,20 @@
+# Every tag a page may use. The key is the slug used in front matter
+# and in the URL (/tags/<slug>/); `name` is shown on the site.
+# Only tags used by at least one page get a topic page.
+
+algebraic-geometry:
+  name: Algebraic geometry
+category-theory:
+  name: Category theory
+combinatorics:
+  name: Combinatorics
+differential-geometry:
+  name: Differential geometry
+higher-algebra:
+  name: Higher algebra
+number-theory:
+  name: Number theory
+representation-theory:
+  name: Representation theory
+topology:
+  name: Topology

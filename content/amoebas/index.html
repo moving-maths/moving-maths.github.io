@@ -1,0 +1,138 @@
+---
+title: Amoebas and tropical curves
+description: 'Amoebas of plane curves, the tropical curves they shrink onto, and their Newton polygons.'
+tags: [algebraic-geometry]
+date: 2026-11-14
+katex_runtime: true
+styles: [style.css]
+scripts: [amoeba.js, main.js]
+references:
+  - key: forsberg2000
+    authors: M. Forsberg, M. Passare, A. Tsikh
+    title: Laurent determinants and arrangements of hyperplane amoebas
+    note: Adv. Math. 151 (2000), 45–70
+  - key: gelfand1994
+    authors: I. M. Gelfand, M. M. Kapranov, A. V. Zelevinsky
+    title: Discriminants, resultants, and multidimensional determinants
+    note: Birkhäuser (1994)
+  - key: maclagan2015
+    authors: D. Maclagan, B. Sturmfels
+    title: Introduction to tropical geometry
+    note: 'Graduate Studies in Mathematics 161, AMS (2015)'
+  - key: mikhalkin2000
+    authors: G. Mikhalkin
+    title: Real algebraic curves, the moment map and amoebas
+    note: Ann. of Math. 151 (2000), 309–326
+  - key: mikhalkin2004
+    authors: G. Mikhalkin
+    title: Decomposition into pairs-of-pants for complex algebraic hypersurfaces
+    note: Topology 43 (2004), 1035–1065
+  - key: mikhalkin2001
+    authors: G. Mikhalkin, H. Rullgård
+    title: Amoebas of maximal area
+    note: Int. Math. Res. Notices 2001, no. 9, 441–451
+  - key: passare2004
+    authors: M. Passare, H. Rullgård
+    title: Amoebas, Monge–Ampère measures, and triangulations of the Newton polytope
+    note: Duke Math. J. 121 (2004), 481–507
+---
+<div class="wrap">
+  <p class="lede">The amoeba of a curve $f(z,w)=0$ in $(\CC^\times)^2$ is its image under $(z,w)\mapsto(\log|z|,\log|w|)$. As the coefficients of $f$ spread apart in size, it limits to a tropical curve, which is dual to a subdivision of the Newton polygon of $f$.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <div class="control"><span class="label">Degree</span>
+    <mm-seg id="degree" value="3" aria-label="The degree of the curve">
+      <button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button>
+    </mm-seg>
+  </div>
+  <mm-toggle id="trop" pressed>Tropical curve</mm-toggle>
+  <mm-toggle id="real">Real part</mm-toggle>
+  <mm-zoom id="zoom" min="1" max="28" aria-label="Zoom the amoeba"></mm-zoom>
+  <div class="control">
+    <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+  </div>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split am" id="figure">
+    <div class="split-main am-main">
+      <div class="am-plane split-fit" id="plane">
+        <canvas id="canvas" tabindex="0" role="img" aria-label="The amoeba of the curve, with its tropical curve"></canvas>
+      </div>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="title">
+        <h2 class="side-title" id="title"></h2>
+        <p class="side-sub" id="name"></p>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block am-fblock" aria-label="The polynomial">
+        <p class="am-formula" id="formula"></p>
+        <div class="am-param" id="v-row" hidden><span class="am-pv" id="v-val"></span><input type="range" id="height" step="0.05" aria-label="The power of t in the chosen term"></div>
+        <p class="hint">Click a term to edit it, and click a sign to change it.</p>
+        <div class="am-param am-trow"><span class="am-pv" id="t-val"></span><input type="range" id="logt" step="0.05" aria-label="log t"></div>
+      </section>
+      <section class="side-block" aria-label="About the curve">
+        <dl class="kv" id="about"></dl>
+      </section>
+    </div>
+  </figure>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section aria-labelledby="sec-curve">
+  <h2 class="section-title" id="sec-curve">The curve and its amoeba</h2>
+  <p>Consider the curve in $(\CC^\times)^2$ defined by</p>
+  $$f(z,w)=\sum_{i+j\le d}a_{ij}\,z^iw^j=0,\qquad a_{ij}=\pm t^{v_{ij}},$$
+  <p>where $t>1$ and $v_{ij}$ are real parameters. The polynomial $f$ has a term for each lattice point $(i,j)$ of the triangle with corners $(0,0)$, $(d,0)$ and $(0,d)$, its Newton polygon; $d$ is the degree of the curve, and $v_{ij}$ is called the height of $(i,j)$.</p>
+  <p>The amoeba of the curve is its image under $(z,w)\mapsto(\log|z|,\log|w|)$ [@gelfand1994]. The figure shows it scaled by $1/\log t$, in the coordinates</p>
+  $$x=\log_t|z|,\qquad y=\log_t|w|.$$
+</section>
+
+<section aria-labelledby="sec-holes">
+  <h2 class="section-title" id="sec-holes">Holes and tentacles</h2>
+  <p>The complement of the amoeba consists of convex regions, its connected components [@gelfand1994]. Each region has an order $(\nu_1,\nu_2)$: at a point $(x,y)$ of the region, $\nu_1$ is the number of zeros of $z\mapsto f(z,w)$ with ${|z|<t^x}$, for any $w$ with ${|w|=t^y}$, and $\nu_2$ is the same with $z$ and $w$ exchanged. The order is a lattice point of the Newton polygon, different regions have different orders, and a region is bounded exactly when its order is an interior point [@forsberg2000]. So the amoeba has at most as many holes as there are interior points,</p>
+  $$g=\frac{(d-1)(d-2)}{2},$$
+  <p>which is the genus of the curve. The unbounded regions lie between the tentacles, which run off along the outward normals to the edges of the Newton polygon: down, to the left, and up and to the right [@maclagan2015, §1.4].</p>
+</section>
+
+<section aria-labelledby="sec-tropical">
+  <h2 class="section-title" id="sec-tropical">The tropical limit</h2>
+  <figure>
+    <div class="fig-pair">
+      <div>
+        <div class="fig-bar"><mm-toggle id="spin" pressed>Rotate</mm-toggle></div>
+        <div class="am-lift" id="lift">
+          <canvas id="lift-cv" tabindex="0" role="img" aria-label="The lattice points of the Newton polygon lifted to their heights, the roof over them, and the subdivision it projects to"></canvas>
+        </div>
+      </div>
+      <div class="fig-copy"><canvas id="copy-lift" role="img" aria-label="The amoeba and its tropical curve, as in the figure at the top"></canvas></div>
+    </div>
+    <figcaption class="caption" id="lift-cap"></figcaption>
+  </figure>
+  <p>The tropical curve $T$ of the heights is the set of points $(x,y)$ at which the maximum</p>
+  $$\max_{i+j\le d}\,\bigl(v_{ij}+ix+jy\bigr)$$
+  <p>is attained at least twice. Over a point $(x,y)$ the terms of $f$ have sizes $|a_{ij}z^iw^j|=t^{\,v_{ij}+ix+jy}$, so in each region of the complement of $T$ one term is the largest, and the region is named after its monomial. Where one term is larger than all the others together, $f$ has no zeros. So the amoeba lies in the band where the two largest of the numbers ${v_{ij}+ix+jy}$ differ by at most $\log_t(n-1)$, $n$ being the number of terms, and the band narrows onto $T$ as $t$ grows [@mikhalkin2004; @maclagan2015, §1.4].</p>
+  <p>The roof in the figure above is the upper convex hull of the lifted points $(i,j,v_{ij})$. Its faces project to a subdivision of the Newton polygon, dual to $T$: each face to a vertex of $T$, where the terms of the face are the largest and equal; each inner edge to an edge of $T$ at right angles to it, whose weight is the lattice length of the inner edge; each edge on the boundary to a ray. The curve $T$ is smooth when the faces are triangles of area $\tfrac12$. A lattice point under the roof, or on it but not at a corner, gives a term that is never alone the largest. An interior point at a corner gives a cycle of $T$, and so, once $t$ is large, a hole of the amoeba.</p>
+</section>
+
+<section aria-labelledby="sec-area">
+  <h2 class="section-title" id="sec-area">Area</h2>
+  <figure>
+    <div class="fig-pair">
+      <div><svg id="chart" role="group"></svg></div>
+      <div class="fig-copy"><canvas id="copy-area" role="img" aria-label="The amoeba and its tropical curve, as in the figure at the top"></canvas></div>
+    </div>
+    <figcaption class="caption" id="chart-cap"></figcaption>
+  </figure>
+  <p>In the coordinates $(\log|z|,\log|w|)$ the area of an amoeba is at most $\pi^2$ times the area of its Newton polygon [@passare2004]:</p>
+  $$\operatorname{Area}\le\frac{d^2}{2}\,\pi^2.$$
+  <p>It equals this bound exactly when the curve, after $z$ and $w$ are multiplied by constants, is a simple Harnack curve [@mikhalkin2001]. The real points of a simple Harnack curve trace the boundary of its amoeba [@mikhalkin2000]. In the chart, with the signs minus where $i$ and $j$ are both even and a smooth tropical curve, the area comes up to the bound as $t$ grows.</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

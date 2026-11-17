@@ -1,0 +1,201 @@
+---
+title: Highest weight representations
+description: 'The irreducible representations of the simple Lie algebras of rank one to three, and of affine Lie algebras, by highest weight.'
+tags: [representation-theory]
+date: 2026-11-11
+katex_runtime: true
+styles: [style.css]
+scripts: [weights.js, main.js]
+references:
+  - key: frenkel1980
+    authors: I. B. Frenkel, V. G. Kac
+    title: Basic representations of affine Lie algebras and dual resonance models
+    note: Invent. Math. 62 (1980), 23–66
+  - key: fulton1991
+    authors: W. Fulton, J. Harris
+    title: 'Representation theory: a first course'
+    note: Graduate Texts in Mathematics 129, Springer (1991)
+  - key: heckman1982
+    authors: G. J. Heckman
+    title: Projections of orbits and asymptotic behavior of multiplicities for compact connected Lie groups
+    note: Invent. Math. 67 (1982), 333–356
+  - key: humphreys1972
+    authors: J. E. Humphreys
+    title: Introduction to Lie algebras and representation theory
+    note: Graduate Texts in Mathematics 9, Springer (1972)
+  - key: humphreys2008
+    authors: J. E. Humphreys
+    title: Representations of semisimple Lie algebras in the BGG category $\mathcal{O}$
+    note: Graduate Studies in Mathematics 94, American Mathematical Society (2008)
+  - key: kac1990
+    authors: V. G. Kac
+    title: Infinite-dimensional Lie algebras
+    note: 3rd ed., Cambridge University Press (1990)
+  - key: kac1979
+    authors: V. G. Kac, D. A. Kazhdan
+    title: Structure of representations with highest weight of infinite-dimensional Lie algebras
+    note: Adv. Math. 34 (1979), 97–108
+  - key: kashiwara1995
+    authors: M. Kashiwara, T. Tanisaki
+    title: Kazhdan–Lusztig conjecture for affine Lie algebras with negative level
+    note: 'Duke Math. J. 77 (1995), 21–62; II: Nonintegral case, Duke Math. J. 84 (1996), 771–813; and, for positive rational weights, Asian J. Math. 2 (1998), 779–832'
+---
+<div class="wrap">
+  <p class="lede">An irreducible finite-dimensional representation of a simple Lie algebra is determined by its highest weight $\lambda$, and denoted $V(\lambda)$. Explore its weights and their multiplicities, tensor products, Verma modules, and the representations of affine Lie algebras.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <div class="control"><span class="label">Show</span>
+    <mm-seg id="view" value="weights" aria-label="What the figure shows">
+      <button value="weights">Weights</button><button value="relief">Relief</button><button value="tensor">Tensor product</button>
+    </mm-seg>
+  </div>
+  <div class="control" id="module-control"><span class="label">Module</span>
+    <mm-seg id="module" value="simple" aria-label="Which module of highest weight lambda">
+      <button value="simple">Simple</button><button value="verma">Verma</button>
+    </mm-seg>
+  </div>
+  <mm-toggle id="any">Any weight</mm-toggle>
+  <mm-zoom id="zoom" min="1" max="12" value="4" aria-label="Zoom the picture"></mm-zoom>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split hw" id="figure">
+    <div class="split-main hw-main">
+      <div class="hw-plane split-fit" id="plane">
+        <canvas id="canvas" role="img" aria-label="The weights of the representation"></canvas>
+        <div class="handle draggable hw-handle" id="handle-lam" role="slider" tabindex="0" aria-label="The highest weight lambda" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0"></div>
+        <div class="handle draggable hw-handle" id="handle-nu" role="slider" tabindex="0" aria-label="The highest weight nu of the second factor, at lambda plus nu" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0" hidden></div>
+      </div>
+      <p class="hint" id="hint"></p>
+      <section class="strip-block" aria-labelledby="algs-h">
+        <div class="strip-head">
+          <h3 class="label" id="algs-h">Lie algebras</h3>
+          <mm-seg id="family" value="finite" aria-label="Which Lie algebras the list shows">
+            <button value="finite">Finite</button><button value="affine">Affine</button>
+          </mm-seg>
+        </div>
+        <div class="strip" id="strip" role="toolbar" aria-labelledby="algs-h">
+          <div class="strip-group" data-family="finite">
+            <button type="button" class="strip-item" data-key="a1" aria-label="sl 2, type A 1"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{sl}_2$</span></button>
+          </div>
+          <div class="strip-group" data-family="finite">
+            <button type="button" class="strip-item" data-key="a2" aria-label="sl 3, type A 2"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{sl}_3$</span></button>
+            <button type="button" class="strip-item" data-key="b2" aria-label="so 5, type B 2"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{so}_5$</span></button>
+            <button type="button" class="strip-item" data-key="g2" aria-label="g 2, type G 2"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{g}_2$</span></button>
+          </div>
+          <div class="strip-group" data-family="finite">
+            <button type="button" class="strip-item" data-key="a3" aria-label="sl 4, type A 3"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{sl}_4$</span></button>
+            <button type="button" class="strip-item" data-key="b3" aria-label="so 7, type B 3"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{so}_7$</span></button>
+            <button type="button" class="strip-item" data-key="c3" aria-label="sp 6, type C 3"><svg aria-hidden="true"></svg><span class="strip-name">$\mathfrak{sp}_6$</span></button>
+          </div>
+          <div class="strip-group" data-family="affine" hidden>
+            <button type="button" class="strip-item" data-key="a11" aria-label="affine sl 2, type A 1 1"><svg aria-hidden="true"></svg><span class="strip-name">$\widehat{\mathfrak{sl}}_2$</span></button>
+          </div>
+          <div class="strip-group" data-family="affine" hidden>
+            <button type="button" class="strip-item" data-key="a21" aria-label="affine sl 3, type A 2 1"><svg aria-hidden="true"></svg><span class="strip-name">$\widehat{\mathfrak{sl}}_3$</span></button>
+            <button type="button" class="strip-item" data-key="c21" aria-label="affine so 5, type C 2 1"><svg aria-hidden="true"></svg><span class="strip-name">$\widehat{\mathfrak{so}}_5$</span></button>
+            <button type="button" class="strip-item" data-key="g21" aria-label="affine g 2, type G 2 1"><svg aria-hidden="true"></svg><span class="strip-name">$\widehat{\mathfrak{g}}_2$</span></button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="title">
+        <h2 class="side-title" id="title"></h2>
+        <mm-slider id="level" exact min="-6" max="6" step="any" value="1" hidden>Level $k$</mm-slider>
+        <div class="hw-weights" id="weights"></div>
+        <p class="side-sub" id="name"></p>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block side-more" aria-label="About the representation">
+        <dl class="kv" id="about"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="table-h">
+        <h3 class="label" id="table-h"></h3>
+        <div class="scroll-x"><table class="data-table data-table-sm" id="table"></table></div>
+      </section>
+      <section class="side-block" aria-labelledby="sel-h">
+        <h3 class="label" id="sel-h"></h3>
+        <div class="readout" id="sel" aria-live="polite"></div>
+      </section>
+    </div>
+  </figure>
+  <p class="see-also" id="see-also" hidden></p>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section data-for="finite" aria-labelledby="sec-weights">
+  <h2 class="section-title" id="sec-weights">Weights and multiplicities</h2>
+  <p>The irreducible finite-dimensional representations of a simple Lie algebra $\mathfrak g$ are the $V(\lambda)$ with highest weight $\lambda$, one for each dominant integral weight $\lambda$. $V(\lambda)$ is the sum of its weight spaces $V(\lambda)_\mu$, on which a Cartan subalgebra $\mathfrak h$ acts by the weight $\mu$, and the multiplicity of $\mu$ is $m(\mu)=\dim V(\lambda)_\mu$. The weights are the points of $\lambda+Q$, $Q$ the root lattice, in the convex hull of the orbit $W\lambda$ of the <a href="/root-systems/">Weyl group</a>, and $W$ permutes them, preserving their multiplicities [@humphreys1972, §21].</p>
+  <p>So the multiplicities of the dominant weights determine all the others, and Freudenthal’s formula computes them one after another, starting from $m(\lambda)=1$ [@humphreys1972, §22.3]:</p>
+  $$m(\mu)=\frac{2\sum_{\alpha>0}\sum_{k\ge1}(\mu+k\alpha,\alpha)\,m(\mu+k\alpha)}{\lvert\lambda+\rho\rvert^2-\lvert\mu+\rho\rvert^2},$$
+  <p>where $\rho$ is half the sum of the positive roots. The multiplicities add up to the dimension, given by Weyl’s formula as a product over the positive roots [@humphreys1972, §24]:</p>
+  $$\dim V(\lambda)=\prod_{\alpha>0}\frac{\langle\lambda+\rho,\alpha^\vee\rangle}{\langle\rho,\alpha^\vee\rangle}.$$
+  <p data-for="A1 A2 A3">For $\mathfrak{sl}_n$, with $\lambda=\sum_i\lambda_i\varpi_i$, the $\lambda_i$ being the numbers on the nodes of its Dynkin diagram, $\lambda$ corresponds to the partition with $\lambda_i+\dots+\lambda_{n-1}$ boxes in row $i$. The multiplicity of $\mu$ is the number of semistandard tableaux of this shape and weight $\mu$, where a tableau with $c_j$ entries equal to $j$ has weight $\sum_i(c_i-c_{i+1})\varpi_i$ [@fulton1991, Lecture 15].</p>
+</section>
+
+<section data-for="A2" aria-labelledby="sec-shells">
+  <h2 class="section-title" id="sec-shells">Hexagons and triangles</h2>
+  <figure id="shells-fig">
+    <div class="fig-bar" id="shells-lam"></div>
+    <svg id="shells" role="img"></svg>
+    <figcaption class="caption" id="shells-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>For $\mathfrak{sl}_3$ and $\lambda=a\varpi_1+b\varpi_2$, the weights lie on $\min(a,b)$ nested hexagons and, inside them, on triangles. The multiplicity is $1$ on the outer hexagon, one more on each hexagon further in, and $\min(a,b)+1$ on every triangle [@fulton1991, Lecture 13].</p>
+</section>
+
+<section data-for="A2 B2 G2" aria-labelledby="sec-relief">
+  <h2 class="section-title" id="sec-relief">The relief</h2>
+  <p>The relief draws the multiplicities of $V(\lambda)$, in rank two, as the heights of columns, one on each weight. Its shape has a limit as $\lambda$ is scaled up [@heckman1982]. Let $d$ be the number of positive roots not orthogonal to $\lambda$, minus the rank. Shrunk by $k$ across and by $k^d$ in height, the relief of $V(k\lambda)$ tends to the graph of a function on the convex hull of $W\lambda$ that is a polynomial of degree $d$ on each of finitely many pieces: the density of the Duistermaat–Heckman measure of the coadjoint orbit through $\lambda$.</p>
+  <p>For $\lambda$ off the walls of the dominant chamber, $d$ is $1$ for $\mathfrak{sl}_3$, $2$ for $\mathfrak{so}_5$ and $4$ for $\mathfrak g_2$.<span data-for="A2"> For $\mathfrak{sl}_3$ the limit rises linearly from the hexagon to the triangle and is flat on the triangle, as the multiplicities do.</span></p>
+</section>
+
+<section data-for="finite" aria-labelledby="sec-tensor">
+  <h2 class="section-title" id="sec-tensor">Tensor products</h2>
+  <p>The tensor product of two irreducible representations is a sum of irreducible ones,</p>
+  $$V(\lambda)\otimes V(\nu)=\bigoplus_\kappa n_\kappa\,V(\kappa),$$
+  <p>and the Brauer–Klimyk rule computes the multiplicities $n_\kappa$ from the weights of $V(\nu)$ [@humphreys1972, §24]. Each weight $\mu$ of $V(\nu)$, of multiplicity $m_\nu(\mu)$, is placed at $\lambda+\mu$. A point in the dominant chamber adds $m_\nu(\mu)$ copies of $V(\lambda+\mu)$. A point outside it is moved into the chamber by the dot action $w\cdot x=w(x+\rho)-\rho$, and adds $\varepsilon(w)\,m_\nu(\mu)$ copies of $V\bigl(w\cdot(\lambda+\mu)\bigr)$, where $\varepsilon(w)=\det w=\pm1$; a point on a mirror through $-\rho$ adds nothing. In all,</p>
+  $$n_\kappa=\sum_{w\in W}\varepsilon(w)\,m_\nu(w\cdot\kappa-\lambda).$$
+  <p>When $\lambda$ lies so far inside the chamber that every $\lambda+\mu$ is dominant, nothing moves, and $V(\lambda)\otimes V(\nu)=\bigoplus_\mu m_\nu(\mu)\,V(\lambda+\mu)$.</p>
+</section>
+
+<section data-for="finite" aria-labelledby="sec-verma">
+  <h2 class="section-title" id="sec-verma">Verma modules</h2>
+  <p>The Verma module $M(\lambda)$, for any weight $\lambda\in\mathfrak h^*$, is generated by a vector of weight $\lambda$ killed by the positive root vectors, with no other relations:</p>
+  $$M(\lambda)=U(\mathfrak g)\otimes_{U(\mathfrak b)}\CC_\lambda.$$
+  <p>Its weights are the $\lambda-\beta$ with $\beta$ a sum of positive roots, and the multiplicity of $\lambda-\beta$ is Kostant’s partition function $P(\beta)$, the number of ways of writing $\beta$ as such a sum [@humphreys2008, Ch. 1]. $M(\lambda)$ has a unique simple quotient $L(\lambda)$, which is $V(\lambda)$ when $\lambda$ is dominant integral.</p>
+  <p>The dot action $w\cdot\lambda=w(\lambda+\rho)-\rho$ governs the submodules. If $n=\langle\lambda+\rho,\alpha^\vee\rangle$ is a positive integer for a positive root $\alpha$, then $M(\lambda)$ contains $M(s_\alpha\cdot\lambda)$, whose highest weight is $\lambda-n\alpha$; if there is no such root, $M(\lambda)$ is simple [@humphreys2008, Ch. 4].</p>
+  <p>The character of $L(\lambda)$ is given by Kazhdan–Lusztig theory [@humphreys2008, Ch. 7–8]. The roots $\alpha$ with $\langle\lambda+\rho,\alpha^\vee\rangle$ an integer form a root system, whose Weyl group $W_\lambda$ acts by the dot action. Let $\lambda_0$ be the lowest weight in the orbit $W_\lambda\cdot\lambda$, and $x$ the shortest element of $W_\lambda$ that takes $\lambda_0$ to $\lambda$. Then</p>
+  $$\operatorname{ch}L(\lambda)=\sum_{y\le x}(-1)^{\ell(x)-\ell(y)}\,P_{y,x}(1)\,\operatorname{ch}M(y\cdot\lambda_0),$$
+  <p>where $P_{y,x}$ are the Kazhdan–Lusztig polynomials of $W_\lambda$ and $\le$ is its Bruhat order. In rank one and two, $W_\lambda$ is a dihedral group or smaller, and every $P_{y,x}$ is $1$.</p>
+</section>
+
+<section data-for="affine" aria-labelledby="sec-affine">
+  <h2 class="section-title" id="sec-affine">Affine Lie algebras</h2>
+  <p>The affine Lie algebra $\widehat{\mathfrak g}$ is the central extension of the loop algebra $\mathfrak g\otimes\CC[t,t^{-1}]$ by a central element $K$, with a derivation added [@kac1990, Ch. 7]. Its <a href="/dynkin-diagrams/">Dynkin diagram</a> is that of $\mathfrak g$ with one more node, $0$, for the simple root $\alpha_0=\delta-\theta$, where $\theta$ is the highest root of $\mathfrak g$ and $\delta$ the smallest positive imaginary root.</p>
+  <p>A weight $\Lambda$ is given, up to a multiple of $\delta$, by its labels $\lambda_i=\langle\Lambda,\alpha_i^\vee\rangle$, one for each node: $\Lambda=\sum_{i=0}^r\lambda_i\Lambda_i$, with $\Lambda_i$ the fundamental weights. The labels are the numbers on the Dynkin diagram next to the picture, where they can be changed.</p>
+  <p>The irreducible representation $L(\Lambda)$ with highest weight $\Lambda$ is generated by a vector of weight $\Lambda$ killed by the positive root vectors. There is one for each $\Lambda$ [@kac1990, Ch. 9], and $K$ acts on it as the scalar</p>
+  $$k=\sum_{i=0}^r a_i^\vee\lambda_i,$$
+  <p>the level, where $a_0^\vee=1$ and $\theta^\vee=\sum_{i\ge1}a_i^\vee\alpha_i^\vee$.</p>
+  <p>The representation $L(\Lambda)$ is integrable when every $e_i$ and $f_i$ acts locally nilpotently, each vector killed by a power of it. Then $L(\Lambda)$ is a sum of finite-dimensional representations of the copy of $\mathfrak{sl}_2$ spanned by $e_i$, $f_i$ and $\alpha_i^\vee$, for each $i$. This is so exactly when $\Lambda$ is dominant integral, every $\lambda_i$ a non-negative integer [@kac1990, Ch. 10], and then the level is a non-negative integer too; these are the $\Lambda$ the picture allows with the Any weight option off.</p>
+  <p>The weights of an integrable $L(\Lambda)$ are the conjugates, under the affine Weyl group, of the dominant weights below $\Lambda$, and Freudenthal’s formula gives their multiplicities, with the imaginary roots $n\delta$ counted $r$ times [@kac1990, Ch. 11]. Each weight lies on a string $\mu-n\delta$, $n\ge0$, below a maximal weight $\mu$ [@kac1990, Ch. 12], and the picture draws $\mu-n\delta$ at $n$ steps below $\mu$. Every weight $\mu$ has $(\mu|\mu)\le(\Lambda|\Lambda)$, so the weights lie in a paraboloid [@kac1990, Ch. 11].</p>
+  <div data-for="A1-1 A2-1">
+  <p>For $\mathfrak g$ simply laced, here $\mathfrak{sl}_2$ and $\mathfrak{sl}_3$, the multiplicity of $\mu-n\delta$ in the basic representation $L(\Lambda_0)$, for $\mu$ in $W\Lambda_0$, is the number $p_r(n)$ of partitions of $n$ into parts of $r$ colours [@frenkel1980]:</p>
+  $$\sum_{n\ge0}p_r(n)\,q^n=\prod_{m\ge1}\frac{1}{(1-q^m)^r}.$$
+  </div>
+</section>
+
+<section data-for="affine" aria-labelledby="sec-verma-affine">
+  <h2 class="section-title" id="sec-verma-affine">Verma modules</h2>
+  <p>The Verma module $M(\Lambda)$, for any weight $\Lambda$, is generated by a vector of weight $\Lambda$ killed by the positive root vectors of $\widehat{\mathfrak g}$, with no other relations:</p>
+  $$M(\Lambda)=U(\widehat{\mathfrak g})\otimes_{U(\widehat{\mathfrak b})}\CC_\Lambda.$$
+  <p>Its weights are the $\Lambda-\beta$ with $\beta$ a sum of positive roots, and the multiplicity of $\Lambda-\beta$ is the number of ways of writing $\beta$ as such a sum, each imaginary root $n\delta$ counted $r$ times [@kac1990, Ch. 9]. $M(\Lambda)$ has a unique simple quotient $L(\Lambda)$, the integrable one above when $\Lambda$ is dominant integral.</p>
+  <p>With the dot action $w\cdot\Lambda=w(\Lambda+\rho)-\rho$ of the affine Weyl group: if $n=\langle\Lambda+\rho,\alpha^\vee\rangle$ is a positive integer for a positive real root $\alpha$, then $L(s_\alpha\cdot\Lambda)$, whose highest weight is $\Lambda-n\alpha$, is a subquotient of $M(\Lambda)$. When there is no such root, $L(\Lambda)$ is $M(\Lambda)$ itself, unless the level is critical [@kac1979]: $k=-h^\vee$, where $h^\vee=\sum_{i=0}^r a_i^\vee$ is the dual Coxeter number, and then $(\Lambda+\rho\mid\delta)=0$.<span data-for="A1-1"> For $\widehat{\mathfrak{sl}}_2$ the critical level is $-2$.</span><span data-for="A2-1"> For $\widehat{\mathfrak{sl}}_3$ the critical level is $-3$.</span><span data-for="C2-1"> For $\widehat{\mathfrak{so}}_5$ the critical level is $-3$.</span><span data-for="G2-1"> For $\widehat{\mathfrak g}_2$ the critical level is $-4$.</span></p>
+  <p>For $\widehat{\mathfrak{sl}}_2$ off the critical level the integral Weyl group is dihedral, finite or infinite, its Kazhdan–Lusztig polynomials are all $1$, and $\operatorname{ch}L(\Lambda)$ is an alternating sum of characters of Verma modules [@kashiwara1995]. Otherwise $L(\Lambda)$ is built from its definition, one weight space after another: a vector below $\Lambda$ is zero in $L(\Lambda)$ exactly when every $e_j$ sends it to zero.</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

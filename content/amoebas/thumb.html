@@ -1,0 +1,101 @@
+<!-- The card image (npm run thumbs): the page's first view, drawn as the page
+     draws it with heavier marks so that it reads at card size. On the left the
+     amoeba of the cubic (honeycomb heights, Harnack's signs, log t = 2.5) with
+     its tropical curve, nothing selected (as the page opens); on the right the Newton polygon with its points lifted to their heights, the
+     roof over them and the subdivision it projects to, the handles on the
+     points. Computed with amoeba.js, as on the page. -->
+<script src="amoeba.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), AM = window.Amoeba, TAU = 2 * Math.PI;
+  const d = 3, pts = AM.triangle(d), v = AM.honeycomb(d, 1), sg = AM.harnackSigns(d), s = 2.5;
+  const sub = AM.subdivision(pts, v), T = AM.tropical(pts, v, sub);
+
+  // the amoeba: a square on the left
+  const S = 560, X0 = 34, Y0 = (H - S) / 2, R = 3.15, k = S / (2 * R);
+  const X = (x) => X0 + S / 2 + x * k, Y = (y) => Y0 + S / 2 - y * k;
+  const n = 1120, step = S / n, ys = new Float64Array(n), xs = new Float64Array(n);
+  for (let r = 0; r < n; r++) { ys[r] = R - (r + 0.5) * step / k; xs[r] = -R + (r + 0.5) * step / k; }
+  const rows = AM.slices(AM.terms(pts, v, sg, false), s, ys, 256), cols = AM.slices(AM.terms(pts, v, sg, true), s, xs, 256);
+
+  function drawAmoeba() {
+    cx.save();
+    cx.beginPath();
+    cx.rect(X0, Y0, S, S);
+    cx.clip();
+    // the amoeba, painted opaque off screen and laid over with the page's transparency
+    const off = document.createElement('canvas'), dpr = window.devicePixelRatio || 1;
+    off.width = W * dpr; off.height = H * dpr;
+    const o = off.getContext('2d');
+    o.scale(dpr, dpr);
+    o.fillStyle = MM.color('amoeba');
+    for (let r = 0; r < n; r++) for (const I of AM.merged(rows.lo, rows.hi, r * rows.n, rows.n)) { const a = Math.max(X0 - 2, X(I[0])), b = Math.min(X0 + S + 2, X(I[1])); if (b > a) o.fillRect(a, Y0 + r * step, b - a, step); }
+    for (let c = 0; c < n; c++) for (const I of AM.merged(cols.lo, cols.hi, c * cols.n, cols.n)) { const a = Math.max(Y0 - 2, Y(I[1])), b = Math.min(Y0 + S + 2, Y(I[0])); if (b > a) o.fillRect(X0 + c * step, a, step, b - a); }
+    cx.globalAlpha = 0.5;
+    cx.drawImage(off, 0, 0, W, H);
+    cx.globalAlpha = 1;
+    // the tropical curve
+    cx.strokeStyle = MM.color('trop');
+    cx.lineWidth = 4;
+    cx.lineCap = cx.lineJoin = 'round';
+    const seg = (a, b) => { cx.beginPath(); cx.moveTo(X(a[0]), Y(a[1])); cx.lineTo(X(b[0]), Y(b[1])); cx.stroke(); };
+    for (const e of T.edges) seg(e.from, e.to);
+    for (const r of T.rays) seg(r.from, [r.from[0] + 20 * r.dir[0], r.from[1] + 20 * r.dir[1]]);
+    cx.restore();
+  }
+
+  // the lifted Newton polygon: on the right, seen as the page first shows it
+  function drawLift() {
+    const az = -0.5, el = 0.55, kh = 0.45, VMIN = -2, ca = Math.cos(az), sa = Math.sin(az), se = Math.sin(el), ce = Math.cos(el);
+    const u = 140, ox = 900, oy = 436;
+    const P = (i, j, h) => {
+      const x = i - 1, y = j - 1, z = (h - VMIN) * kh, xr = x * ca - y * sa, yr = x * sa + y * ca;
+      return [ox + u * xr, oy - u * (yr * se + z * ce), -yr * ce + z * se];
+    };
+    const at = (q, h) => P(pts[q][0], pts[q][1], h === undefined ? v[q] : h);
+    const path = (Q) => { cx.beginPath(); Q.forEach((q, i) => (i ? cx.lineTo(q[0], q[1]) : cx.moveTo(q[0], q[1]))); cx.closePath(); };
+    path([[0, 0], [d, 0], [0, d]].map(([i, j]) => P(i, j, VMIN)));
+    cx.fillStyle = MM.color('sunken');
+    cx.fill();
+    cx.lineWidth = 2;
+    cx.strokeStyle = MM.color('rule');
+    cx.stroke();
+    cx.strokeStyle = MM.color('ink-3');
+    cx.lineWidth = 2;
+    cx.beginPath();
+    for (const e of sub.edges) { const a = at(e.a, VMIN), b = at(e.b, VMIN); cx.moveTo(a[0], a[1]); cx.lineTo(b[0], b[1]); }
+    cx.stroke();
+    cx.save();
+    cx.setLineDash([4, 6]);
+    cx.strokeStyle = MM.rgba('ink-3', 0.7);
+    cx.beginPath();
+    pts.forEach((p, q) => { const a = at(q, VMIN), b = at(q); cx.moveTo(a[0], a[1]); cx.lineTo(b[0], b[1]); });
+    cx.stroke();
+    cx.restore();
+    pts.forEach((p, q) => { const a = at(q, VMIN); cx.beginPath(); cx.arc(a[0], a[1], 5, 0, TAU); cx.fillStyle = MM.color('ink-2'); cx.fill(); });
+    const faces = sub.faces.map((f) => { const Q = f.poly.map((q) => at(q)); return { Q, z: Q.reduce((t, q) => t + q[2], 0) / Q.length }; }).sort((a, b) => a.z - b.z);
+    cx.lineJoin = 'round';
+    for (const f of faces) {
+      path(f.Q);
+      cx.fillStyle = MM.rgba('roof', 0.07);
+      cx.fill();
+      cx.strokeStyle = MM.color('trop');
+      cx.lineWidth = 3;
+      cx.stroke();
+    }
+    // the handles, nearest last
+    pts.map((p, q) => ({ q, a: at(q) })).sort((a, b) => a.a[2] - b.a[2]).forEach(({ q, a }) => {
+      cx.beginPath(); cx.arc(a[0], a[1], 15, 0, TAU); cx.fillStyle = MM.color('ink-2'); cx.fill();
+      cx.beginPath(); cx.arc(a[0], a[1], 12.5, 0, TAU); cx.fillStyle = MM.color('surface'); cx.fill();
+      cx.beginPath(); cx.arc(a[0], a[1], 10, 0, TAU); cx.fillStyle = MM.color('handle'); cx.fill();
+    });
+  }
+
+  function draw() {
+    cx.clearRect(0, 0, W, H);
+    drawAmoeba();
+    drawLift();
+  }
+  MM.onFonts(draw);
+})();
+</script>

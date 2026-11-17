@@ -1,0 +1,178 @@
+/* Hilbert schemes of points.
+   Phone: the plane, the strip of monomial ideals, then the name, the ideal, the
+   staircase and the readouts. Wide: the plane and the strip on the left; on the
+   right the name and legend, the ideal, the staircase with its weight, the
+   readouts. What the figure is about follows as page text, each section with a
+   figure of the ideal in view. */
+
+/* Colours by meaning; main.js reads the same names through MM.color.
+   The generators take the data colours in turn, blue, orange, green, purple,
+   magenta, teal (as the components in Knots). Yellow is the handles and blue also the selection, so the
+   marks are not in the generators' colours: red for where a point would collide
+   and for a box picked, grey for the guides. */
+body {
+  /* the generators, in turn: their formulas and leading terms (text and thin lines, --cN-text) */
+  --gen-0: var(--c1-text); --gen-1: var(--c2-text); --gen-2: var(--c3-text); --gen-3: var(--c4-text); --gen-4: var(--c5-text); --gen-5: var(--c6-text);
+  /* and their curves, the same colours as lines (--cN-line) */
+  --curve-0: var(--c1-line); --curve-1: var(--c2-line); --curve-2: var(--c3-line); --curve-3: var(--c4-line); --curve-4: var(--c5-line); --curve-5: var(--c6-line);
+  --germ: var(--ink-2);        /* the curve a collision remembers */
+  --guide: var(--ink-3);       /* the same x or y as another point */
+  --mark: var(--highlight);    /* a box picked, its arm and leg */
+}
+
+.hs { --split-main: 1.2fr; }
+
+/* ---------- the plane ---------- */
+.hs-planebox { position: relative; aspect-ratio: 1; --split-below: 120px; }
+#canvas, #stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: var(--radius-sm); }
+#stage { overflow: visible; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+#stage text { pointer-events: none; user-select: none; -webkit-user-select: none; }
+/* a point, or several that have collided: a yellow handle (.handle-point), with its length
+   (.handle-num); a dashed ring where a dragged one would collide (.snap-ring) */
+#stage.is-dragging .hs-pt { cursor: grabbing; }
+.hs-pad { fill: transparent; }
+/* the curve a collision remembers, and the small handle at its end that turns it */
+.hs-germ { fill: none; stroke: var(--germ); stroke-width: 2.2; stroke-linecap: round; pointer-events: none; }
+.hs-knob .handle-point { stroke-width: 1.1; }
+/* points picked out together, on a halo of the selection's colour (the focus is a ring), and the box that picks them out */
+.hs-sel { fill: var(--accent); fill-opacity: .25; stroke: none; }
+.hs-box { fill: var(--accent-soft); fill-opacity: .55; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.hs-guide { stroke: var(--guide); stroke-width: 1; stroke-dasharray: 4 4; opacity: .7; pointer-events: none; }
+.hs-axis-name { font-size: 14px; fill: var(--ink-2); }
+.hs-tick { font-family: var(--sans); font-size: 10.5px; fill: var(--ink-3); }
+/* while a point is dragged the whole picture takes the pointer, and a swipe on it does not scroll */
+#stage.is-dragging { touch-action: none; }
+
+/* a hint over the picture until the reader has collided two points once (.fig-overlay), at its foot */
+#drop-hint { top: auto; bottom: 10px; }
+
+/* the menu of a multiple point, beside it (.fig-menu): the disc of triple points, the monomial ideals, and setting its points apart */
+.hs-menu { display: grid; justify-items: center; }
+.hs-mdisc { display: block; width: 150px; height: 150px; overflow: visible; touch-action: none; }
+.hs-mrow { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px; max-width: 232px; }
+.hs-menu .btn-icon { align-self: center; margin-left: 4px; }
+
+/* the further points of a point of multiplicity four or more: a small handle on a circle round
+   the handle before it, or in a small disc (after m², the disc of D, with its circle of squares) */
+.hs-mdisc.is-wide { width: min(260px, calc(100vw - 64px)); height: min(260px, calc(100vw - 64px)); }
+.hs-mdisc.is-wide + .hs-mrow { max-width: min(260px, calc(100vw - 64px)); }
+.ed-orbit { fill: none; stroke: var(--ink-3); stroke-width: 1.1; pointer-events: none; }
+.ed-disc { fill: color-mix(in srgb, var(--surface) 60%, transparent); stroke: var(--ink-3); stroke-width: 1.1; pointer-events: none; }
+.ed-conic { fill: none; stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+.ed-stick { stroke: var(--ink-3); stroke-width: 1.1; pointer-events: none; }
+.ed-mark { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.2; pointer-events: none; }
+.ed-handle .handle-point { stroke-width: 1.1; }
+
+/* ---------- the strip of monomial ideals (.strip-block) ---------- */
+/* each a staircase of boxes, at the foot of its place; the same in the menu and in the text */
+.hs .strip, .hs .strip-group { align-items: flex-end; }
+.hs-mini { --strip-picture-height: auto; min-width: 0; padding: 5px; place-items: end start; align-content: normal; }
+.hs-mini > svg { overflow: visible; }
+.hs-mini rect { fill: var(--surface); stroke: currentColor; stroke-width: 1.1; }
+/* the staircase of the ideal in view: the fixed point it flows to */
+.hs-mini.is-limit rect { fill: var(--sunken); }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+#sub:empty { display: none; }
+/* from a readout to the text that explains it */
+.hs-how { font-family: var(--sans); font-size: var(--text-label); }
+
+/* the ideal, each generator in the colour of its curve; a click picks out its curve */
+.hs-formula { margin: 0 0 4px; font-size: 16px; line-height: 2; overflow-wrap: anywhere; }
+.hs-gen {
+  appearance: none; border: 0; border-bottom: 1px dotted currentColor; margin: 0; padding: 0 2px; font: inherit; line-height: inherit;
+  color: var(--c, var(--ink)); background: none; border-radius: 4px 4px 0 0; cursor: pointer; max-width: 100%; text-align: left;
+}
+.hs-gen:hover { background: var(--sunken); }
+.hs-gen[aria-pressed="true"] { background: var(--sunken); border-bottom-style: solid; }
+.hs-gen:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* the staircase, the corners, and the weight on its dial */
+#stair { display: block; max-width: 100%; height: auto; margin: 4px 0 0; overflow: visible; }
+.st-box { fill: var(--sunken); stroke: var(--rule); stroke-width: 1; }
+.st-corner { fill: none; stroke-width: 1.2; stroke-dasharray: 3 2.5; }
+.st-text { font-size: 13px; text-anchor: middle; fill: var(--ink); pointer-events: none; }
+.st-axis { stroke: var(--rule); stroke-width: 1; fill: none; }
+.st-axis-name { font-size: 13px; fill: var(--ink-3); }
+.st-dial { fill: none; stroke: var(--rule); stroke-width: 1; }
+.st-wall { stroke: var(--ink-3); stroke-width: 1.4; stroke-linecap: round; }
+.st-w { stroke: var(--ink-3); stroke-width: 1.2; fill: none; }
+.st-handle .handle-point { stroke-width: 1.2; }
+.st-wname { font-size: 13px; fill: var(--ink-2); pointer-events: none; }
+/* (what the staircase shows, close under it) */
+#stair-cap { margin: 6px 0 0; }
+#stair-cap:empty { display: none; }
+
+/* legend marks, drawn in the figure's colours */
+.hs-key { display: inline-block; flex: none; width: 22px; height: 16px; overflow: visible; }
+.hs-key .handle-num { font-size: 9.5px; }
+.hs-key path { fill: none; stroke-linecap: round; }
+
+/* ---------- the figures in the text ---------- */
+/* the monomials row by row, as in the staircase (one SVG, the small pictures of the curves
+   canvases over it, in proportion): kept (grey, under a bracket labelled not in I), a leading
+   term (dashed, in the colour of its generator), a multiple of one (dotted, faint) */
+.hs-ladder { position: relative; max-width: 100%; margin: 0 auto; }
+.hs-ladder svg { display: block; width: 100%; height: auto; overflow: visible; }
+.hs-ladder canvas { position: absolute; display: block; }
+.hs-mbox { fill: var(--sunken); stroke: var(--rule); stroke-width: 1; }
+.hs-mbox.is-lead { fill: var(--surface); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.hs-mbox.is-multiple { fill: none; stroke-dasharray: 1.5 2.5; }
+.hs-mtext { font-size: 15px; text-anchor: middle; fill: var(--ink); }
+.hs-mtext.is-multiple { fill: var(--ink-3); }
+.hs-bracket { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.hs-ntext { font-family: var(--sans); font-size: var(--text-label); text-anchor: middle; fill: var(--ink-2); }
+/* multiplication by x and y on the staircase: arrows from each box; the monomials outside it they reach */
+#mult { display: block; max-width: 100%; height: auto; margin: 0 auto; overflow: visible; }
+.ml-out { fill: var(--surface); stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 3; cursor: pointer; outline: none; }
+.ml-out:hover { fill: var(--sunken); }
+.ml-out:focus-visible { stroke: var(--accent); stroke-width: 2; stroke-dasharray: none; }
+.ml-out.is-picked { fill: var(--accent-soft); }
+.ml-lead { stroke-width: 1.5; stroke-dasharray: 4 3; }
+.ml-text { font-size: 14px; text-anchor: middle; fill: var(--ink); pointer-events: none; }
+.ml-text.is-out { fill: var(--ink-2); }
+.ml-arrow { fill: none; stroke: var(--ink-3); stroke-width: 1.4; stroke-linecap: round; pointer-events: none; }
+.ml-head { fill: var(--ink-3); stroke: none; pointer-events: none; }
+
+/* the triple points at one place, and the germ the dot stands for */
+.hs-discrow { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 28px; width: fit-content; max-width: 100%; margin: 0 auto; }
+#disc { display: block; width: 280px; max-width: 100%; aspect-ratio: 1; overflow: visible; touch-action: none; }
+#germ { display: block; width: 180px; max-width: 100%; aspect-ratio: 1; overflow: visible; }
+/* with a triple point at the top, which the disc changes, a copy of the figure there (theme: .fig-copy);
+   on a phone the germ and the copy side by side under the disc */
+.hs-discrow > .fig-copy { --fig-copy-size: 180px; }
+@media (min-width: 621px) { .hs-discrow > #germ:has(+ .fig-copy:not([hidden])) { width: 150px; } }
+@media (max-width: 620px) {
+  .hs-discrow { gap: 12px 16px; }
+  .hs-discrow > #germ:has(+ .fig-copy:not([hidden])), .hs-discrow > .fig-copy { width: calc(50% - 8px); }
+}
+.dc-disc { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.4; }
+.dc-curve { fill: none; stroke: var(--rule); stroke-width: 1.4; }
+.dc-fixed { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.4; }
+.dc-label { font-size: 12.5px; fill: var(--ink-2); pointer-events: none; } /* (placed by main.js, each with its anchor) */
+/* (.dc-ghost: a handle's mirror image across the rim, which drags it too) */
+.dc-link { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 3 4; pointer-events: none; }
+.gm-axis { stroke: var(--rule); stroke-width: 1; }
+.gm-curve { fill: none; stroke: var(--germ); stroke-width: 2.2; stroke-linecap: round; }
+.gm-ring { fill: none; stroke: var(--germ); stroke-width: 1.4; stroke-dasharray: 2 3; }
+
+/* the flow to the origin */
+.hs-flowbox { max-width: 360px; margin: 0 auto 6px; }
+#flow { display: block; width: 100%; aspect-ratio: 1; }
+#flow-t { max-width: 360px; margin: 0 auto; }
+
+/* the partition (chosen in the row above it), its arm and leg, and the two weights */
+.hs-tpick { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px; margin: 0 0 8px; }
+#young { display: block; max-width: 100%; height: auto; margin: 0 auto; overflow: visible; }
+.yg-box { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.2; cursor: pointer; outline: none; }
+.yg-box:hover { fill: var(--sunken); }
+.yg-box:focus-visible { stroke: var(--accent); stroke-width: 2; }
+.yg-box.is-picked { fill: var(--red-soft); stroke: var(--mark); stroke-width: 2; }
+.yg-box.is-arm, .yg-box.is-leg { fill: var(--sunken); }
+.yg-out { fill: none; stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+.yg-text { font-size: 15px; text-anchor: middle; fill: var(--ink); pointer-events: none; }
+.yg-arrow { fill: none; stroke: var(--mark); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.yg-arrowhead { fill: var(--mark); stroke: none; pointer-events: none; }
+.yg-brace { stroke: var(--mark); stroke-width: 1.4; fill: none; pointer-events: none; }
+.yg-name { font-size: 12.5px; fill: var(--mark); pointer-events: none; }
+.yg-weight { font-size: 14px; fill: var(--mark); pointer-events: none; } /* (on a halo: .halo) */

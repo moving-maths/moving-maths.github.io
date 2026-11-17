@@ -1,0 +1,144 @@
+/* Configuration spaces of the line, the circle and surfaces.
+   Phone: the curve or surface, then the readouts. Wide: it on the left, readouts on the right.
+   What the readouts are follows as page text, in sections, two of them with figures: the
+   paths as strands, and the collision strata. */
+
+/* Colours by meaning; main.js reads the same names through MM.color. The points
+   are handles (yellow); blue is the point whose menu is open, and the selected stratum; red the
+   point a dragged one would land on. */
+body {
+  --cs-tile: var(--sunken);      /* the squares beside: the same surface again, across a glued edge */
+  --cs-edge: var(--ink-2);       /* glued edges and their arrows */
+  --cs-open: var(--ink-3);       /* open ends */
+  --cs-trail: var(--ink-3);
+  /* the picture of the space: the collisions, and the configuration (the thing pointed at) */
+  --cs-c12: var(--c3);           /* x1 = x2 */
+  --cs-c12-line: var(--c3-line); /* the same, in the flat pictures (the 3D ones pale their lines with depth themselves) */
+  --cs-c13: var(--c4);           /* x1 = x3 */
+  --cs-c23: var(--c2);           /* x2 = x3 */
+  --cs-c14: var(--c5);           /* with four points, on the line and the circle */
+  --cs-c24: var(--c7);
+  --cs-c34: var(--ink-2);
+  --cs-knot: var(--ink-2);       /* unordered: the trefoil of double points */
+  --cs-config: var(--highlight);
+  /* the strands of the points x1 … x4, in the order of Knots' components */
+  --cs-strand-1: var(--c1);
+  --cs-strand-2: var(--c2);
+  --cs-strand-3: var(--c3);
+  --cs-strand-4: var(--c4);
+  /* the same as flat lines (the braid in the plane); the braid in a box, a tube paled with depth, takes them as they are */
+  --cs-strand-1-line: var(--c1-line); --cs-strand-2-line: var(--c2-line); --cs-strand-3-line: var(--c3-line); --cs-strand-4-line: var(--c4-line);
+}
+
+/* the surface beside the readouts, in view while they scroll (.split in theme.css) */
+.cs { --split-main: 1.15fr; }
+
+/* ---------- the surface ---------- */
+/* the stage and the menu of the point chosen, which floats beside it */
+.cs-stagebox { position: relative; }
+#stage { display: block; width: 100%; aspect-ratio: 1; user-select: none; -webkit-user-select: none; }
+/* a curve: the interval near the top, and the paths below it as time goes on */
+.cs-stagebox.is-1d { --fit-ratio: 25 / 14; }
+.cs-stagebox.is-1d > #stage { aspect-ratio: 25 / 14; }
+.cs-stagebox.is-strip { --fit-ratio: 5; }
+.cs-stagebox.is-strip > #stage { aspect-ratio: 5; }
+.cs-curve { stroke: var(--cs-edge); stroke-width: 2; stroke-linecap: round; }
+.cs-copy { stroke: var(--rule); stroke-width: 2; }
+.cs-fade-stop { stop-color: var(--cs-trail); }
+.cs-trail.is-time { stroke: url(#cs-fade); opacity: 1; }
+#stage text { pointer-events: none; }
+.cs-square { fill: var(--surface); }
+.cs-tile { fill: var(--cs-tile); }
+.cs-tile-edge { fill: none; stroke: var(--rule); stroke-width: 1; }
+.cs-edge { stroke: var(--cs-edge); stroke-width: 1.6; fill: none; stroke-linecap: round; }
+.cs-edge.open { stroke: var(--cs-open); stroke-width: 1.2; stroke-dasharray: 5 5; }
+.cs-arrow { stroke: var(--cs-edge); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.cs-trail { fill: none; stroke: var(--cs-trail); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: .75; pointer-events: none; }
+.cs-ghost .cs-trail { opacity: .4; }
+
+/* the sphere: turned by a drag (.draggable); its far half shows through a pale disc, the graticule shows how it is turned */
+.cs-turn { fill: transparent; }
+.cs-ball { fill: var(--surface); fill-opacity: .72; pointer-events: none; }
+.cs-rim { fill: none; stroke: var(--cs-edge); stroke-width: 1.4; pointer-events: none; }
+.cs-grid { fill: none; stroke: var(--rule); stroke-width: 1; pointer-events: none; }
+
+/* a point, or several that have collided: a yellow handle (.handle-point), with its multiplicity
+   (.handle-num); a dashed ring where a dragged one would land (.snap-ring) */
+.cs-pad { fill: transparent; }
+.cs-name { font-size: 14px; } /* (on a halo: .halo) */
+/* unordered points are named only to follow them: more faintly */
+.cs-name.faint { fill: var(--ink-3); }
+.cs-ghost { opacity: .42; }
+.cs-ghost .cs-name { font-size: 12.5px; }
+
+/* ---------- the moves, in the bar, as icons: one pressed while it asks for its points ---------- */
+.cs-moves { gap: 4px; }
+.cs-moves:empty { display: none; }
+.cs-moves svg .dot { fill: currentColor; stroke: none; }
+.cs-moves svg .faint { opacity: .5; stroke-width: 1.2; }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+/* Beside the figure: the name of the space, the legend, the picture of the space,
+   its description and its Betti numbers. On a phone the two columns become one list: the
+   surface, the hint about it, and straight under them the picture of the space, so that both
+   show while the points are dragged; the description goes last. */
+@media (max-width: 899.98px) {
+  .cs { gap: 14px; }
+  .cs > .split-main, .cs > .split-side { display: contents; }
+  .cs-stagebox { order: 1; }
+  #hint { order: 2; margin-top: 0; }
+  .cs .side-block { order: 5; }
+  .cs .cs-space { order: 3; border-top: 0; padding-top: 0; }
+  .cs .side-head { order: 4; }
+  .cs .side-more { order: 6; }
+}
+.cs-key { display: inline-block; width: 22px; height: 16px; flex: none; overflow: visible; }
+
+/* the picture of the space, under the name: beside the surface on a wide screen */
+#space { display: block; width: 100%; max-width: 520px; aspect-ratio: 1; margin: 2px auto 8px; outline-offset: 2px; }
+/* (the 3D picture turns under a drag: MM.turnDrag) */
+/* on a phone, lower, so that it shows with the surface above it (not the boxes: the Möbius band's and the cube) */
+@media (max-width: 899.98px) { #space:not(.is-box) { aspect-ratio: 3 / 2; } }
+.sp-line { fill: none; stroke-width: 3; stroke-linecap: round; }
+.sp-c12 { stroke: var(--cs-c12); }
+.sp-c13 { stroke: var(--cs-c13); }
+.sp-c23 { stroke: var(--cs-c23); }
+.sp-knot { stroke: var(--cs-knot); }
+.sp-c14 { stroke: var(--cs-c14); }
+.sp-c24 { stroke: var(--cs-c24); }
+.sp-c34 { stroke: var(--cs-c34); }
+.sp-all { stroke: var(--ink-2); stroke-width: 2; }
+.sp-meet { fill: var(--ink); }
+.sp-hole { fill: var(--surface); stroke: var(--cs-c12); stroke-width: 2.2; }
+.sp-dot { fill: var(--cs-config); }
+.sp-centre { fill: var(--cs-edge); }
+
+/* ---------- the text under the figure, and its figures ---------- */
+#why-text p:last-child { margin-bottom: 0; }
+/* the paths as strands: the points along the top, older places lower down; narrow, so that
+   the strands run steeply and their crossings read */
+/* the generators of the braid group, to choose; the braid of the one chosen, and Play */
+.cs-gens { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+#braid { display: block; width: 100%; height: 250px; outline-offset: 2px; }
+#braid.is-3d { height: auto; aspect-ratio: 1; max-height: 460px; } /* (it turns under a drag: MM.turnDrag) */
+
+/* Betti numbers: one row for each number of points, the current one selected (.is-on) */
+#betti { width: auto; min-width: 100%; }
+#betti td { font-family: var(--mono); font-size: 13px; }
+td.zero { color: var(--ink-3); }
+
+/* the strata: a diagram of the poset, each stratum a button */
+/* at its own size: where it is wider than the column, it scrolls rather than shrinks */
+#strata { display: block; max-width: none; overflow: visible; margin: 4px auto 6px; }
+.st-edge { stroke: var(--rule); stroke-width: 1.2; }
+.st-edge.is-on { stroke: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+.st-node { cursor: pointer; }
+.st-box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.2; }
+.st-node:hover .st-box { stroke: color-mix(in srgb, var(--ink) 30%, var(--rule)); }
+.st-node.is-on .st-box { fill: var(--accent-soft); stroke: var(--accent); }
+.st-node.is-on .st-name { fill: var(--accent-ink); }
+.st-name { font-size: 12.5px; text-anchor: middle; }
+/* (as tall as its longest text, so that what follows stays put while a stratum is chosen) */
+#stratum { min-height: 4.8em; }
+#stratum p { margin: 0 0 .2em; text-align: center; }
+#braid-copy svg { pointer-events: none; }

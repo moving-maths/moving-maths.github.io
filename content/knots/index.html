@@ -1,0 +1,252 @@
+---
+title: Knots and links
+description: 'Draw knot and link diagrams, and compute their invariants.'
+tags: [topology]
+date: 2026-11-15
+katex_runtime: true
+styles: [style.css]
+scripts: [knots.js, layout.js, volume.js, table.js, main.js]
+references:
+  - key: alexander1928
+    authors: J. W. Alexander
+    title: Topological invariants of knots and links
+    note: Trans. Amer. Math. Soc. 30 (1928), 275–306
+  - key: katlas
+    authors: D. Bar-Natan, S. Morrison and others
+    title: The Knot Atlas
+    url: https://katlas.org
+  - key: conway1970
+    authors: J. H. Conway
+    title: An enumeration of knots and links, and some of their algebraic properties
+    note: 'in Computational problems in abstract algebra, Pergamon (1970), 329–358'
+  - key: crowell1959
+    authors: R. Crowell
+    title: Genus of alternating link types
+    note: Ann. of Math. 69 (1959), 258–275
+  - key: fox1962
+    authors: R. H. Fox
+    title: A quick trip through knot theory
+    note: 'in Topology of 3-manifolds and related topics, Prentice-Hall (1962), 120–167'
+  - key: franks1987
+    authors: J. Franks, R. F. Williams
+    title: Braids and the Jones polynomial
+    note: Trans. Amer. Math. Soc. 303 (1987), 97–108
+  - key: freyd1985
+    authors: P. Freyd, D. Yetter, J. Hoste, W. B. R. Lickorish, K. Millett, A. Ocneanu
+    title: A new polynomial invariant of knots and links
+    note: Bull. Amer. Math. Soc. 12 (1985), 239–246
+  - key: gordon1978
+    authors: C. McA. Gordon, R. A. Litherland
+    title: On the signature of a link
+    note: Invent. Math. 47 (1978), 53–69
+  - key: jones1985
+    authors: V. F. R. Jones
+    title: A polynomial invariant for knots via von Neumann algebras
+    note: Bull. Amer. Math. Soc. 12 (1985), 103–111
+  - key: kauffman1987
+    authors: L. H. Kauffman
+    title: State models and the Jones polynomial
+    note: Topology 26 (1987), 395–407
+  - key: levine1966
+    authors: J. Levine
+    title: Polynomial invariants of knots of codimension two
+    note: Ann. of Math. 84 (1966), 537–554
+  - key: lickorish1987
+    authors: W. B. R. Lickorish, K. C. Millett
+    title: A polynomial invariant of oriented links
+    note: Topology 26 (1987), 107–141
+  - key: morton1986
+    authors: H. R. Morton
+    title: Seifert circles and knot polynomials
+    note: Math. Proc. Cambridge Philos. Soc. 99 (1986), 107–109
+  - key: murasugi1958
+    authors: K. Murasugi
+    title: On the genus of the alternating knot I, II
+    note: J. Math. Soc. Japan 10 (1958), 94–105, 235–248
+  - key: papakyriakopoulos1957
+    authors: C. D. Papakyriakopoulos
+    title: On Dehn’s lemma and the asphericity of knots
+    note: Ann. of Math. 66 (1957), 1–26
+  - key: przytycki1987
+    authors: J. H. Przytycki, P. Traczyk
+    title: Invariants of links of Conway type
+    note: Kobe J. Math. 4 (1987), 115–139
+  - key: reidemeister1927
+    authors: K. Reidemeister
+    title: Elementare Begründung der Knotentheorie
+    note: Abh. Math. Sem. Univ. Hamburg 5 (1927), 24–32
+  - key: riley1971
+    authors: R. Riley
+    title: Homomorphisms of knot groups on finite groups
+    note: Math. Comp. 25 (1971), 603–619
+  - key: rolfsen1976
+    authors: D. Rolfsen
+    title: Knots and links
+    note: Publish or Perish (1976). Appendix C, the tables of knots and links
+  - key: seifert1935
+    authors: H. Seifert
+    title: Über das Geschlecht von Knoten
+    note: Math. Ann. 110 (1935), 571–592
+  - key: dthurston1999
+    authors: D. Thurston
+    title: Hyperbolic volume and the Jones polynomial
+    note: notes from the summer school Invariants des nœuds et des variétés de dimension 3, Grenoble (1999)
+  - key: thurston1978
+    authors: W. P. Thurston
+    title: The geometry and topology of three-manifolds
+    note: lecture notes, Princeton University (1978–1980)
+  - key: weeks2005
+    authors: J. Weeks
+    title: Computation of hyperbolic structures in knot theory
+    note: in Handbook of Knot Theory, Elsevier (2005), 461–480
+  - key: yamada1987
+    authors: S. Yamada
+    title: The minimal number of Seifert circles equals the braid index of a link
+    note: Invent. Math. 89 (1987), 347–356
+---
+<div class="wrap">
+  <p class="lede">A knot is a closed curve in space, and a link consists of several such curves; two are the same if one can be moved to the other without passing through itself. Explore their invariants as you draw and reshape diagrams.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <mm-seg id="mode" value="reshape" aria-label="What a drag on the diagram does">
+    <button value="reshape" title="Pull a strand to reshape the diagram, and click a crossing to change it"><span class="kn-mode"><svg viewBox="0 0 16 16" aria-hidden="true"><!-- a strand lifted at a point: a shallow arc, cut round a small ring at its top (the mask: white keeps, black cuts), and an arrow up from the ring --><defs><mask id="kn-reshape-cut"><rect width="16" height="16" fill="white" stroke="none"/><circle cx="8" cy="10.25" r="2.45" fill="black" stroke="none"/></mask></defs><path d="M1.5 13Q8 7.5 14.5 13" mask="url(#kn-reshape-cut)"/><circle class="ring" cx="8" cy="10.25" r="1.7"/><path d="M8 7.9V1.8"/><path d="M6 3.8l2-2 2 2"/></svg>Reshape</span></button>
+    <button value="draw" title="Draw new components"><span class="kn-mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.8-3.2 7-7a1.4 1.4 0 0 1 2 2l-7 7z"/><path d="M9.3 4.3l2.4 2.4"/></svg>Draw</span></button>
+  </mm-seg>
+  <div class="control">
+    <button type="button" class="btn btn-sm btn-icon" id="clear" aria-label="Clear" title="Clear"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10"/><path d="M6.5 4.5V3h3v1.5"/><path d="M4.5 4.5l.7 8.5h5.6l.7-8.5"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
+    <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
+  </div>
+  <div class="control">
+    <button type="button" class="btn btn-sm" id="mirror">Mirror</button>
+    <button type="button" class="btn btn-sm" id="tidy">Tidy</button>
+  </div>
+  <mm-toggle id="colour">Colouring</mm-toggle>
+  <div class="control" id="mod-control" hidden><span class="label">mod</span>
+    <div class="seg" id="mod" role="radiogroup" aria-label="The modulus of the colouring"></div>
+  </div>
+  <mm-toggle id="spin" pressed>Rotate</mm-toggle>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split kn" id="figure">
+    <div class="split-main kn-main">
+      <div class="kn-stagebox">
+        <svg id="stage" class="split-fit" role="group" aria-label="The diagram. Each crossing can be switched or opened; the arrow keys go from one crossing to the next."></svg>
+        <div class="fig-menu kn-menu" id="menu" role="menu" aria-label="The crossing" hidden></div>
+        <p class="fig-overlay" id="draw-hint" hidden>Draw a component in one closed stroke, straight through any crossings. Choose Reshape to change its crossings afterwards.</p>
+      </div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+      <section class="strip-block" aria-labelledby="table-h">
+        <div class="strip-head">
+          <h3 class="label" id="table-h">Prime knots and links</h3>
+          <mm-seg id="family" value="1" aria-label="Which the table shows">
+            <button value="1">Knots</button><button value="2">2 components</button><button value="3">3 components</button>
+          </mm-seg>
+        </div>
+        <div class="strip" id="strip" role="toolbar" aria-labelledby="table-h"></div>
+      </section>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="name">
+        <h2 class="side-title" id="name"></h2>
+        <p class="side-sub" id="sub" aria-live="polite"></p>
+      </section>
+      <section class="side-block" aria-labelledby="space-h">
+        <h3 class="label" id="space-h">In space</h3>
+        <canvas id="space" tabindex="0" role="img" aria-label="The link as curves in space, turning"></canvas>
+      </section>
+      <section class="side-block" aria-labelledby="diag-h">
+        <h3 class="label" id="diag-h">This diagram</h3>
+        <dl class="kv" id="about-diagram"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="knot-h">
+        <h3 class="label" id="knot-h">The knot</h3>
+        <dl class="kv" id="about-knot" aria-live="polite"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="group-h">
+        <h3 class="label" id="group-h">Its group</h3>
+        <dl class="kv" id="about-group"></dl>
+      </section>
+    </div>
+  </figure>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section aria-labelledby="sec-polynomials">
+  <h2 class="section-title" id="sec-polynomials">Knot polynomials</h2>
+  <figure id="skein-fig">
+    <nav class="kn-path" id="skein-path" aria-label="The steps of the working"></nav>
+    <div class="kn-skein halo" id="skein"></div>
+    <div class="kn-skein kn-skein-caps" id="skein-caps"></div>
+    <figcaption class="caption" id="skein-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>To compute the HOMFLYPT polynomial $P(a,z)$ of a diagram, we change the diagram one crossing at a time. First we choose a crossing: in the pictures above it is ringed in red, and clicking another crossing chooses that one. Keeping everything else as it is, we can make it positive ($L_+$), negative ($L_-$), or open it along the orientations of the strands ($L_0$). These are the three pictures, and our diagram is the shaded one. Their polynomials are tied by the skein relation [@freyd1985; @przytycki1987]</p>
+  $$a\,P(L_+)-a^{-1}P(L_-)=z\,P(L_0),\qquad P(\text{unknot})=1$$
+  <p>We solve it for the shaded diagram,</p>
+  $$\begin{aligned}P(L_+)&=a^{-2}P(L_-)+a^{-1}z\,P(L_0),\\ P(L_-)&=a^{2}P(L_+)-a\,z\,P(L_0),\end{aligned}$$
+  <p>and work out the other two diagrams in the same way [@lickorish1987]. In the end each diagram is reduced to an unlink of $c$ components, and in this situation</p>
+  $$P=\left(\frac{a-a^{-1}}{z}\right)^{c-1}.$$
+  <p>The other polynomials are values of $P$. Setting $a=t^{-1}$ and $z=t^{1/2}-t^{-1/2}$ gives the Jones polynomial [@jones1985]; setting $a=1$ gives Conway’s polynomial, and from it the Alexander polynomial [@conway1970]:</p>
+  $$V(t)=P\bigl(t^{-1},\,t^{1/2}-t^{-1/2}\bigr),\qquad \nabla(z)=P(1,z),\qquad \Delta(t)=\nabla\bigl(t^{1/2}-t^{-1/2}\bigr).$$
+</section>
+<section aria-labelledby="sec-bracket">
+  <h2 class="section-title" id="sec-bracket">Kauffman’s bracket</h2>
+  <figure id="states-fig">
+    <svg class="kn-small halo" id="states" role="group" aria-label="The diagram with every crossing opened. Each opening can be changed."></svg>
+    <div class="fig-bar"><button type="button" class="btn btn-sm" id="all-a">All A</button><button type="button" class="btn btn-sm" id="all-b">All B</button></div>
+    <figcaption class="caption" id="states-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The bracket computes the Jones polynomial by opening all the crossings at once. At each crossing we choose A, joining the two corners that the upper strand sweeps when turned anticlockwise, or B, joining the other two; in the picture above, clicking a crossing changes its choice. With $\ell$ the number of loops left, and $a$ and $b$ the numbers of crossings opened each way, the sum over all $2^n$ choices is</p>
+  $$\langle D\rangle=\sum A^{\,a-b}\,\bigl(-A^2-A^{-2}\bigr)^{\ell-1}.$$
+  <p>The second and third Reidemeister moves [@reidemeister1927] leave $\langle D\rangle$ unchanged and the first multiplies it by $-A^{\pm3}$, so correcting for the writhe $w$ gives the Jones polynomial [@kauffman1987]:</p>
+  $$V(t)=\bigl(-A^{3}\bigr)^{-w}\langle D\rangle\Bigr|_{A=t^{-1/4}}$$
+  <p>The span of $V$, its highest power of $t$ less its lowest, is at most the crossing number, with equality for an alternating diagram that has no crossing a twist would undo.</p>
+</section>
+<section aria-labelledby="sec-group">
+  <h2 class="section-title" id="sec-group">The group of the complement</h2>
+  <figure id="group-fig">
+    <svg class="kn-small halo" id="group" role="group" aria-label="The diagram with its pieces named and their orientations marked. Choose a crossing to see its relation."></svg>
+    <figcaption class="caption" id="group-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The fundamental group of the complement of the link can be read off a diagram (Wirtinger; see [@fox1962]). We cut the diagram wherever it passes under itself; each piece gives a generator, which is the loop once round it. In the picture above the pieces are named, with their orientations marked, and clicking a crossing shows its relation: with $x_j$ the piece on top, and $x_i$ and $x_k$ the pieces that end and begin under it,</p>
+  $$x_k=x_j\,x_i\,x_j^{-1}\ \ \text{(positive)},\qquad x_k=x_j^{-1}\,x_i\,x_j\ \ \text{(negative)}.$$
+  <p>One relation follows from the others, and a generator that a relation gives in terms of the others can be left out; what remains is the presentation beside the diagram at the top, where clicking a generator draws all of them as loops.</p>
+  <p>A knot’s group is $\mathbb{Z}$ only for the unknot [@papakyriakopoulos1957]. Fox’s free derivatives of the relations, with every generator sent to $t$, give a matrix whose determinant, with a row and a column left out, is $\Delta(t)$ up to $\pm t^k$ [@alexander1928; @fox1962]; the determinant of the link is $\abs{\Delta(-1)}$. At $t=-1$ a relation reads</p>
+  $$2x_j\equiv x_i+x_k \pmod p,$$
+  <p>and numbers on the pieces that satisfy it at every crossing are a colouring mod $p$ (shown by <em>Colouring</em>): a homomorphism of the group to the dihedral group of order $2p$, onto it for a prime $p$ if the colouring is not constant. There is one exactly when $p$ divides the determinant. Homomorphisms onto other finite groups tell many knots apart [@riley1971]; beside the diagram at the top are those onto $S_3$, $S_4$ and $S_5$, up to conjugation.</p>
+</section>
+<section aria-labelledby="sec-signature">
+  <h2 class="section-title" id="sec-signature">Signature</h2>
+  <figure id="chess-fig">
+    <svg class="kn-small halo" id="chess" role="img" aria-label="The diagram with its regions shaded like a chessboard"></svg>
+    <figcaption class="caption" id="chess-cap" aria-live="polite"></figcaption>
+  </figure>
+  <p>The signature comes from a surface that the link bounds. We shade the regions of the diagram like a chessboard, as in the picture above, and join the shaded regions by a half-twisted band at each crossing. Let $\eta(c)=\pm1$ say which way the band at crossing $c$ twists. Goeritz’s matrix $G$ has a row and a column for each white region but one, with $-\sum\eta(c)$ over the crossings that two regions share off the diagonal, and on it what makes each row, with the region left out, sum to zero. Then, with $\varepsilon(c)$ the sign of the crossing,</p>
+  $$\sigma(L)=\operatorname{sign}G-\sum_{\eta(c)=\varepsilon(c)}\eta(c),$$
+  <p>the sum running over the crossings where the surface cannot be oriented along with the link [@gordon1978]. The right-handed trefoil has signature $-2$.</p>
+</section>
+<section aria-labelledby="sec-genus">
+  <h2 class="section-title" id="sec-genus">Genus, braid index and volume</h2>
+  <p>These are least values over all diagrams, or come from the geometry of the complement: a diagram bounds them, and fixes them where the bounds meet.</p>
+  <p>Opening every crossing along the orientations leaves $s$ loops, the Seifert circles. Spanning them by discs, joined by a half-twisted band at each crossing, gives a surface with the link as its edge [@seifert1935], of genus $\tfrac12(n-s+1)$ for a knot. So the genus $g$ of a knot satisfies</p>
+  $$\tfrac12\operatorname{span}\Delta\le g\le\tfrac12\,(n-s+1),$$
+  <p>with equality throughout for an alternating diagram [@crowell1959; @murasugi1958].</p>
+  <p>A closed braid on $b$ strands has $b$ Seifert circles, and the braid index is the least $s$ over all diagrams [@yamada1987]; the powers of $a$ in $P$ bound it from below [@franks1987; @morton1986]:</p>
+  $$\tfrac12\operatorname{span}_a P+1\le b\le s.$$
+  <p>The Arf invariant of a knot is $0$ when its determinant is $\pm1$ mod $8$, and $1$ when it is $\pm3$ mod $8$ [@levine1966].</p>
+  <p>Most links are hyperbolic: their complement has a complete metric of constant curvature $-1$, whose volume is an invariant [@thurston1978]; torus links, sums, split links and satellites are not. To find the volume, we add two points, above and below the diagram, and the complement falls into four tetrahedra at each crossing [@dthurston1999]; squashing an edge from each added point onto the link and simplifying leaves an ideal triangulation. Each tetrahedron is then a shape $z$ in the upper half-plane, and Thurston’s equations ask that round every edge the shapes multiply to $1$ and that every cusp be complete. Solving them by Newton’s method gives the hyperbolic structure, and</p>
+  $$\operatorname{vol}=\sum_t D(z_t),\qquad D(z)=\operatorname{Im}\operatorname{Li}_2(z)+\arg(1-z)\log\abs{z},$$
+  <p>the Bloch–Wigner dilogarithm being the volume of an ideal tetrahedron of shape $z$ [@thurston1978; @weeks2005].</p>
+</section>
+<section aria-labelledby="sec-names">
+  <h2 class="section-title" id="sec-names">Names</h2>
+  <p>Prime knots and links are named as in Rolfsen’s book [@rolfsen1976]. Which of a knot and its mirror image is called $K$, and which $\overline{K}$, follows the Knot Atlas [@katlas].</p>
+  <p>We name a knot or link by comparing its invariants with those of the table, so the name may be uncertain when the diagram after <em>Tidy</em> has more crossings than the table covers: more than nine for a knot, or seven for a link.</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

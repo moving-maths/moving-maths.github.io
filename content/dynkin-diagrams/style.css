@@ -1,0 +1,112 @@
+/* Dynkin diagrams.
+   Phone: the diagram, its name, the lists of diagrams, then the readouts. Wide: the diagram
+   and the lists under it on the left, readouts on the right. A click on a node or a bond opens
+   its menu beside it, over the picture.
+   Then the sections of text, each with its figure: the eigenvalues, the roots about a Coxeter
+   plane, the roots by height. */
+
+/* Data colours by meaning; main.js reads the same names through MM.color. */
+body {
+  --root-long: var(--c1);   /* roots, and the long ones where there are two lengths */
+  --root-short: var(--c2);  /* short roots */
+}
+
+/* the diagram beside the readouts (.split in theme.css) */
+.dk { --split-main: 1.2fr; }
+/* On a phone the two columns become one list, so that the name of the diagram
+   comes straight under it. */
+@media (max-width: 899.98px) {
+  .dk { gap: 14px; }
+  .dk > .split-main, .dk > .split-side { display: contents; }
+  .dk .side-head { order: 1; }
+  .dk .strip-block { order: 2; }
+  .dk .side-block:not(.side-head) { order: 3; }
+  .dk-main > .hint { margin-top: -6px; }
+}
+
+/* the two modes, Draw and Move: an icon and a word in each segment */
+.dk-mode { display: inline-flex; align-items: center; gap: 5px; }
+.dk-mode svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+
+/* ---------- the diagram ---------- */
+.dk-stagebox { position: relative; }
+#stage { display: block; width: 100%; aspect-ratio: 5 / 4; border-radius: var(--radius-sm); box-shadow: inset 0 0 0 1px var(--rule-2); cursor: crosshair; }
+/* drawing: the whole frame takes the pointer, and a swipe on it does not scroll; moving: the nodes are taken */
+#stage.is-drawing { touch-action: none; }
+#stage.is-moving { cursor: default; }
+@media (min-width: 900px) { #stage { aspect-ratio: 4 / 3; } }
+#stage text { user-select: none; -webkit-user-select: none; pointer-events: none; }
+.dk-line { stroke: var(--ink); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.dk-line.heavy { stroke-width: 3.4; }
+.dk-bond { cursor: pointer; outline: none; }
+.dk-hit { stroke: transparent; stroke-width: 18; fill: none; }
+.dk-halo { stroke: var(--accent-soft); stroke-width: 16; stroke-linecap: round; fill: none; opacity: 0; }
+.dk-bond.is-on .dk-halo { opacity: 1; stroke: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+.dk-bond:focus-visible .dk-halo { opacity: 1; }
+/* a node (.draggable): moved under a drag while moving, the start of a bond while drawing */
+#stage:not(.is-moving) .dk-node { cursor: inherit; }
+.dk-node .dk-pad { fill: transparent; }
+.dk-node .dk-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 1.5; }
+/* its ring (.focus-ring) shows the focus, and the nodes selected or about to be joined */
+.dk-node:is(.is-on, .is-target) > .focus-ring { opacity: 1; }
+.dk-node.is-on .dk-dot { fill: var(--accent-soft); }
+.dk-line.is-new { stroke: var(--accent); stroke-dasharray: 5 4; }
+/* the new node at the end of a bond being drawn */
+.dk-ghost { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 3; }
+/* the box that selects nodes */
+.dk-box { fill: var(--accent-soft); fill-opacity: .55; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+.dk-name { font-size: 13px; text-anchor: middle; }
+.dk-blabel { font-size: 13px; text-anchor: middle; }
+.dk-mark { font-size: 12px; text-anchor: middle; fill: var(--ink-3); }
+.dk-label { font-size: 11.5px; text-anchor: middle; fill: var(--ink-2); }
+.dk-empty { font-family: var(--sans); font-size: var(--text-label); fill: var(--ink-3); text-anchor: middle; }
+
+/* (a line kept for it, so that nothing under it moves as it changes) */
+.dk-main > .hint { min-height: 1.45em; }
+
+/* ---------- the menu of the selection (.fig-menu): a bond's kinds, as pictures of it, or Remove;
+   for nodes, tools as in the bar (.btn-icon) ---------- */
+.dk-menu.is-bond { display: grid; grid-template-columns: repeat(8, auto); align-items: center; justify-items: center; }
+.dk-menu > .btn:not(.btn-icon) { padding: 2px; }
+.dk-menu > :not(.btn-icon) > svg { display: block; width: 28px; height: 28px; }
+.dk-menu > :not(.btn-icon) > svg path { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.dk-menu svg text { font-size: 12px; text-anchor: middle; fill: currentColor; }
+.dk-menu svg path.heavy { stroke-width: 3; }
+.dk-menu svg path.cross { stroke-width: 1.8; }
+.dk-menu.is-bond [data-kind="remove"] { grid-column: 8; }
+/* the numbers of a thick or labelled bond, on sliders under the kinds */
+.dk-menu-sliders { grid-column: 1 / -1; justify-self: stretch; display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 2px 16px; padding: 4px 4px 0; }
+.dk-menu-sliders:empty { display: none; }
+
+/* (the lists of diagrams, under the diagram: .strip-block) */
+
+/* ---------- the figures in the text ---------- */
+/* the roots, about a Coxeter plane: the choice of plane above the picture (.fig-bar) */
+#cox-legend { justify-content: center; margin: 8px 0 4px; }
+#coxeter { display: block; width: 100%; max-width: 540px; aspect-ratio: 1; margin: 2px auto 0; }
+/* a click picks the root nearest it; in space the picture turns under a drag (MM.turnDrag) */
+#coxeter:not(.turnable) { cursor: pointer; }
+/* its legend (.dot, .legend-line): the lines to the nearest roots, faint, and an orbit of c */
+.legend-line { --c: color-mix(in srgb, var(--c1) 55%, transparent); --line-width: 1.25; }
+.legend-line.orbit { --c: var(--accent); --line-width: 1.6; }
+
+/* ---------- readouts (.split-side in theme.css) ---------- */
+/* under the name: the n of a diagram of a series (A_n, …, D_{n+1}^(2)), the m of I_2(m), or the
+   a and b of a hyperbolic diagram of rank 2 (sliders, in theme.css); then what it is */
+#note { font-size: 15px; line-height: 1.6; min-height: 3.2em; margin-top: 8px; }
+#note p { margin: 0 0 .4em; }
+/* the charts are drawn one unit to a pixel (main.js), so that their labels keep the size of the text's */
+#spectrum, #heights { display: block; width: 100%; max-width: 480px; height: auto; margin: 0 auto; overflow: visible; }
+.sp-axis { stroke: var(--rule); stroke-width: 1; }
+.sp-tick { stroke: var(--ink-3); stroke-width: 1; }
+.sp-zero { stroke: var(--ink); stroke-width: 1.5; }
+.sp-num { font-size: 12.5px; text-anchor: middle; fill: var(--ink-3); }
+.sp-dot { fill: var(--c1); stroke: var(--surface); stroke-width: 1; }
+.sp-dot.neg { fill: var(--c5); }
+.sp-dot.nul { fill: var(--ink); }
+.ht-bar { fill: var(--c1); }
+.ht-more { fill: var(--ink-3); font-size: 13px; }
+#matrix { min-height: 2em; overflow-y: hidden; padding: 4px 0 8px; } /* sideways only */
+/* (the Cartan matrix is drawn by MM.matrix: theme.css), and what its τ is, close under it */
+#matrix-tau { margin: 2px 0 0; }

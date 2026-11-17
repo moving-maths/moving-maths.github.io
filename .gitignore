@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.originals/
+.DS_Store
+.dev-dist*/
+.claude/
+CLAUDE.local.md

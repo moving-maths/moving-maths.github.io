@@ -1,0 +1,130 @@
+---
+title: Root systems
+description: 'Root systems of rank two and three: finite, affine and hyperbolic types, and Lie superalgebras.'
+tags: [representation-theory]
+date: 2026-11-10
+katex_runtime: true
+macros:
+  \sl: \mathfrak{sl}
+  \osp: \mathfrak{osp}
+styles: [style.css]
+scripts: [roots.js, hyperbolic.js, main.js]
+references:
+  - key: cheng2012
+    authors: S.-J. Cheng, W. Wang
+    title: Dualities and representations of Lie superalgebras
+    note: Graduate Studies in Mathematics 144, American Mathematical Society (2012)
+  - key: humphreys1972
+    authors: J. E. Humphreys
+    title: Introduction to Lie algebras and representation theory
+    note: Graduate Texts in Mathematics 9, Springer (1972)
+  - key: kac1977
+    authors: V. G. Kac
+    title: Lie superalgebras
+    note: Adv. Math. 26 (1977), 8–96
+  - key: kac1990
+    authors: V. G. Kac
+    title: Infinite-dimensional Lie algebras
+    note: 3rd ed., Cambridge University Press (1990)
+---
+<div class="wrap">
+  <p class="lede">Root systems of rank two and three: finite, affine and hyperbolic types, and Lie superalgebras. For higher rank, see <a href="/dynkin-diagrams/">Dynkin diagrams</a>.</p>
+</div>
+
+<div class="control-bar"><div class="wrap">
+  <div class="control" hidden><span class="label">View</span>
+    <mm-seg id="view-affine" value="flat" aria-label="Where the system is drawn">
+      <button value="sphere">Sphere</button><button value="flat">Plane</button>
+    </mm-seg>
+  </div>
+  <div class="control" hidden><span class="label">View</span>
+    <mm-seg id="view-hyperbolic" value="flat" aria-label="Where the system is drawn">
+      <button value="sphere">Sphere</button><button value="flat">Disc</button>
+    </mm-seg>
+  </div>
+  <mm-zoom id="zoom" min="1" max="4" aria-label="Zoom the plane" hidden></mm-zoom>
+  <div class="control" id="depth" hidden><span class="label">Depth</span>
+    <button type="button" class="btn btn-sm" id="depth-less" aria-label="Show fewer roots and mirrors">−</button>
+    <button type="button" class="btn btn-sm" id="depth-more" aria-label="Show more roots and mirrors">+</button>
+  </div>
+  <button type="button" class="btn btn-sm" id="recentre" hidden>Centre</button>
+  <mm-toggle id="mirrors" pressed>Mirrors</mm-toggle>
+  <mm-toggle id="lengths" pressed hidden>True lengths</mm-toggle>
+</div></div>
+
+<div class="wrap section">
+  <figure class="panel split rs" id="figure">
+    <div class="split-main rs-main">
+      <div class="rs-plane split-fit" id="plane">
+        <canvas id="canvas" role="img" aria-label="The roots"></canvas>
+        <div class="handle draggable rs-handle" id="handle" role="slider" tabindex="0" aria-label="The functional that separates the positive roots from the negative ones" aria-valuemin="0" aria-valuemax="360" aria-valuenow="90"></div>
+      </div>
+      <p class="hint" id="hint"></p>
+      <section class="strip-block" aria-labelledby="table-h">
+        <div class="strip-head">
+          <h3 class="label" id="table-h">Root systems of rank two and three</h3>
+          <mm-seg id="family" value="finite" aria-label="Which systems the list shows">
+            <button value="finite">Finite</button><button value="affine">Affine</button><button value="hyperbolic">Hyperbolic</button><button value="super">Super</button>
+          </mm-seg>
+        </div>
+        <div class="strip" id="strip" role="toolbar" aria-labelledby="table-h"></div>
+      </section>
+    </div>
+    <div class="split-side">
+      <section class="side-block side-head" aria-labelledby="about-h">
+        <h2 class="side-title" id="about-h"></h2>
+        <mm-slider id="alpha" plain min="0.2" max="3" step="0.05" value="1" hidden>$\alpha$</mm-slider>
+        <div class="slider-pair" id="hyp" hidden>
+          <mm-slider id="hyp-a" plain min="1" max="8" step="1" value="3">$a$</mm-slider>
+          <mm-slider id="hyp-b" plain min="1" max="8" step="1" value="3">$b$</mm-slider>
+        </div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block side-more" aria-label="Description of the system">
+        <dl class="kv" id="about"></dl>
+      </section>
+      <section class="side-block" aria-labelledby="pos-h">
+        <h3 class="label" id="pos-h">Dynkin diagram</h3>
+        <div class="scroll-x" id="dynkin"></div>
+        <div id="pos" aria-live="polite"></div>
+      </section>
+      <section class="side-block" aria-labelledby="sel-h">
+        <h3 class="label" id="sel-h">Selected root</h3>
+        <div class="readout" id="sel" aria-live="polite"></div>
+      </section>
+    </div>
+  </figure>
+  <p class="see-also" id="see-also" hidden></p>
+</div>
+
+<div class="wrap section">
+<div class="prose">
+<section aria-labelledby="sec-mirrors">
+  <h2 class="section-title" id="sec-mirrors">Reflections and the Weyl group</h2>
+  <p>A root system lies in a real vector space with a symmetric bilinear form $(\cdot,\cdot)$. A real root $\alpha$, one with $(\alpha,\alpha)>0$, has the reflection</p>
+  $$s_\alpha(\beta)=\beta-\frac{2(\alpha,\beta)}{(\alpha,\alpha)}\,\alpha,$$
+  <p>which preserves the form and the set of roots. These reflections generate the Weyl group $W$ [@kac1990, Ch. 3].</p>
+  <p>In the picture above, the handle is a linear functional $f$. The roots with $f(\alpha)>0$ are positive, drawn filled, and the others negative, drawn hollow. The mirror of $\alpha$ is the set of functionals with $f(\alpha)=0$, which $s_\alpha$ fixes; the mirrors cut the functionals into chambers, and $W$ permutes the chambers, taking any one to any other in exactly one way [@kac1990, Ch. 3].</p>
+</section>
+
+<section aria-labelledby="sec-simple">
+  <h2 class="section-title" id="sec-simple">Positive and simple roots</h2>
+  <p>A functional that is nonzero on any root splits the roots into positive and negative ones. The simple roots are the positive roots that are not sums of two positive roots, and every positive root is a sum of simple roots with nonnegative integer coefficients [@humphreys1972, §10.1]. The functionals with the same positive roots form a chamber, shaded round the handle, whose walls are the mirrors of the simple roots; the Dynkin diagram beside the picture is read off them.</p>
+  <p>When the handle crosses the wall of a simple root $\beta_i$, the simple roots are replaced by their images under $s_{\beta_i}$, so $\beta_i$ becomes negative and the diagram stays the same. The positive roots are therefore $w(\Delta_+)$ for some $w$ in $W$, written beside the picture as a word in the reflections $s_i$ of the simple roots $\alpha_i$ [@kac1990, Ch. 3]. In affine and hyperbolic type the chambers fill only the functionals that are nonzero on $\delta$, or that lie inside the null cone [@kac1990, Ch. 5].</p>
+</section>
+
+<section aria-labelledby="sec-geom">
+  <h2 class="section-title" id="sec-geom">Three geometries</h2>
+  <p>The symmetric bilinear form decides how the picture is drawn. In finite type it is positive definite and there are finitely many roots; in rank three each root is drawn where its ray meets the sphere, and the mirrors cut the sphere into triangles. In affine type it is positive semidefinite, with radical spanned by a root $\delta$; the functionals with $f(\delta)=1$ form a Euclidean plane, which the mirrors cut into alcoves. In hyperbolic type it has signature $(n-1,1)$; the functionals inside the null cone, up to scale, form the hyperbolic plane, drawn as the Poincaré disc, which the mirrors cut into triangles with angles $\pi/m$.</p>
+  <p>A root $\alpha$ is real when $(\alpha,\alpha)>0$, and imaginary when $(\alpha,\alpha)\le0$ [@kac1990, Ch. 5]. Imaginary roots occur only in affine and hyperbolic type: the multiples $n\delta$, $n\ne0$, in affine type, and in hyperbolic type every nonzero point of the root lattice with $(\alpha,\alpha)\le0$ [@kac1990, Proposition 5.10]. Their multiplicities, the dimensions of their root spaces, can exceed $1$; we compute them by Peterson’s recursion [@kac1990, Exercise 11.11].</p>
+</section>
+
+<section aria-labelledby="sec-super">
+  <h2 class="section-title" id="sec-super">Superalgebras</h2>
+  <p>The Lie superalgebras here have even and odd roots [@kac1977]. The even roots have reflections, which generate the Weyl group of the even part. An odd root $\beta$ with $(\beta,\beta)\ne0$ has the same reflection as the even root $2\beta$; an isotropic one, with $(\beta,\beta)=0$, has none, and its mirror is dashed.</p>
+  <p>Positive systems still come from functionals, but they need not be conjugate under $W$. Crossing the mirror of an isotropic simple root $\beta$ is an odd reflection: $\beta$ becomes $-\beta$, each simple root $\gamma$ with $(\gamma,\beta)\ne0$ becomes $\gamma+\beta$, and the others stay [@cheng2012, Ch. 1]. The Dynkin diagram changes with them, and so does the parity of its nodes: white for even, crossed for isotropic, black for the other odd roots.</p>
+</section>
+</div>
+</div>
+
+<noscript><p class="wrap">The figure needs JavaScript.</p></noscript>

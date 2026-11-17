@@ -1,0 +1,81 @@
+<!-- The card image (npm run thumbs): the diagram D4, as the page draws it
+     after "Start from D_n", and its 24 roots face on in the Coxeter plane, as
+     the page draws them: filled when positive, hollow when negative, the
+     nearest ones joined, the simple roots ringed, the nearer ones larger.
+     Heavier marks than on the page, so that they read at card size. Computed
+     with dynkin.js, as on the page. -->
+<script src="dynkin.js"></script>
+<script>
+(function () {
+  const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), D = window.Dynkin, TAU = 2 * Math.PI;
+  const { A, pos } = D.preset('D', 4);
+  // the roots in the plane of the exponent 1 and its third direction, as on the page
+  const C = D.coxeter(A), P = C.planes[0];
+  const dotv = (u, v) => u.reduce((t, x, i) => t + x * v[i], 0);
+  const plus = D.realRoots(A, Infinity, 1000).levels.flat();
+  const roots = plus.map((c) => ({ c, positive: true })).concat(plus.map((c) => ({ c: c.map((x) => -x), positive: false })));
+  roots.forEach((r) => {
+    const x = C.embed(r.c);
+    r.at = [dotv(x, P.u), dotv(x, P.v), P.w ? dotv(x, P.w) : 0];
+    r.simple = r.positive && r.c.reduce((t, v) => t + v, 0) === 1;
+  });
+  const reach = Math.max(...roots.map((r) => Math.hypot(...r.at)));
+  const edges = D.nearest(A, roots.map((r) => r.c));
+
+  function draw() {
+    const ink = MM.color('ink'), blue = MM.color('root-long'), paper = MM.color('surface');
+    cx.clearRect(0, 0, W, H);
+    cx.lineCap = 'round';
+
+    // ---- the diagram, on the left ----
+    const u = 186, x0 = 108, y0 = H / 2, R = 20;
+    const node = (i) => [x0 + u * pos[i][0], y0 + u * pos[i][1]];
+    cx.lineWidth = 4;
+    cx.strokeStyle = ink;
+    for (const b of D.bonds(A)) {
+      const p = node(b.i), q = node(b.j), d = Math.hypot(q[0] - p[0], q[1] - p[1]), ux = (q[0] - p[0]) / d, uy = (q[1] - p[1]) / d;
+      cx.beginPath(); cx.moveTo(p[0] + ux * R, p[1] + uy * R); cx.lineTo(q[0] - ux * R, q[1] - uy * R); cx.stroke();
+    }
+    for (let i = 0; i < pos.length; i++) {
+      const [x, y] = node(i);
+      cx.beginPath(); cx.arc(x, y, R, 0, TAU);
+      cx.fillStyle = paper; cx.fill();
+      cx.stroke();
+    }
+
+    // ---- the roots, on the right ----
+    const ox = 846, oy = H / 2, k = 232 / reach;
+    const dots = roots.map((r) => ({ r, x: ox + k * r.at[0], y: oy - k * r.at[1], z: r.at[2] / reach, s: 12 * (1 + 0.22 * r.at[2] / reach) }));
+    // the circles the roots lie on
+    cx.lineWidth = 2;
+    cx.strokeStyle = MM.color('rule');
+    for (const rad of new Set(dots.map((q) => Math.round(Math.hypot(q.x - ox, q.y - oy))))) {
+      if (rad > 1) { cx.beginPath(); cx.arc(ox, oy, rad, 0, TAU); cx.stroke(); }
+    }
+    // the nearest roots, joined
+    cx.strokeStyle = MM.rgba('c1', Math.max(0.12, Math.min(0.45, 0.45 * Math.sqrt(60 / edges.length))));
+    cx.lineWidth = 2.5;
+    cx.beginPath();
+    for (const [a, b] of edges) { cx.moveTo(dots[a].x, dots[a].y); cx.lineTo(dots[b].x, dots[b].y); }
+    cx.stroke();
+    // the roots, the far ones first: filled for positive, hollow for negative
+    for (const q of dots.slice().sort((a, b) => a.z - b.z || a.r.positive - b.r.positive)) {
+      cx.beginPath();
+      cx.arc(q.x, q.y, q.r.positive ? q.s : q.s - 1.5, 0, TAU);
+      cx.fillStyle = q.r.positive ? blue : paper;
+      cx.fill();
+      if (!q.r.positive) { cx.lineWidth = 3.5; cx.strokeStyle = blue; cx.stroke(); }
+    }
+    // the simple roots, ringed (the three outer ones of D4 fall on one place, and share a ring)
+    cx.lineWidth = 3;
+    cx.strokeStyle = ink;
+    const ringed = [];
+    for (const q of dots) {
+      if (!q.r.simple || ringed.some((o) => Math.hypot(o.x - q.x, o.y - q.y) < 2)) continue;
+      ringed.push(q);
+      cx.beginPath(); cx.arc(q.x, q.y, q.s + 7, 0, TAU); cx.stroke();
+    }
+  }
+  MM.onFonts(draw);
+})();
+</script>
