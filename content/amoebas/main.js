@@ -632,7 +632,7 @@
   /* ---------- readouts ---------- */
 
   // the area of the Newton polygon, a whole number or a half, as TeX
-  const areaTex = () => { const a = Math.round(2 * model.newton.area); return a % 2 ? '\\tfrac{' + a + '}{2}' : String(a / 2); };
+  const areaTex = () => { const a = Math.round(2 * model.newton.area); return a % 2 ? '\\tfrac' + (a < 10 ? a + '2' : '{' + a + '}{2}') : String(a / 2); };
 
   function legendHTML() {
     const item = (mark, text) => '<span class="legend-item">' + mark + text + '</span>';
