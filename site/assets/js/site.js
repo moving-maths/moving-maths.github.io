@@ -1122,19 +1122,47 @@
   // elements and anchor offsets), and marks the bar .is-stuck while it sits
   // under the navigation. On a phone the bar is one row that scrolls
   // sideways, and fades at an edge with more beyond it, as an overflowing
-  // segmented control does. A .split figure's picture column stays in view
-  // under them while its readouts scroll; one too tall to show whole there is
-  // marked .is-tall and scrolls with the page instead.
+  // segmented control does, with an arrow there that scrolls it on. A .split
+  // figure's picture column stays in view under them while its readouts
+  // scroll; one too tall to show whole there is marked .is-tall and scrolls
+  // with the page instead.
   function setupSticky() {
     var root = document.documentElement;
     var bar = document.querySelector('.control-bar');
     var row = bar && bar.querySelector(':scope > .wrap');
     var mains = Array.prototype.slice.call(document.querySelectorAll('.split-main'));
     var navH = 0;
+    // an arrow at each end of the row, shown while the row is cut off there, that scrolls it on
+    var more = row ? ['start', 'end'].map(function (side) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'bar-scroll bar-scroll-' + side;
+      b.hidden = true;
+      b.tabIndex = -1; // (the keys go along the controls themselves, and scroll them into view)
+      b.setAttribute('aria-hidden', 'true');
+      b.innerHTML = '<svg viewBox="0 0 16 16"><path d="' + (side === 'start' ? 'M10 3.5 5.5 8l4.5 4.5' : 'M6 3.5 10.5 8 6 12.5') + '"/></svg>';
+      b.addEventListener('click', function () {
+        row.scrollBy({ left: (side === 'start' ? -1 : 1) * Math.max(60, row.clientWidth * 0.7), behavior: reduceMotion() ? 'auto' : 'smooth' });
+      });
+      bar.appendChild(b);
+      return b;
+    }) : [];
     function edges() {
       var max = row.scrollWidth - row.clientWidth;
-      row.classList.toggle('is-clipped-start', max > 1 && row.scrollLeft > 1);
-      row.classList.toggle('is-clipped-end', max > 1 && row.scrollLeft < max - 1);
+      var start = max > 1 && row.scrollLeft > 1, end = max > 1 && row.scrollLeft < max - 1;
+      row.classList.toggle('is-clipped-start', start);
+      row.classList.toggle('is-clipped-end', end);
+      more[0].hidden = !start;
+      more[1].hidden = !end;
+      // the end arrow goes right up to the page's tools, if there are any, over the gap
+      // before them, so that the row is hidden under as little of it as can be
+      var b = bar.getBoundingClientRect(), r = row.getBoundingClientRect(), stop = r.right;
+      Array.prototype.forEach.call(bar.querySelectorAll('.bar-tools > .btn:not([hidden])'), function (t) {
+        stop = Math.min(b.right, Math.max(r.right, t.getBoundingClientRect().left - 2));
+      });
+      bar.style.setProperty('--row-start', (r.left - b.left) + 'px');
+      bar.style.setProperty('--row-end', (b.right - stop) + 'px');
+      row.style.setProperty('--end-arrow', Math.max(0, r.right - stop + 22) + 'px'); // (22px: the arrow's width)
     }
     function update() {
       root.classList.toggle('is-scrolled', window.scrollY > 1);

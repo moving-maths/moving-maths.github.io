@@ -106,7 +106,7 @@ The site navigation is sticky (`--nav-h` tall). A page's `.control-bar` sticks d
 #figure { position: sticky; top: calc(var(--nav-h) + var(--bar-h) + 16px); }
 ```
 
-Use at most one `.control-bar` per page. On a phone (up to 700px wide) or in a short window (up to 500px high) it is one row that scrolls sideways, fading at an edge with more beyond it, so that it takes one row's height and every control stays one swipe away.
+Use at most one `.control-bar` per page. On a phone (up to 700px wide) or in a short window (up to 500px high) it is one row that scrolls sideways, fading at an edge with more beyond it, so that it takes one row's height and every control stays one swipe away. A quiet arrow at a cut-off edge (`.bar-scroll`, made by `site.js`; the row fades in just after it) shows that there is more that way, and a tap on it scrolls the row on.
 
 On a content page the bar ends in the page's tools (`.bar-tools`): a quiet button, `⋯`, whose menu has Copy link, Save image and Reset ([authoring.md](authoring.md#links-reset-and-images)). It stays at the top right of the column while the controls before it wrap, or scroll on a phone, and "Link copied" shows beside it for a moment. While the page's first picture is wholly out of view (the reader is in the text below it), a second quiet button shows before it, an arrow up to a line (turned over when the picture is below the window): Go to the picture, which scrolls the figure back under the bar.
 
