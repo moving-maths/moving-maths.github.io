@@ -92,6 +92,10 @@
     // smooth: the roof's faces are triangles of area 1/2 with no other points on them
     model.smooth = sub.faces.every((f) => f.on.length === 3 && Math.abs(AM.polygonArea(f.poly.map((k) => pts[k]))) === 0.5);
     model.cycles = pts.filter((p, k) => sub.isVertex[k] && newton.inside[k]).length;
+    // the degree of the curve: of f divided by the highest z^a w^b that divides it, which is
+    // the same curve in (ℂ^×)²; less than d when terms are taken out
+    const [a, b] = AM.offset(pts, v);
+    model.degree = pts.reduce((m, p, k) => (c.off[k] ? m : Math.max(m, p[0] + p[1])), 0) - a - b;
   }
   const isOff = (k) => cur().off[k];
   // whether the term k can be taken out: the terms left must not lie on a line
@@ -539,12 +543,15 @@
     MM.clearCanvas(lctx);
     const at = (k, h) => P(pts[k][0], pts[k][1], h === undefined ? v[k] : h);
     const path = (Q) => { lctx.beginPath(); Q.forEach((q, i) => (i ? lctx.lineTo(q[0], q[1]) : lctx.moveTo(q[0], q[1]))); lctx.closePath(); };
-    // the floor: the Newton polygon, and the subdivision the roof projects to
-    path([[0, 0], [d, 0], [0, d]].map(([i, j]) => P(i, j, VMIN)));
-    lctx.fillStyle = MM.color('sunken');
-    lctx.fill();
+    // the floor: the triangle dΔ, the Newton polygon in it (the hull of the terms present: all of
+    // it unless terms are taken out), and the subdivision the roof projects to
     lctx.strokeStyle = MM.color('rule');
     lctx.lineWidth = 1;
+    path([[0, 0], [d, 0], [0, d]].map(([i, j]) => P(i, j, VMIN)));
+    lctx.stroke();
+    path(model.newton.hull.map((k) => at(k, VMIN)));
+    lctx.fillStyle = MM.color('sunken');
+    lctx.fill();
     lctx.stroke();
     lctx.strokeStyle = MM.color('ink-3');
     lctx.beginPath();
@@ -830,9 +837,8 @@
 
   function readouts() {
     if (!amo) return;
-    MM.setHTML($('title'), NAMES[state.d]);
-    const deg = model.pts.reduce((m, p, k) => (model.off[k] ? m : Math.max(m, p[0] + p[1])), 0);
-    MM.setHTML($('name'), 'A curve of degree $' + deg + '$ in $(\\CC^\\times)^2$, of genus $' + model.newton.inside.filter(Boolean).length + '$.');
+    MM.setHTML($('title'), NAMES[model.degree]);
+    MM.setHTML($('name'), 'A curve of degree $' + model.degree + '$ in $(\\CC^\\times)^2$, of genus $' + model.newton.inside.filter(Boolean).length + '$.');
     MM.setHTML($('legend'), legendHTML());
     updateFormula();
     MM.kv($('about'), aboutRows());
