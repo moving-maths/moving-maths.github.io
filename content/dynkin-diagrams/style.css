@@ -1,5 +1,5 @@
 /* Dynkin diagrams.
-   Phone: the diagram, its name, the lists of diagrams, then the readouts. Wide: the diagram
+   Phone: the diagram, the lists of diagrams, its name, then the readouts. Wide: the diagram
    and the lists under it on the left, readouts on the right. A click on a node or a bond opens
    its menu beside it, over the picture.
    Then the sections of text, each with its figure: the eigenvalues, the roots about a Coxeter
@@ -13,13 +13,12 @@ body {
 
 /* the diagram beside the readouts (.split in theme.css) */
 .dk { --split-main: 1.2fr; }
-/* On a phone the two columns become one list, so that the name of the diagram
-   comes straight under it. */
+/* On a phone the two columns become one list, so that the lists come under the
+   diagram, then its name. */
 @media (max-width: 899.98px) {
   .dk { gap: 14px; }
   .dk > .split-main, .dk > .split-side { display: contents; }
   .dk .side-head { order: 1; }
-  .dk .strip-block { order: 2; }
   .dk .side-block:not(.side-head) { order: 3; }
   .dk-main > .hint { margin-top: -6px; }
 }

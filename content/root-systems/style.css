@@ -1,5 +1,5 @@
 /* Root systems of rank two and three.
-   Phone: the figure, the name of the system, the lists of systems, then the readouts. Wide:
+   Phone: the figure, the lists of systems, the name of the system, then the readouts. Wide:
    the figure and the lists under it on the left, readouts on the right. Then the sections of
    text. */
 
@@ -18,12 +18,11 @@ body {
 /* the plane beside its readouts, in view while they scroll (.split in theme.css), with the
    line and the lists under it */
 .rs { --split-main: 1.25fr; --split-below: 180px; }
-/* On a phone the two columns become one list, so that the name of the system comes
-   straight under the figure, then the lists. */
+/* On a phone the two columns become one list, so that the lists come under the figure,
+   then the name of the system. */
 @media (max-width: 899.98px) {
   .rs > .split-main, .rs > .split-side { display: contents; }
   .rs .side-head { order: 1; }
-  .rs .strip-block { order: 2; }
   .rs .side-block:not(.side-head) { order: 3; }
   .rs .side-block.side-more { order: 4; } /* (the description last, as before) */
 }

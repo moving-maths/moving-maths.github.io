@@ -1,6 +1,6 @@
 /* Highest weight representations.
-   Phone: the figure, the name of the representation with its highest weight on the Dynkin
-   diagram, the lists of algebras, then the readouts. Wide: the figure and the lists under it
+   Phone: the figure, the lists of algebras, the name of the representation with its highest
+   weight on the Dynkin diagram, then the readouts. Wide: the figure and the lists under it
    on the left, readouts on the right. Then the sections of text. */
 
 /* Data colours by meaning; main.js reads the same names through MM.color.
@@ -18,12 +18,11 @@ body {
    theme.css), with the hint and the lists under it */
 .hw { --split-main: 1.25fr; --split-below: 190px; }
 .hw-plane.is-line { --fit-ratio: 3; }
-/* On a phone the two columns become one list, so that the name of the representation and
-   its highest weight come straight under the picture, then the lists. */
+/* On a phone the two columns become one list, so that the lists come under the picture,
+   then the name of the representation and its highest weight. */
 @media (max-width: 899.98px) {
   .hw > .split-main, .hw > .split-side { display: contents; }
   .hw .side-head { order: 1; }
-  .hw .strip-block { order: 2; }
   .hw .side-block:not(.side-head) { order: 3; }
 }
 
