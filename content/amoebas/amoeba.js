@@ -6,10 +6,13 @@
 //     Log_t(z, w) = (log|z|, log|w|) / log t,
 // in which, as t → ∞, it shrinks onto the tropical curve of the heights: the
 // corner locus of y ↦ max_α (v_α + ⟨α, y⟩), dual to the subdivision of dΔ that
-// the upper faces of the lifted points (α, v_α) project to.
+// the upper faces of the lifted points (α, v_α) project to. A term taken out of f
+// (a_α = 0) has the height v_α = −∞: it is left out of all of these, and the Newton
+// polygon is the convex hull of the other points.
 //
 //   triangle(d)                 the lattice points of dΔ, as [i, j]
 //   honeycomb(d, c)             heights that give a smooth tropical curve, centred
+//   newton(pts, v)              the Newton polygon of the terms present: hull, area, interior
 //   harnackSigns(d)             signs that make the curve a simple Harnack curve
 //   subdivision(pts, v)         the upper faces of the lifted points, projected
 //   tropical(pts, v, sub)       the dual tropical curve: vertices, edges, rays
@@ -51,6 +54,9 @@
     return triangle(d).map(([i, j]) => (i % 2 === 0 && j % 2 === 0 ? -1 : 1));
   }
 
+  // the terms present, a_α ≠ 0
+  const present = (v, k) => v[k] > -Infinity;
+
   /* ---------- the subdivision: upper faces of the lifted points ---------- */
 
   // 2D convex hull, counter-clockwise, of the indices `ids` of points `pts`,
@@ -70,11 +76,12 @@
   // v = c₀ + c₁ i + c₂ j that lies on or above every lifted point, the points on
   // it (`on`) and the vertices of its polygon (`poly`, counter-clockwise).
   // Points that are a vertex of no face lie below the roof: their monomial
-  // dominates nowhere, tropically.
+  // dominates nowhere, tropically. (Points at height −∞ lie below every face.)
   function subdivision(pts, v, eps) {
     eps = eps || 1e-9;
     const n = pts.length, faces = [], seen = new Set();
     for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let c = b + 1; c < n; c++) {
+      if (!present(v, a) || !present(v, b) || !present(v, c)) continue;
       const [ia, ja] = pts[a], [ib, jb] = pts[b], [ic, jc] = pts[c];
       const det = (ib - ia) * (jc - ja) - (ic - ia) * (jb - ja);
       if (det === 0) continue;
@@ -123,9 +130,9 @@
     const vertices = sub.faces.map((f) => [-f.plane[1], -f.plane[2]]);
     const edges = [], rays = [];
     // the centre of the polygon, to tell outward normals
-    let cx = 0, cy = 0;
-    for (const p of pts) { cx += p[0]; cy += p[1]; }
-    cx /= pts.length; cy /= pts.length;
+    let cx = 0, cy = 0, m = 0;
+    pts.forEach((p, k) => { if (present(v, k)) { cx += p[0]; cy += p[1]; m++; } });
+    cx /= m; cy /= m;
     for (const e of sub.edges) {
       const [ia, ja] = pts[e.a], [ib, jb] = pts[e.b];
       const w = gcd(ib - ia, jb - ja);
@@ -179,6 +186,19 @@
     let s = 0;
     for (let k = 0; k < poly.length; k++) { const P = poly[k], Q = poly[(k + 1) % poly.length]; s += P[0] * Q[1] - P[1] * Q[0]; }
     return s / 2;
+  }
+
+  // The Newton polygon of the terms present: its corners (indices, counter-clockwise),
+  // its area, and which lattice points lie strictly inside it (their number is the
+  // genus of a curve with this polygon). Its area is 0 when the terms lie on a line.
+  function newton(pts, v) {
+    const hull = hull2(pts, pts.map((_, k) => k).filter((k) => present(v, k)));
+    const area = hull.length < 3 ? 0 : polygonArea(hull.map((k) => pts[k]));
+    const inside = pts.map((p) => area > 0 && hull.every((a, q) => {
+      const P = pts[a], Q = pts[hull[(q + 1) % hull.length]];
+      return (Q[0] - P[0]) * (p[1] - P[1]) - (Q[1] - P[1]) * (p[0] - P[0]) > 0;
+    }));
+    return { hull, area, inside };
   }
 
   /* ---------- roots of a polynomial ---------- */
@@ -348,9 +368,22 @@
   }
 
   // The terms of f with coefficients σ t^h, from the points, heights and signs;
-  // `swap` exchanges z and w.
+  // `swap` exchanges z and w. Those taken out (h = −∞) are left out, and f is divided
+  // by z^a w^b, the lowest powers left (offset), which does not change the curve in
+  // (ℂ^×)², so that no root is 0.
+  function offset(pts, v) {
+    let a = Infinity, b = Infinity;
+    pts.forEach((p, k) => { if (present(v, k)) { a = Math.min(a, p[0]); b = Math.min(b, p[1]); } });
+    return [a, b];
+  }
   function terms(pts, v, sg, swap) {
-    return pts.map((p, k) => ({ i: swap ? p[1] : p[0], j: swap ? p[0] : p[1], sign: sg[k], h: v[k] }));
+    const [a, b] = offset(pts, v), out = [];
+    pts.forEach((p, k) => {
+      if (!present(v, k)) return;
+      const i = p[0] - a, j = p[1] - b;
+      out.push({ i: swap ? j : i, j: swap ? i : j, sign: sg[k], h: v[k] });
+    });
+    return out;
   }
 
   // The union of the intervals [lo_q, hi_q] of one slice, sorted and merged.
@@ -382,11 +415,13 @@
   // its column's slice holds it; otherwise its order is (ν₁, ν₂), the numbers of
   // roots below it in its row and in its column. Returns an Int16Array (row by
   // row) of the index in `pts` of the order, or −1 in the amoeba, and the
-  // indices that occur, each with a grid point of its component.
-  function orders(rows, cols, ys, xs, pts) {
+  // indices that occur, each with a grid point of its component. With the heights
+  // v, the slices are of f divided by z^a w^b (terms, above): the orders are moved
+  // back by (a, b).
+  function orders(rows, cols, ys, xs, pts, v) {
     const R = ys.length, C = xs.length, n1 = rows.n, n2 = cols.n;
-    const idx = new Map();
-    pts.forEach((p, k) => idx.set(p[0] + ',' + p[1], k));
+    const idx = new Map(), [a, b] = v ? offset(pts, v) : [0, 0];
+    pts.forEach((p, k) => idx.set((p[0] - a) + ',' + (p[1] - b), k));
     const raster = new Int16Array(R * C).fill(-1), seen = new Map();
     for (let r = 0; r < R; r++) {
       const ro = r * n1;
@@ -411,9 +446,8 @@
     return Math.abs(a * dy) * s * s;
   }
 
-  // The area of the whole amoeba of the curve on the triangle dΔ, in the
-  // coordinates (log|z|, log|w|), as a fraction of π² Area(dΔ), the largest it
-  // can be. A row along a tentacle would count a band of the row's height where
+  // The area of the whole amoeba of the curve, in the coordinates (log|z|, log|w|),
+  // as a fraction of π² Area(Δ), the largest it can be, Δ its Newton polygon. A row along a tentacle would count a band of the row's height where
   // the tentacle is thinner, so each part is measured across its tentacles: the
   // rows (roots in z) right of a line x = L left of the tropical curve, where the
   // tentacles run down or up and to the right, and the columns (roots in w)
@@ -429,9 +463,8 @@
   // heights 0, at any log t, and is taken at log t = 1.
   function areaPlan(pts, v, sg, s, opts) {
     opts = opts || {};
-    if (!(s > 0)) { v = v.map(() => 0); s = 1; }
+    if (!(s > 0)) { v = v.map((h) => (h > -Infinity ? 0 : h)); s = 1; }
     const margin = opts.margin || 14, n = opts.n || 1600, N = opts.N || (s > 5 ? 256 : 128);
-    const d = pts.reduce((m, p) => Math.max(m, p[0] + p[1]), 0);
     const T = tropical(pts, v);
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const q of T.vertices) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
@@ -439,7 +472,7 @@
     const X0 = x0 - m, X1 = x1 + m, Y0 = y0 - m, Y1 = y1 + m;
     const grid = (a, b, k) => { const g = new Float64Array(k); for (let i = 0; i < k; i++) g[i] = a + (i + 0.5) * (b - a) / k; return g; };
     return {
-      s, N, L, X1, Y0, Y1, full: Math.PI * Math.PI * d * d / 2,
+      s, N, L, X1, Y0, Y1, full: Math.PI * Math.PI * newton(pts, v).area,
       ys: grid(Y0, Y1, n), rowTerms: terms(pts, v, sg, false),
       xs: grid(X0, L, Math.max(8, Math.round(n * (L - X0) / (X1 - X0)))), colTerms: terms(pts, v, sg, true),
     };
@@ -486,7 +519,7 @@
   }
 
   G.Amoeba = {
-    triangle, isInterior, interiorCount, honeycomb, harnackSigns,
+    triangle, isInterior, interiorCount, honeycomb, harnackSigns, newton, offset,
     subdivision, tropical, dominant, region, polygonArea, gcd,
     roots, startRoots, aberth, logDeriv,
     slices, terms, merged, below, inside, orders, area, areaPlan, areaFrom, areaRatio, sampler,

@@ -109,6 +109,38 @@ test('the orders of the complement are those of Forsberg, Passare and Tsikh, fro
   }
 });
 
+test('terms taken out (height −∞): a conic without its terms in 1, w, w² is z times a line', () => {
+  const pts = A.triangle(2), O = -Infinity, s = 2;
+  // (0,0) (1,0) (2,0) (0,1) (1,1) (0,2); the line 1 − t^{1/2} z + t w, moved by z
+  const v = [O, 0, 0.5, O, 1, O], sg = [1, 1, -1, 1, 1, 1];
+  const line = A.triangle(1), lv = [0, 0.5, 1], lsg = [1, -1, 1];
+  const N = A.newton(pts, v);
+  assert.equal(N.area, 0.5);
+  assert.deepEqual(N.inside, pts.map(() => false));
+  assert.deepEqual(A.offset(pts, v), [1, 0]);
+  assert.deepEqual(A.tropical(pts, v).vertices, A.tropical(line, lv).vertices);
+  assert.ok(Math.abs(A.areaRatio(pts, v, sg, s) - A.areaRatio(line, lv, lsg, s)) < 1e-9);
+  // the orders of the complement are the line's, moved by (1, 0), and agree with the argument principle
+  const ys = grid(-3, 3, 40), xs = grid(-3, 3, 40);
+  const rows = A.slices(A.terms(pts, v, sg, false), s, ys, 128), cols = A.slices(A.terms(pts, v, sg, true), s, xs, 128);
+  const { seen } = A.orders(rows, cols, ys, xs, pts, v);
+  assert.deepEqual([...seen.keys()].map((k) => pts[k]).sort(), [[1, 0], [1, 1], [2, 0]]);
+  for (const [k, [x, y]] of seen) {
+    const nu1 = winding((a) => evalF(pts, v, sg, s, [Math.exp(s * x) * Math.cos(a), Math.exp(s * x) * Math.sin(a)], [Math.exp(s * y), 0]), 4096);
+    const nu2 = winding((a) => evalF(pts, v, sg, s, [Math.exp(s * x), 0], [Math.exp(s * y) * Math.cos(a), Math.exp(s * y) * Math.sin(a)]), 4096);
+    assert.deepEqual([nu1, nu2], pts[k], `the order at (${x}, ${y})`);
+  }
+  // a cubic without its interior term keeps its Newton polygon, and the point inside it
+  const p3 = A.triangle(3), v3 = A.honeycomb(3, 1), k = p3.findIndex((p) => p[0] === 1 && p[1] === 1);
+  v3[k] = O;
+  const N3 = A.newton(p3, v3);
+  assert.equal(N3.area, 4.5);
+  assert.ok(N3.inside[k] && N3.inside.filter(Boolean).length === 1);
+  assert.ok(!A.subdivision(p3, v3).isVertex[k]);
+  // terms on a line: no polygon
+  assert.equal(A.newton(line, [0, 0, O]).area, 0);
+});
+
 test('the amoeba lies within log_t(n − 1) of the tropical curve, and where one term outweighs the rest it is absent', () => {
   for (const d of [2, 3, 4]) {
     const pts = A.triangle(d), n = pts.length, sg = A.harnackSigns(d);

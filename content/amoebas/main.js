@@ -7,7 +7,9 @@
 // coordinates Log_t = (log|z|, log|w|) / log t, with the tropical curve of the
 // heights v. Beside it the polynomial is written out term by term, and edited in
 // place: a drag on a term changes its height, a click on its sign the sign; under
-// it t, and the height of the term clicked, each with a slider.
+// it t, and the height of the term clicked, each with a slider, and beside the
+// height a button that takes the term out (its coefficient 0, its height −∞): it
+// stays in the formula, grey, as 0 z^i w^j, and a click on it puts it back.
 // The text after the figure has two pictures of its own: in "The curve and
 // its amoeba", the Newton polygon with each point lifted to its height, the roof
 // over them (their upper hull) and, on the floor, the subdivision the roof
@@ -18,7 +20,7 @@
 //
 // The window zooms with <mm-zoom> in the bar (a mouse), by pinching (a touch
 // screen or a trackpad) and with + and −. Undo and Redo go back through the
-// changes of the curve: its degree, t, the heights and the signs.
+// changes of the curve: its degree, t, the heights, the signs and the terms taken out.
 //
 // The amoeba is computed roughly at once (a slice every 3 pixels) and then, a
 // few slices a frame, at the resolution of the screen, with its area. The area
@@ -43,16 +45,18 @@
   const AMOEBA_ALPHA = 0.42;                          // how strongly the amoeba is filled
 
   // the coefficients of a curve as the page starts it: honeycomb heights (a
-  // smooth tropical curve) and Harnack's signs (a curve of the largest area); none chosen
+  // smooth tropical curve) and Harnack's signs (a curve of the largest area); none
+  // taken out, none chosen
   function fresh(d) {
-    return { v: AM.honeycomb(d, 1), sg: AM.harnackSigns(d), sel: null };
+    const v = AM.honeycomb(d, 1);
+    return { v, sg: AM.harnackSigns(d), off: v.map(() => false), sel: null };
   }
 
   // The single source of truth; draw() renders everything from it.
   const state = {
     d: 3,              // the degree: the Newton polygon is the triangle dΔ
     s: S0,             // log t
-    cases: {},         // each degree: heights v, signs sg, the chosen lattice point sel (or null)
+    cases: {},         // each degree: heights v, signs sg, the terms taken out off, the chosen lattice point sel (or null)
     trop: true,        // the tropical curve is shown
     real: false,       // the real points are shown
     spin: !MM.reduceMotion(), // the lifted picture turns on its own
@@ -74,18 +78,27 @@
   const monoTex = (p) => (p[0] ? 'z' + (p[0] > 1 ? '^{' + p[0] + '}' : '') : '') + (p[1] ? 'w' + (p[1] > 1 ? '^{' + p[1] + '}' : '') : '') || '1';
   const round2 = (x) => Math.round(x * 100) / 100;
   const fmt = (x) => { const r = round2(x); return (r < 0 ? '−' : '') + String(Math.abs(r)); };
-  const coefPlain = (k) => { const c = cur(), r = round2(c.v[k]); return (c.sg[k] < 0 ? '−' : '') + (r === 0 ? '1' : 't^' + fmt(r)); };
+  const coefPlain = (k) => { const c = cur(), r = round2(c.v[k]); return c.off[k] ? '0' : (c.sg[k] < 0 ? '−' : '') + (r === 0 ? '1' : 't^' + fmt(r)); };
 
   /* ---------- the curve: its subdivision and tropical curve ---------- */
 
+  // The heights v of the model are the curve's, with −∞ for the terms taken out; its
+  // Newton polygon is the hull of the others (`newton`: its corners, area and inside).
   let model = null;
   function rebuild() {
-    const d = state.d, pts = AM.triangle(d), c = cur();
-    const sub = AM.subdivision(pts, c.v), trop = AM.tropical(pts, c.v, sub);
-    model = { d, pts, v: c.v, sg: c.sg, sub, trop, key: d + ':' + c.v.join(',') };
+    const d = state.d, pts = AM.triangle(d), c = cur(), v = c.v.map((h, k) => (c.off[k] ? -Infinity : h));
+    const sub = AM.subdivision(pts, v), trop = AM.tropical(pts, v, sub), newton = AM.newton(pts, v);
+    model = { d, pts, v, sg: c.sg, off: c.off, sub, trop, newton, key: d + ':' + v.join(',') };
     // smooth: the roof's faces are triangles of area 1/2 with no other points on them
     model.smooth = sub.faces.every((f) => f.on.length === 3 && Math.abs(AM.polygonArea(f.poly.map((k) => pts[k]))) === 0.5);
-    model.cycles = pts.filter((p, k) => sub.isVertex[k] && AM.isInterior(p, d)).length;
+    model.cycles = pts.filter((p, k) => sub.isVertex[k] && newton.inside[k]).length;
+  }
+  const isOff = (k) => cur().off[k];
+  // whether the term k can be taken out: the terms left must not lie on a line
+  function canTakeOut(k) {
+    const v = model.v.slice();
+    v[k] = -Infinity;
+    return AM.newton(model.pts, v).area > 0;
   }
 
   /* ---------- the amoeba's window ---------- */
@@ -148,7 +161,7 @@
     settle(g, rows, cols, amoKey());
   }
   function settle(g, rows, cols, key) {
-    const o = AM.orders(rows, cols, g.ys, g.xs, model.pts);
+    const o = AM.orders(rows, cols, g.ys, g.xs, model.pts, model.v);
     amo = { key, level: g.level, g, rows, cols, raster: o.raster, seen: o.seen, hl: null };
     paintAmoeba();
   }
@@ -522,7 +535,7 @@
 
   function drawLift() {
     if (!L) return;
-    const { P } = liftView(), { pts, v, sub } = model, d = state.d, sel = cur().sel;
+    const { P } = liftView(), { pts, v, sub, off } = model, d = state.d, sel = cur().sel;
     MM.clearCanvas(lctx);
     const at = (k, h) => P(pts[k][0], pts[k][1], h === undefined ? v[k] : h);
     const path = (Q) => { lctx.beginPath(); Q.forEach((q, i) => (i ? lctx.lineTo(q[0], q[1]) : lctx.moveTo(q[0], q[1]))); lctx.closePath(); };
@@ -542,12 +555,20 @@
     lctx.setLineDash([2, 3]);
     lctx.strokeStyle = MM.rgba('ink-3', 0.7);
     lctx.beginPath();
-    pts.forEach((p, k) => { const a = at(k, VMIN), b = at(k); lctx.moveTo(a[0], a[1]); lctx.lineTo(b[0], b[1]); });
+    pts.forEach((p, k) => { if (off[k]) return; const a = at(k, VMIN), b = at(k); lctx.moveTo(a[0], a[1]); lctx.lineTo(b[0], b[1]); });
     lctx.stroke();
     lctx.restore();
-    // the lattice points on the floor: filled where they are vertices of the subdivision
+    // the lattice points on the floor: filled where they are vertices of the subdivision;
+    // those of the terms taken out small and faint, with nothing above them
     pts.forEach((p, k) => {
       const a = at(k, VMIN), on = sub.isVertex[k];
+      if (off[k]) {
+        lctx.beginPath();
+        lctx.arc(a[0], a[1], 1.8, 0, TAU);
+        lctx.fillStyle = MM.rgba('ink-3', 0.5);
+        lctx.fill();
+        return;
+      }
       lctx.beginPath();
       lctx.arc(a[0], a[1], 2.8, 0, TAU);
       lctx.fillStyle = on ? MM.color(k === state.hover ? 'highlight' : k === sel ? 'accent' : 'ink-2') : MM.color('surface');
@@ -583,6 +604,7 @@
     }
     // the lifted points themselves, under their handles (so that an image without them still has the points)
     pts.forEach((p, k) => {
+      if (off[k]) return;
       const a = at(k);
       lctx.beginPath();
       lctx.arc(a[0], a[1], 3.2, 0, TAU);
@@ -591,12 +613,15 @@
     });
     // the handles, at the lifted points
     pts.forEach((p, k) => {
-      const a = at(k), el = handles[k];
+      const el = handles[k];
       if (!el) return;
+      el.hidden = off[k];
+      if (off[k]) return;
+      const a = at(k);
       el.style.transform = 'translate(' + a[0].toFixed(1) + 'px,' + a[1].toFixed(1) + 'px)';
       el.classList.toggle('is-sel', k === sel);
       el.classList.toggle('is-hover', k === state.hover);
-      el.tabIndex = k === (sel === null ? 0 : sel) ? 0 : -1;
+      el.tabIndex = k === (sel === null ? off.indexOf(false) : sel) ? 0 : -1;
       el.setAttribute('aria-valuemin', String(VMIN));
       el.setAttribute('aria-valuemax', String(VMAX[d]));
       el.setAttribute('aria-valuenow', String(round2(v[k])));
@@ -606,7 +631,8 @@
 
   /* ---------- readouts ---------- */
 
-  const AREAS = { 1: '\\tfrac12', 2: '2', 3: '\\tfrac92', 4: '8' };
+  // the area of the Newton polygon, a whole number or a half, as TeX
+  const areaTex = () => { const a = Math.round(2 * model.newton.area); return a % 2 ? '\\tfrac{' + a + '}{2}' : String(a / 2); };
 
   function legendHTML() {
     const item = (mark, text) => '<span class="legend-item">' + mark + text + '</span>';
@@ -620,11 +646,11 @@
   // holes (and how many there could be, when that is more), the area as a part of the largest
   const link = (id, text) => '<a href="#' + id + '">' + text + '</a>';
   function aboutRows() {
-    const d = state.d, g = AM.interiorCount(d), m = model;
-    const holes = [...amo.seen.keys()].filter((k) => AM.isInterior(m.pts[k], d)).length;
+    const m = model, g = m.newton.inside.filter(Boolean).length;
+    const holes = [...amo.seen.keys()].filter((k) => m.newton.inside[k]).length;
     const cyc = m.cycles === 1 ? '$1$ cycle' : m.cycles ? '$' + m.cycles + '$ cycles' : 'no cycles';
     const a = area.key === areaKey() && area.value !== null
-      ? link('sec-area', '$' + Math.min(100, Math.round(area.value * 100)) + '\\%$') + '${}\\cdot' + AREAS[d] + '\\pi^2$' : '…';
+      ? link('sec-area', '$' + Math.min(100, Math.round(area.value * 100)) + '\\%$') + '${}\\cdot' + areaTex() + '\\pi^2$' : '…';
     return [
       ['Holes', link('sec-holes', '$' + holes + '$') + (holes !== g ? ' ($' + g + '$ possible)' : '')],
       ['Tropical curve', (m.smooth ? 'smooth' : 'not smooth') + ', ' + cyc],
@@ -634,7 +660,7 @@
   // under the lifted Newton polygon and its copy of the amoeba
   function liftCaption() {
     return 'The lattice points $(i,j)$ lifted to their heights $v_{ij}$, the roof over them, and on the floor the subdivision it projects to.'
-      + (model.sub.isVertex.some((x) => !x) ? ' Hollow points on the floor are not corners of the roof.' : '');
+      + (model.sub.isVertex.some((x, k) => !x && !model.off[k]) ? ' Hollow points on the floor are not corners of the roof.' : '');
   }
   // The polynomial, written out term by term (by degree, z before w), to be edited
   // in place. Each term is its sign, which a click changes, and the rest, which a
@@ -680,7 +706,7 @@
       // a line may break before a term, never inside one
       if (n) formulaEl.appendChild(document.createElement('wbr'));
       formulaEl.appendChild(box);
-      terms[k] = { box, sign, body, n };
+      terms[k] = { box, sign, body, n, name };
       wireTerm(terms[k], k);
     });
   }
@@ -721,18 +747,23 @@
     model.pts.forEach((p, k) => {
       const T = terms[k];
       if (!T) return;
-      const neg = c.sg[k] < 0, sign = T.n ? (neg ? '${}-{}$' : '${}+{}$') : (neg ? '$-$' : '$+$');
+      // a term taken out: grey, with the coefficient 0 (and a plus before it), and a click puts it back
+      const off = c.off[k], neg = c.sg[k] < 0 && !off, sign = T.n ? (neg ? '${}-{}$' : '${}+{}$') : (neg ? '$-$' : '$+$');
       MM.setHTML(T.sign, sign);
       T.sign.classList.toggle('is-lead', !T.n && !neg);
-      const body = '$' + termTex(k) + '$';
+      T.sign.setAttribute('aria-label', (off ? 'Put back the term in ' : 'Change the sign of the term in ') + T.name);
+      const body = '$' + (off ? '0' + monoTex(p).replace(/^1$/, '') : termTex(k)) + '$';
       MM.setHTML(T.body, body);
+      if (T.off !== off) { T.off = off; T.box.classList.toggle('is-off', off); T.drag.update(); }
       T.box.classList.toggle('is-sel', k === c.sel);
       T.box.classList.toggle('is-hover', k === state.hover);
-      T.body.tabIndex = k === (c.sel === null ? termOrder()[0] : c.sel) ? 0 : -1;
+      // (a term taken out is a tab stop of its own, at its sign, which puts it back)
+      T.sign.tabIndex = off ? 0 : -1;
+      T.body.tabIndex = !off && k === (c.sel === null ? termOrder().find((j) => !c.off[j]) : c.sel) ? 0 : -1;
       T.body.setAttribute('aria-valuemin', String(VMIN));
       T.body.setAttribute('aria-valuemax', String(VMAX[state.d]));
       T.body.setAttribute('aria-valuenow', String(round2(c.v[k])));
-      T.body.setAttribute('aria-valuetext', fmt(c.v[k]) + ', so the term is ' + coefPlain(k) + ' ' + monoPlain(p));
+      T.body.setAttribute('aria-valuetext', off ? 'taken out: Enter puts it back' : fmt(c.v[k]) + ', so the term is ' + coefPlain(k) + ' ' + monoPlain(p));
     });
     const t = '$t=\\mathrm{e}^{' + texNum(state.s) + '}$';
     MM.setHTML($('t-val'), t);
@@ -751,33 +782,40 @@
     if (+heightEl.value !== round2(c.v[k])) heightEl.value = String(round2(c.v[k]));
     heightEl.setAttribute('aria-label', 'The power of t in the term in ' + monoPlain(p));
     heightEl.setAttribute('aria-valuetext', fmt(c.v[k]));
+    delEl.disabled = !canTakeOut(k);
+    delEl.setAttribute('aria-label', 'Take out the term in ' + monoPlain(p));
   }
   function wireTerm(T, k) {
-    T.sign.addEventListener('click', () => flipSign(k));
+    T.sign.addEventListener('click', () => (isOff(k) ? putBack(k) : flipSign(k)));
     let from = 0, moved = 0;
-    const drag = MM.turnDrag(T.body, {
+    const drag = T.drag = MM.turnDrag(T.body, {
+      when: () => !isOff(k),
       start: () => { from = cur().v[k]; moved = 0; held = { k }; chooseTerm(k); },
       move: (dx, dy) => { moved += dx - dy; setHeight(k, snap(from + moved / TERM_PX)); },
       end: () => { held = null; released(); },
     });
-    T.body.addEventListener('click', () => { if (!drag.moved) toggleTerm(k); });
+    T.body.addEventListener('click', () => { if (isOff(k)) putBack(k); else if (!drag.moved) toggleTerm(k); });
     // one tab stop, at the chosen term: left and right move along the formula, up and
     // down change the power of t (Page Up and Page Down by a whole unit), Home puts it
-    // back, Space changes the sign
+    // back, Space changes the sign, Delete takes the term out (and the focus goes to its
+    // sign, which puts it back); on a term taken out, Enter or Space puts it back
     T.body.addEventListener('keydown', (e) => {
+      if (isOff(k) && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); putBack(k); return; }
       if (e.key === ' ') { e.preventDefault(); flipSign(k); return; }
       if (e.key === 'Escape') { if (cur().sel !== null) { e.preventDefault(); select(null); } return; }
       if (e.key === 'Enter') { e.preventDefault(); toggleTerm(k); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); if (!isOff(k) && canTakeOut(k)) { takeOut(k); T.sign.focus(); } return; }
       const move = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
       if (move) {
         e.preventDefault();
-        const order = termOrder(), j = order[(order.indexOf(k) + move + order.length) % order.length];
+        const order = termOrder().filter((j) => j === k || !isOff(j)), j = order[(order.indexOf(k) + move + order.length) % order.length];
         select(j);
         terms[j].body.focus();
         return;
       }
       const step = { ArrowUp: 0.25, ArrowDown: -0.25, PageUp: 1, PageDown: -1 }[e.key];
       let x;
+      if (isOff(k)) return;
       if (step) x = Math.round((cur().v[k] + step) * 4) / 4;
       else if (e.key === 'Home') x = AM.honeycomb(state.d, 1)[k];
       else return;
@@ -793,12 +831,13 @@
   function readouts() {
     if (!amo) return;
     MM.setHTML($('title'), NAMES[state.d]);
-    MM.setHTML($('name'), 'A curve of degree $' + state.d + '$ in $(\\CC^\\times)^2$, of genus $' + AM.interiorCount(state.d) + '$.');
+    const deg = model.pts.reduce((m, p, k) => (model.off[k] ? m : Math.max(m, p[0] + p[1])), 0);
+    MM.setHTML($('name'), 'A curve of degree $' + deg + '$ in $(\\CC^\\times)^2$, of genus $' + model.newton.inside.filter(Boolean).length + '$.');
     MM.setHTML($('legend'), legendHTML());
     updateFormula();
     MM.kv($('about'), aboutRows());
     MM.setHTML($('lift-cap'), liftCaption());
-    MM.setHTML($('chart-cap'), 'The area of the amoeba against $\\log t$, as a percentage of $' + AREAS[state.d] + '\\pi^2$. The picture of the amoeba is scaled by $1/\\log t$, so its area looks smaller as $t$ grows.');
+    MM.setHTML($('chart-cap'), 'The area of the amoeba against $\\log t$, as a percentage of $' + areaTex() + '\\pi^2$. The picture of the amoeba is scaled by $1/\\log t$, so its area looks smaller as $t$ grows.');
   }
 
   function draw() {
@@ -877,6 +916,40 @@
     invalidate();
     commit();
   }
+  // the button by the chosen term's slider (or Delete on the term) takes it out; a click on
+  // it, grey in the formula, puts it back, chosen
+  function takeOut(k) {
+    const c = cur();
+    c.off[k] = true;
+    if (c.sel === k) c.sel = null;
+    if (state.hover === k) state.hover = null;
+    rebuild();
+    keepInView();
+    layoutLift();
+    draw();
+    invalidate();
+    commit();
+  }
+  function putBack(k) {
+    const c = cur();
+    c.off[k] = false;
+    c.sel = k;
+    rebuild();
+    keepInView();
+    layoutLift();
+    draw();
+    invalidate();
+    commit();
+  }
+  const delEl = $('del');
+  delEl.addEventListener('click', () => {
+    const k = cur().sel;
+    if (k === null || !canTakeOut(k)) return;
+    // the focus to the term, now grey, whose sign a click or Enter puts back
+    const refocus = document.activeElement === delEl;
+    takeOut(k);
+    if (refocus) terms[k].sign.focus();
+  });
   function setHover(k) {
     if (state.hover === k) return;
     state.hover = k;
@@ -935,7 +1008,8 @@
       const n = handles.length, move = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
       if (move) {
         e.preventDefault();
-        const j = (k + move + n) % n;
+        let j = k;
+        do j = (j + move + n) % n; while (isOff(j));
         select(j);
         handles[j].focus();
         return;
@@ -962,7 +1036,7 @@
     const c = Math.floor((e.clientX - r.left) / g.sx), q = Math.floor((e.clientY - r.top) / g.sy);
     if (c < 0 || q < 0 || c >= g.nC || q >= g.nR) return null;
     const k = amo.raster[q * g.nC + c];
-    return k >= 0 ? k : null;
+    return k >= 0 && !isOff(k) ? k : null;
   }
   // with a mouse or a pen (on a touch screen the page scrolls instead), and with the arrow keys
   canvas.classList.add('pannable');
@@ -1039,6 +1113,7 @@
     const r = liftCv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, { P } = liftView();
     let best = null, bd = 12;
     model.pts.forEach((p, k) => {
+      if (model.off[k]) return;
       for (const h of [VMIN, model.v[k]]) { const a = P(p[0], p[1], h), dd = Math.hypot(a[0] - x, a[1] - y); if (dd < bd) { bd = dd; best = k; } }
     });
     setHover(best);
@@ -1275,8 +1350,8 @@
   const back = [], forth = [];
   let now = null;
   const undoButtons = MM.undoRedo({ undo, redo, canUndo: () => back.length > 0, canRedo: () => forth.length > 0 });
-  const snapshot = () => ({ d: state.d, s: state.s, v: cur().v.slice(), sg: cur().sg.slice(), sel: cur().sel });
-  const sameCurve = (a, b) => a.d === b.d && a.s === b.s && same(a.v, b.v) && same(a.sg, b.sg);
+  const snapshot = () => ({ d: state.d, s: state.s, v: cur().v.slice(), sg: cur().sg.slice(), off: cur().off.slice(), sel: cur().sel });
+  const sameCurve = (a, b) => a.d === b.d && a.s === b.s && same(a.v, b.v) && same(a.sg, b.sg) && same(a.off, b.off);
   // a change has been made (a drag let go, a click, a key): it is kept, unless nothing changed
   function commit() {
     const x = snapshot();
@@ -1291,8 +1366,9 @@
   function restore(x) {
     // (the chosen term stays chosen, unless the degree changes back)
     const c = state.cases[x.d], other = x.d !== state.d;
-    Object.assign(c, { v: x.v.slice(), sg: x.sg.slice() });
+    Object.assign(c, { v: x.v.slice(), sg: x.sg.slice(), off: x.off.slice() });
     if (other) c.sel = x.sel;
+    if (c.sel !== null && c.off[c.sel]) c.sel = null;
     Object.assign(state, { d: x.d, s: x.s, hover: null });
     rebuild();
     if (other) fit(); else keepInView();
@@ -1332,6 +1408,8 @@
   const within = (x, lo, hi) => x >= lo - 1e-9 && x <= hi + 1e-9;
   const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
   // The selected coefficient in a link, by its lattice point: k=0.1 is the term in w.
+  // The terms taken out, z, by their indices among the lattice points (row by row, from
+  // the constant term).
   const point = {
     write: (p) => (p ? p[0] + '.' + p[1] : ''),
     read(s) { if (s === '') return null; const m = /^(\d)\.(\d)$/.exec(s); if (!m) throw new Error('not a lattice point: "' + s + '"'); return [+m[1], +m[2]]; },
@@ -1343,13 +1421,14 @@
   // image and Reset name every field).
   const HOME = fresh(3);
   example = MM.example({
-    fields: { c: 'int', s: 'number', v: 'numbers', g: 'numbers', k: point, x: 'flag', r: 'flag', o: 'flag', w: 'numbers', a: 'numbers' },
+    fields: { c: 'int', s: 'number', v: 'numbers', g: 'numbers', z: 'numbers', k: point, x: 'flag', r: 'flag', o: 'flag', w: 'numbers', a: 'numbers' },
     view: ['w', 'a'],
     get: () => {
       const c = cur(), own = fresh(state.d);
       return {
         c: state.d, s: state.s,
         v: same(c.v, own.v) ? HOME.v : c.v.slice(), g: same(c.sg, own.sg) ? HOME.sg : c.sg.slice(),
+        z: c.off.flatMap((o, k) => (o ? [k] : [])),
         k: c.sel === null ? null : model.pts[c.sel].slice(),
         x: state.trop, r: state.real, o: state.spin,
         w: state.panned ? [state.frame.c[0], state.frame.c[1], state.frame.R] : [], a: [state.az, state.el],
@@ -1362,13 +1441,17 @@
       if (same(x.v, HOME.v)) x.v = f.v;
       if (same(x.g, HOME.sg)) x.g = f.sg;
       if (!named.has('w')) x.w = [];
+      if (!named.has('z')) x.z = [];
       const sel = x.k === null ? null : pts.findIndex((p) => same(p, x.k));
+      const off = pts.map((_, k) => x.z.includes(k));
       const ok = x.v.length === n && x.v.every((t) => within(t, VMIN, VMAX[d]))
         && x.g.length === n && x.g.every((t) => t === 1 || t === -1)
-        && sel !== -1 && within(x.s, SMIN, SMAX)
+        && x.z.every((k) => Number.isInteger(k) && k >= 0 && k < n)
+        && AM.newton(pts, x.v.map((h, k) => (off[k] ? -Infinity : h))).area > 0
+        && sel !== -1 && !(sel !== null && off[sel]) && within(x.s, SMIN, SMAX)
         && (!x.w.length || (x.w.length === 3 && x.w[2] > 0)) && x.a.length === 2;
       if (!ok) return false;
-      for (const e of DEGREES) state.cases[e] = e === d ? { v: x.v.map(round2), sg: x.g.slice(), sel } : fresh(e);
+      for (const e of DEGREES) state.cases[e] = e === d ? { v: x.v.map(round2), sg: x.g.slice(), off, sel } : fresh(e);
       Object.assign(state, { d, s: x.s, trop: x.x, real: x.r, spin: x.o && !MM.reduceMotion(), az: x.a[0], el: clamp(x.a[1], 0.2, 1.3), hover: null });
       rebuild();
       if (x.w.length) { state.frame = clampFrame({ c: [x.w[0], x.w[1]], R: x.w[2] }); state.panned = true; } else fit();
