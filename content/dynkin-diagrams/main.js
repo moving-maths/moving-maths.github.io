@@ -1065,10 +1065,44 @@
     const list = Array.from(new Set(keep.concat(inside))).sort((x, y) => x - y);
     state.sel = list.length ? { nodes: list } : null;
   }
+  // A drawing drag that leaves the frame is called off: nothing is drawn. A finger there was
+  // most likely scrolling the page (the frame does not let a touch scroll while drawing), so
+  // from then on the page follows it, and goes on a little when it is flung.
+  const outside = (p) => p[0] < 0 || p[1] < 0 || p[0] > state.w || p[1] > state.h;
+  function leave(pr, e) {
+    pr.kind = pr.touch ? 'scroll' : 'off';
+    pr.y = e.clientY;
+    pr.t = e.timeStamp;
+    pr.v = 0;
+    drawDrag();
+  }
+  function follow(pr, e) {
+    const dy = pr.y - e.clientY, dt = e.timeStamp - pr.t;
+    if (dy) window.scrollBy({ top: dy, behavior: 'instant' });
+    if (dt > 0) pr.v = 0.8 * (dy / dt) + 0.2 * pr.v; // px per ms, smoothed
+    pr.y = e.clientY;
+    pr.t = e.timeStamp;
+  }
+  function fling(v) {
+    if (Math.abs(v) < 0.1 || MM.reduceMotion()) return;
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(32, now - last);
+      last = now;
+      v *= Math.pow(0.995, dt);
+      const y0 = window.scrollY;
+      window.scrollBy({ top: v * dt, behavior: 'instant' });
+      if (Math.abs(v) > 0.02 && window.scrollY !== y0 && !press) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
   stage.addEventListener('pointermove', (e) => {
     const pr = press;
     if (!pr || e.pointerId !== pr.id) return;
+    if (pr.kind === 'scroll') { follow(pr, e); return; }
+    if (pr.kind === 'off') return;
     const p = pointOf(e);
+    if (pr.kind === 'draw' && outside(p)) { pr.moved = true; clearTimeout(pr.timer); leave(pr, e); return; }
     if (!pr.moved) {
       if (dist(p, pr.p) < (pr.touch && !pr.held ? 8 : 4)) return;
       pr.moved = true;
@@ -1151,6 +1185,11 @@
     menuKind = null; // (what the menu was showing, as chosen there, ends with a press on the picture)
     clearTimeout(pr.timer);
     state.box = null;
+    if (pr.kind === 'scroll' || pr.kind === 'off') {
+      draw();
+      if (pr.kind === 'scroll' && !cancelled && e.timeStamp - pr.t < 80) fling(pr.v); // (not after the finger stopped)
+      return;
+    }
     if (cancelled) {
       if (pr.moved && (pr.kind === 'node' || pr.kind === 'group')) { const s = history.pop(); if (s) { const o = JSON.parse(s); state.nodes = o.nodes; } }
       draw();
