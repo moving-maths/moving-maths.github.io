@@ -4,7 +4,7 @@ Interactive pictures of mathematics, published at <https://moving-maths.github.i
 
 Each page is a folder of HTML, CSS and JavaScript under `content/`. Mathematics is written in TeX and typeset with KaTeX at build time. A small Node generator in `build/` adds the shared theme, navigation, topic pages, feed and sitemap, and GitHub Actions deploys the result to GitHub Pages.
 
-It needs Node 20 or later.
+It needs Node 22 or later.
 
 ```bash
 npm install

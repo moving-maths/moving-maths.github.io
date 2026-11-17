@@ -5,14 +5,14 @@
   "description": "Moving Maths: interactive pictures of mathematical ideas",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "node build/cli.mjs dev",
     "build": "node build/cli.mjs build",
     "check": "node build/cli.mjs check",
-    "test": "node --test test/",
-    "test:browser": "node --test browser-tests/",
+    "test": "node --test test/*.test.mjs",
+    "test:browser": "node --test browser-tests/*.test.mjs",
     "new": "node scripts/new.mjs",
     "import": "node scripts/import.mjs",
     "thumbs": "node scripts/thumbs.mjs"

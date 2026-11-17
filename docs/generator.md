@@ -1,6 +1,6 @@
 # The generator
 
-The site is built by about 2000 lines of plain Node (ES modules, Node 20 or later). There is no framework and no template engine. It depends only on `katex` and `yaml`, plus `playwright` for thumbnails. The aim is that anyone can read the whole build in an afternoon and change it without fighting a tool.
+The site is built by about 2000 lines of plain Node (ES modules, Node 22 or later). There is no framework and no template engine. It depends only on `katex` and `yaml`, plus `playwright` for thumbnails. The aim is that anyone can read the whole build in an afternoon and change it without fighting a tool.
 
 ## The build, step by step
 
@@ -65,7 +65,7 @@ Templates are functions in `layouts.mjs` that take `ctx` (`{site, tags, assets, 
 
 ## Tests
 
-`npm test` runs `node --test test/`:
+`npm test` runs `node --test test/*.test.mjs` (the files by name: Node 22 does not take a folder there):
 
 - units: the TeX scanner, the macro parser, front matter parsing and validation, the order of topics and pages, the link checker, the static handler's path containment, plain-text conversion and the design lint;
 - fixture builds (`test/fixture.test.mjs`): this repository's `site/` with pages written by the test, built with `build({ root, outDir })`, for drafts, broken pages, reserved names and the output-folder guard;
