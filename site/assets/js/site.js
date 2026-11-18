@@ -1186,7 +1186,15 @@
     if (row) row.addEventListener('scroll', edges, { passive: true });
     if (window.ResizeObserver) {
       if (bar) new ResizeObserver(measure).observe(bar);
-      if (row) new ResizeObserver(edges).observe(row);
+      // the row, and each control in it: one that is hidden, shown or changes its width
+      // (a page hides those that do not apply) cuts the row off, or no longer, without the
+      // row itself changing size or scrolling
+      if (row) {
+        var watch = new ResizeObserver(edges), each = function () { Array.prototype.forEach.call(row.children, function (c) { watch.observe(c); }); };
+        watch.observe(row);
+        each();
+        new MutationObserver(each).observe(row, { childList: true });
+      }
       mains.forEach(function (m) { new ResizeObserver(fit).observe(m); });
     }
     measure();

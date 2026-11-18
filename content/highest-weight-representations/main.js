@@ -426,7 +426,8 @@
   }
   let anim = null;
   const sameFrame = (a, b) => a.c.length === b.c.length && a.c.every((x, i) => Math.abs(x - b.c[i]) < 1e-6) && Math.abs(a.R - b.R) < 1e-6;
-  // The zoom, as a scale: at least SMIN pixels to a unit of the model, at most MAG times that.
+  // The zoom, as a scale: at least SMIN pixels to a unit of the model, at most MAG times that
+  // (the relief may go farther out, until all of it is in view: zoomLeast).
   // The window is fitted to the view but never farther out than SMIN, where it keeps the handles
   // in view; or it is as near as the reader chose, the magnification state.zoom over SMIN. The
   // slider in the bar shows the scale drawn (zoomShown).
@@ -1061,7 +1062,7 @@
       const qx = (x - w / 2) / s, qy = ((h / 2 - y) / s + mid - z * ce) / se;
       return [ca * qx + sa * qy, -sa * qx + ca * qy];
     };
-    return { w, h, s, R: reach, H, ch, rot, proj, unproj, se, ce, zOf: (m) => (m / ch.maxMult) * H };
+    return { w, h, s, fit, R: reach, H, ch, rot, proj, unproj, se, ce, zOf: (m) => (m / ch.maxMult) * H };
   }
 
   function paintRelief() {
@@ -2502,8 +2503,11 @@
   // the magnification drawn: the scale over SMIN
   const reliefShown = () => state.view === 'relief' && !isAffine();
   const zoomNow = () => (reliefShown() ? reliefView().s : halfOf() / (state.frame || zoomed(target())).R) / SMIN;
+  // how far out it may go: SMIN; the relief of a large λ, until the whole of it fits as it is turned now
+  const zoomLeast = () => (reliefShown() ? Math.min(1, reliefView().fit / SMIN) : 1);
   function zoomAt(f, x, y) {
-    const now = zoomNow(), z = clamp(now * f, 1, MAG), r = now / z, fr = state.frame;
+    // (never in for a zoom out, when a turn has left the relief farther out than it may go now)
+    const now = zoomNow(), z = clamp(now * f, Math.min(zoomLeast(), now), MAG), r = now / z, fr = state.frame;
     if (Math.abs(r - 1) < 1e-9) return;
     state.zoom = z;
     if (fr && !reliefShown()) {
@@ -2515,7 +2519,11 @@
     }
     draw();
   }
-  function zoomShown() { const z = zoomNow(); if (Math.abs(zoomEl.value - z) > 1e-6) zoomEl.value = z; }
+  function zoomShown() {
+    const z = zoomNow(), lo = reliefShown() ? Math.min(zoomLeast(), z) : 1;
+    if (Math.abs(+zoomEl.getAttribute('min') - lo) > 1e-6) zoomEl.setAttribute('min', lo);
+    if (Math.abs(zoomEl.value - z) > 1e-6) zoomEl.value = z;
+  }
   const middle = () => [canvas.clientWidth / 2, canvas.clientHeight / 2];
   zoomEl.addEventListener('input', () => zoomAt(zoomEl.value / zoomNow(), ...middle()));
   zoomEl.addEventListener('change', () => { if (example) example.changed(); });
@@ -2624,7 +2632,7 @@
       const any = affine ? x.a || (!named.has('a') && !intAff) : x.a && rank <= 2 && x.s === 'weights';
       const ok = x.l.length === rank && (affine ? (any ? within(x.l, -ANYCAP, ANYCAP) && within([x.k], ...I.levels) : intAff) : any ? within(x.l, -ANYCAP, ANYCAP) : within(x.l, 0, I.cap) && x.l.every(Number.isInteger))
         && (!x.n.length || (x.n.length === rank && within(x.n, 0, I.cap) && x.n.every(Number.isInteger)))
-        && x.c.length === 2 && x.r.length === 2 && (!x.w.length || (x.w.length === dim + 1 && x.w[dim] > 0)) && (x.z === 0 || (x.z >= 1 && x.z <= MAG));
+        && x.c.length === 2 && x.r.length === 2 && (!x.w.length || (x.w.length === dim + 1 && x.w[dim] > 0)) && (x.z === 0 || (x.z >= (x.s === 'relief' ? 0.01 : 1) && x.z <= MAG));
       if (!ok) return false;
       anim = null;
       building = null;
