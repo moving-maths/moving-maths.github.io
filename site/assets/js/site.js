@@ -1156,10 +1156,12 @@
       more[1].hidden = !end;
       // the end arrow goes right up to the page's tools, if there are any, over the gap
       // before them, so that the row is hidden under as little of it as can be
-      var b = bar.getBoundingClientRect(), r = row.getBoundingClientRect(), stop = r.right;
+      // (the first of them shown: the menu, or the button back to the picture before it)
+      var b = bar.getBoundingClientRect(), r = row.getBoundingClientRect(), first = Infinity, stop = r.right;
       Array.prototype.forEach.call(bar.querySelectorAll('.bar-tools > .btn:not([hidden])'), function (t) {
-        stop = Math.min(b.right, Math.max(r.right, t.getBoundingClientRect().left - 2));
+        first = Math.min(first, t.getBoundingClientRect().left);
       });
+      if (first < Infinity) stop = Math.min(b.right, Math.max(r.right, first - 2));
       bar.style.setProperty('--row-start', (r.left - b.left) + 'px');
       bar.style.setProperty('--row-end', (b.right - stop) + 'px');
       row.style.setProperty('--end-arrow', Math.max(0, r.right - stop + 22) + 'px'); // (22px: the arrow's width)
