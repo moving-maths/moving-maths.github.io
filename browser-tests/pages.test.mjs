@@ -73,6 +73,8 @@ const CHANGES = {
   // a quartic, with the sign of a term changed
   amoebas: async (page) => { await page.locator('#degree button[value="4"]').click(); await page.locator('.am-sign').nth(2).click(); },
   knots: (page) => page.locator('#strip .strip-item[data-name="5_2"]').click(),
+  // the quartic, with ħ turned a step from the keyboard
+  'stokes-phenomenon': async (page) => { await page.locator('#degree button[value="4"]').click(); await page.locator('#hbar').press('ArrowLeft'); },
   // a point dragged onto another, which collide into a double point
   'hilbert-schemes': async (page) => {
     const dots = page.locator('#stage .hs-pt .handle-point');

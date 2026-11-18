@@ -1,0 +1,116 @@
+/* Stokes phenomenon and resurgence.
+   Wide: the plane of x on the left; on the right the name, the action and the legend, the
+   plane of values of S with the dial of ħ, and the path as a sum of thimbles.
+   Phone: the plane of x, the plane of values (so that both show while ħ turns), then the
+   name, the legend and the sum. */
+
+/* The landscape of the integrand is light blue, so the thimbles take the data colours from the
+   third on (green, orange, purple, magenta), one per critical point; main.js reads the same
+   names through MM.color. */
+body {
+  --land: var(--c1);
+  --th-1: var(--c3);
+  --th-2: var(--c2);
+  --th-3: var(--c4);
+  --th-4: var(--c5);
+  --th-1-text: var(--c3-text);
+  --th-2-text: var(--c2-text);
+  --th-3-text: var(--c4-text);
+  --th-4-text: var(--c5-text);
+  --gamma: var(--ink);
+}
+
+.sp { --split-main: 1.4fr; --split-below: 24px; }
+@media (max-width: 899.98px) {
+  .sp > .split-main, .sp > .split-side { display: contents; }
+  .sp .sp-main { order: 0; }
+  .sp .sp-hblock { order: 1; border-top: 0; padding-top: 0; }
+  .sp .sp-zblock { order: 2; }
+  .sp .side-head { order: 3; }
+  .sp .sp-decblock { order: 4; }
+}
+
+/* ---------- the plane of x ---------- */
+.sp-plane { position: relative; }
+#xcv { display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); }
+.sp-over { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.sp-over .sp-pt, .sp-over .sp-end { pointer-events: auto; }
+.sp-pad { fill: transparent; }
+/* a critical point: the handle's yellow dot, ringed in its thimble's colour, its number in it */
+.sp-pt .handle-point { stroke-width: 2.2; }
+.sp-pt:focus-visible, .sp-end:focus-visible { outline: none; }
+.sp-pt.is-lit .handle-point { stroke: var(--highlight); }
+.sp-end { cursor: grab; }
+.sp-end:active { cursor: grabbing; }
+.sp-flowrange { width: 110px; }
+
+/* ---------- the integral as a function of ħ, with the handle of ħ; the plane of values ---------- */
+.sp-hplane { position: relative; }
+#hcv { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); cursor: crosshair; }
+.sp-hbar { --handle-size: 40px; cursor: grab; }
+.sp-hbar:active { cursor: grabbing; }
+.sp-hval { margin: 6px 0 0; font-size: 15px; color: var(--ink-2); text-align: center; }
+.sp-cap { margin: 4px 0 0; font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); text-align: center; text-wrap: pretty; }
+#zcv { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius-sm); }
+
+/* ---------- the path as a sum of thimbles ---------- */
+.sp-dec { margin: 0; font-size: 18px; line-height: 1.7; }
+.sp-term { border-bottom: 1px dotted transparent; cursor: default; border-radius: 3px; }
+.sp-term.is-lit { border-bottom-color: var(--highlight); }
+.sp-term:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* a term that has just entered the sum, at a Stokes ray */
+.sp-term.is-new { animation: sp-new 1.6s ease-out; }
+@keyframes sp-new { from { background: var(--red-soft); box-shadow: 0 0 0 3px var(--red-soft); } to { background: transparent; box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .sp-term.is-new { animation: none; } }
+.sp-jump { margin: 6px 0 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); min-height: 1.55em; }
+
+/* legend marks drawn as the figure draws them */
+.sp-shade { display: inline-block; width: 13px; height: 13px; border-radius: 3px; flex: none; background: color-mix(in srgb, var(--land) 22%, var(--surface)); }
+.legend-line.th { overflow: visible; }
+.sp-key { display: inline-block; width: 22px; height: 18px; flex: none; overflow: visible; }
+
+/* ---------- the figures in the text ---------- */
+/* a number of the figure and its slider, on one line (the value keeps its width) */
+.sp-param { display: flex; align-items: center; gap: 10px; font-size: 15.5px; }
+.sp-pv { flex: none; min-width: 5.6em; white-space: nowrap; }
+.sp-param input[type="range"] { width: 170px; max-width: 42vw; }
+.sp-pick { --seg-font-size: 14px; }
+/* a copy of the plane of values has its shape */
+.sp-zcopy { --fig-copy-ratio: 4 / 3; }
+
+/* the Borel plane, with the handle of the ray of ħ */
+.sp-borel { position: relative; max-width: 440px; margin: 0 auto; }
+#borel-cv { display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); }
+.sp-lray { --handle-size: 34px; cursor: grab; }
+#borel-cv { cursor: crosshair; }
+.sp-lray:active { cursor: grabbing; }
+
+/* the charts, drawn one unit to a pixel, their heights fixed here so that nothing moves when
+   they are first drawn (main.js draws them at these heights) */
+#stokes-chart, #trunc-chart, #smooth-chart { display: block; width: 100%; overflow: visible; }
+#stokes-chart { height: 300px; touch-action: pan-y; }
+#trunc-chart { height: 250px; }
+#smooth-chart { height: 230px; }
+.sp-axis { stroke: var(--rule); stroke-width: 1; }
+.sp-grid { stroke: var(--rule-2); stroke-width: 1; }
+.sp-num { font-size: 12.5px; fill: var(--ink-3); }
+.sp-name { font-size: 15px; }
+.sp-curve { fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.sp-curve.faint { stroke-width: 1.2; stroke-dasharray: 1 3.5; }
+.sp-curve.twin { stroke-linecap: butt; }
+.sp-jumpline { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 3; }
+.sp-jumpdot { stroke: var(--surface); stroke-width: 1.5; }
+.sp-now { stroke: var(--ink-2); stroke-width: 1.2; }
+.sp-knob:focus-visible { outline: none; }
+.sp-row { stroke: var(--rule-2); stroke-width: 1; }
+.sp-coef { font-size: 13.5px; text-anchor: middle; }
+.sp-coef.zero { fill: var(--ink-3); }
+.sp-rowname { font-size: 13.5px; text-anchor: end; }
+.sp-floor { fill: var(--sunken); }
+.sp-errline { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+.sp-err { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.3; }
+.sp-term-dot { stroke: none; }
+.sp-mark { fill: none; stroke: var(--highlight); stroke-width: 1.8; }
+.sp-pred { fill: none; stroke-width: 1.4; }
+.sp-step { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.sp-berry { fill: none; stroke: var(--ink); stroke-width: 1.6; }

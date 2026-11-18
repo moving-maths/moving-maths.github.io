@@ -18,3 +18,5 @@ representation-theory:
   name: Representation theory
 topology:
   name: Topology
+mathematical-physics:
+  name: Mathematical physics
