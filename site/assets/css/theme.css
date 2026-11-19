@@ -716,6 +716,8 @@ mm-zoom > input[type="range"] { width: var(--zoom-width); flex: none; }
   .control-bar > .wrap::-webkit-scrollbar { display: none; }
   .control-bar > .wrap > * { flex: none; }
   .control-bar .control, .control-bar .control > :is(.seg, mm-seg) { max-width: none; }
+  /* a sideways finger on a slider moves it rather than scrolling the bar (up and down still scroll) */
+  .control-bar :is(input[type="range"], mm-slider) { touch-action: pan-y; }
 }
 /* where that row is cut off, an arrow (.bar-scroll, made by site.js) scrolls it on by most of
    its width; site.js places them at the row's ends (--row-start, --row-end, from the bar's

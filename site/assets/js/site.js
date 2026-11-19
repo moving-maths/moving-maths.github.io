@@ -82,6 +82,7 @@
  *     .color(ph)            the colour of a phase, [r, g, b], from a wheel of the theme's colours
  *     .paint(img, o)        colours an ImageData from each pixel's phase and log of the modulus,
  *                           with thin lines of constant phase and modulus where they do not crowd
+ *                           (o.pixels: only those)
  *     .key(ctx, x, y, r)    the key of the colours: a ring, with 1, i, −1, −i
  *     .cut(ctx, cx, cy, angle, width)
  *                           a picture fading out towards a branch cut (the ray at angle):
@@ -277,7 +278,7 @@
     var v = rgbOf(name, scope);
     return v[3] === 1 ? 'rgb(' + v[0] + ',' + v[1] + ',' + v[2] + ')' : 'rgba(' + v.join(',') + ')';
   }
-  color.clear = function () { colorCache.clear(); phaseWheel = null; };
+  color.clear = function () { colorCache.clear(); phaseWheel = null; if (phaseKeys) phaseKeys.clear(); };
 
   function rgba(name, alpha, scope) {
     var v = rgbOf(name, scope);
@@ -1139,14 +1140,15 @@
     var u = ph / (2 * Math.PI);
     return phaseWheel[Math.floor((((u % 1) + 1) % 1) * 360) % 360];
   }
-  // o: { w, h, dpr, ph, lm, kind, shade, step, pale, none, only }. For each pixel q (row by row):
+  // o: { w, h, dpr, ph, lm, kind, shade, step, lines, pale, none, only, pixels }. lines: false
+  // leaves the lines out (while the values are still rough, say). For each pixel q (row by row):
   // ph[q] the phase, lm[q] the log of the modulus, kind[q] 0 for no value (painted o.none, an
   // [r, g, b], the sunken ground unless given; null leaves it), 1 for a value, 2 for a value shown
   // pale (o.pale of the way to the ground, 0.4); shade[q], if given, darkens it (1: not at all).
   // The lines are every o.step (π/12) in both; how fast each changes is read off the pixels either
   // side, so that they fade out where they would be closer than about 7 CSS pixels (near an
-  // essential singularity) and break where the function jumps. o.only(q), if given, says which
-  // pixels to paint (the rest are left).
+  // essential singularity) and break where the function jumps. o.pixels, if given, lists the
+  // pixels to paint (an array of indices), or o.only(q) says which; the rest are left.
   function phasePaint(img, o) {
     var w = o.w, h = o.h, n = w * h, d = img.data, dpr = o.dpr || 1, P = o.step || Math.PI / 12, paleBy = o.pale === undefined ? 0.4 : o.pale;
     var PH = o.ph, LM = o.lm, K = o.kind, SH = o.shade, only = o.only, S = phaseRGB('surface'), none = o.none === undefined ? phaseRGB('sunken') : o.none, TAU = 2 * Math.PI;
@@ -1157,7 +1159,9 @@
       if (k1 || k2) { x = k2 ? A[q2] - A[q] : A[q] - A[q1]; return isPh ? wrap(x) : x; }
       return NaN;
     }
-    for (var q = 0; q < n; q++) {
+    var list = o.pixels, m = list ? list.length : n;
+    for (var e = 0; e < m; e++) {
+      var q = list ? list[e] : e;
       if (only && !only(q)) continue;
       var c4 = 4 * q;
       if (!K[q]) {
@@ -1168,7 +1172,7 @@
       // the change per CSS pixel (the larger of the two, which agree but where the grid breaks)
       var g = Math.max(Math.hypot(slope(PH, q, l, r, true), slope(PH, q, up, dn, true)), Math.hypot(slope(LM, q, l, r, false), slope(LM, q, up, dn, false))) * dpr;
       var sh = SH ? SH[q] : 1;
-      if (g > 0) {
+      if (g > 0 && o.lines !== false) {
         var fade = Math.max(0, Math.min(1, (P / g - 7) / 10));
         if (fade > 0) for (var j = 0; j < 2; j++) {
           var v = j ? LM[q] : PH[q], f = ((v % P) + P) % P, x = Math.min(f, P - f) / g / 0.8;
@@ -1181,8 +1185,24 @@
     }
     return img;
   }
-  // the key: a ring of the colours round (cx, cy), of radius r, with 1, i, −1, −i
+  // the key: a ring of the colours round (cx, cy), of radius r, with 1, i, −1, −i; drawn once for
+  // each size and resolution (once the fonts are in), then copied
+  var phaseKeys = new Map();
   function phaseKey(ctx, cx, cy, r) {
+    var m = ctx.getTransform(), sc = Math.hypot(m.a, m.b) || 1, half = r + 24, key = r + '|' + sc;
+    var ready = !document.fonts || document.fonts.status === 'loaded', off = phaseKeys.get(key);
+    if (!off && ready) {
+      off = document.createElement('canvas');
+      off.width = Math.ceil(2 * half * sc); off.height = off.width;
+      var oc = off.getContext('2d');
+      oc.setTransform(sc, 0, 0, sc, 0, 0);
+      drawPhaseKey(oc, half, half, r);
+      remember(phaseKeys, key, off, 16);
+    }
+    if (off) ctx.drawImage(off, cx - half, cy - half, 2 * half, 2 * half);
+    else drawPhaseKey(ctx, cx, cy, r);
+  }
+  function drawPhaseKey(ctx, cx, cy, r) {
     var TAU = 2 * Math.PI;
     for (var q = 0; q < 72; q++) {
       var a0 = q / 72 * TAU, a1 = (q + 1.2) / 72 * TAU, c = phaseColor(a0);
@@ -1213,9 +1233,10 @@
       for (var q = 0; q <= 12; q++) { var u = q / 12 * width / TAU, a = seen(angle + q / 12 * width); gr.addColorStop(u, fn(a)); gr.addColorStop(1 - u, fn(a)); }
       return gr;
     }
+    // (only the sector within width of the cut: beyond it nothing is veiled)
     function veil(r) {
       ctx.fillStyle = style(function (a) { return rgba('surface', 1 - a); });
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, -angle - width, -angle + width); ctx.closePath(); ctx.fill();
     }
     return { seen: seen, style: style, veil: veil };
   }
