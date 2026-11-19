@@ -78,6 +78,17 @@
  *                           Undo and Redo: the buttons #undo and #redo and the keys
  *                           Ctrl/⌘+Z, Shift+Ctrl/⌘+Z and Ctrl+Y (not in a text field); returns
  *                           { update(), keep(list, entry) } (see below)
+ *   MM.phase                pictures of complex functions, coloured by their phase (see below):
+ *     .color(ph)            the colour of a phase, [r, g, b], from a wheel of the theme's colours
+ *     .paint(img, o)        colours an ImageData from each pixel's phase and log of the modulus,
+ *                           with thin lines of constant phase and modulus where they do not crowd
+ *     .key(ctx, x, y, r)    the key of the colours: a ring, with 1, i, −1, −i
+ *     .cut(ctx, cx, cy, angle, width)
+ *                           a picture fading out towards a branch cut (the ray at angle):
+ *                           { seen(t), style(fn), veil(r) }
+ *     .mark(ctx, cx, cy, r, angle[, alpha])   a red mark on a rim, pointing in (a Stokes ray)
+ *     .knob(ctx, cx, cy, r0, r1, angle)       a knob of an angle: a line out to it from r0,
+ *                           and the yellow knob at r1
  *   MM.enhance(root)        enhances controls a script added (normally automatic)
  *   <mm-seg>, <mm-tabs>, <mm-slider>, <mm-toggle>, <mm-numbers>   see components.js
  *   MM.example(…)           links, reset and Save image, in example.js (content pages)
@@ -266,7 +277,7 @@
     var v = rgbOf(name, scope);
     return v[3] === 1 ? 'rgb(' + v[0] + ',' + v[1] + ',' + v[2] + ')' : 'rgba(' + v.join(',') + ')';
   }
-  color.clear = function () { colorCache.clear(); };
+  color.clear = function () { colorCache.clear(); phaseWheel = null; };
 
   function rgba(name, alpha, scope) {
     var v = rgbOf(name, scope);
@@ -1104,12 +1115,138 @@
     };
   }
 
+  /* ---------- pictures of complex functions ---------- */
+  // A complex function is drawn by its phase, a colour from a wheel of the theme's colours (c1, c6,
+  // c3, c7, c2, c5, c4 round it, half way to the ground), with thin lines of constant phase and of
+  // constant modulus every `step`: a grid of small squares, since log f is holomorphic, faded out
+  // where its lines would crowd. A page works out the phase and the log of the modulus at each
+  // pixel of an ImageData (at MM.pixelRatio()), and MM.phase.paint colours it. Over a disc, the
+  // page may add MM.phase.key, a fade towards a branch cut (MM.phase.cut), red marks on the rim at
+  // the Stokes rays (MM.phase.mark) and the knob of an angle (MM.phase.knob), as Stokes phenomenon
+  // does for the integral as a function of ħ and for Airy's function in the plane of z.
+  var phaseWheel = null;
+  function phaseRGB(name) { return rgbOf(name).slice(0, 3); }
+  function phaseColor(ph) {
+    if (!phaseWheel) {
+      var cols = ['c1', 'c6', 'c3', 'c7', 'c2', 'c5', 'c4'].map(phaseRGB), g = phaseRGB('surface');
+      phaseWheel = [];
+      for (var q = 0; q < 360; q++) {
+        var t = q / 360 * cols.length, k = Math.floor(t), f = t - k, a = cols[k % cols.length], b = cols[(k + 1) % cols.length], c = [];
+        for (var i = 0; i < 3; i++) { var v = a[i] + (b[i] - a[i]) * f; c.push(v + (g[i] - v) * 0.5); }
+        phaseWheel.push(c);
+      }
+    }
+    var u = ph / (2 * Math.PI);
+    return phaseWheel[Math.floor((((u % 1) + 1) % 1) * 360) % 360];
+  }
+  // o: { w, h, dpr, ph, lm, kind, shade, step, pale, none, only }. For each pixel q (row by row):
+  // ph[q] the phase, lm[q] the log of the modulus, kind[q] 0 for no value (painted o.none, an
+  // [r, g, b], the sunken ground unless given; null leaves it), 1 for a value, 2 for a value shown
+  // pale (o.pale of the way to the ground, 0.4); shade[q], if given, darkens it (1: not at all).
+  // The lines are every o.step (π/12) in both; how fast each changes is read off the pixels either
+  // side, so that they fade out where they would be closer than about 7 CSS pixels (near an
+  // essential singularity) and break where the function jumps. o.only(q), if given, says which
+  // pixels to paint (the rest are left).
+  function phasePaint(img, o) {
+    var w = o.w, h = o.h, n = w * h, d = img.data, dpr = o.dpr || 1, P = o.step || Math.PI / 12, paleBy = o.pale === undefined ? 0.4 : o.pale;
+    var PH = o.ph, LM = o.lm, K = o.kind, SH = o.shade, only = o.only, S = phaseRGB('surface'), none = o.none === undefined ? phaseRGB('sunken') : o.none, TAU = 2 * Math.PI;
+    function wrap(x) { return x - TAU * Math.round(x / TAU); }
+    function slope(A, q, q1, q2, isPh) {
+      var k1 = K[q1] > 0, k2 = K[q2] > 0, x;
+      if (k1 && k2) { x = A[q2] - A[q1]; return (isPh ? wrap(x) : x) / 2; }
+      if (k1 || k2) { x = k2 ? A[q2] - A[q] : A[q] - A[q1]; return isPh ? wrap(x) : x; }
+      return NaN;
+    }
+    for (var q = 0; q < n; q++) {
+      if (only && !only(q)) continue;
+      var c4 = 4 * q;
+      if (!K[q]) {
+        if (none) { d[c4] = none[0]; d[c4 + 1] = none[1]; d[c4 + 2] = none[2]; d[c4 + 3] = 255; }
+        continue;
+      }
+      var px = q % w, l = px > 0 ? q - 1 : q, r = px < w - 1 ? q + 1 : q, up = q >= w ? q - w : q, dn = q < n - w ? q + w : q;
+      // the change per CSS pixel (the larger of the two, which agree but where the grid breaks)
+      var g = Math.max(Math.hypot(slope(PH, q, l, r, true), slope(PH, q, up, dn, true)), Math.hypot(slope(LM, q, l, r, false), slope(LM, q, up, dn, false))) * dpr;
+      var sh = SH ? SH[q] : 1;
+      if (g > 0) {
+        var fade = Math.max(0, Math.min(1, (P / g - 7) / 10));
+        if (fade > 0) for (var j = 0; j < 2; j++) {
+          var v = j ? LM[q] : PH[q], f = ((v % P) + P) % P, x = Math.min(f, P - f) / g / 0.8;
+          if (x < 1) sh *= 1 - 0.17 * fade * (1 - x * x) * (1 - x * x);
+        }
+      }
+      var col = phaseColor(PH[q]), pale = K[q] === 2 ? paleBy : 0;
+      for (var c = 0; c < 3; c++) d[c4 + c] = col[c] * sh + (S[c] - col[c] * sh) * pale;
+      d[c4 + 3] = 255;
+    }
+    return img;
+  }
+  // the key: a ring of the colours round (cx, cy), of radius r, with 1, i, −1, −i
+  function phaseKey(ctx, cx, cy, r) {
+    var TAU = 2 * Math.PI;
+    for (var q = 0; q < 72; q++) {
+      var a0 = q / 72 * TAU, a1 = (q + 1.2) / 72 * TAU, c = phaseColor(a0);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -a0, -a1, true);
+      ctx.arc(cx, cy, r * 0.55, -a1, -a0, false);
+      ctx.closePath();
+      ctx.fillStyle = 'rgb(' + c.map(Math.round).join(',') + ')';
+      ctx.fill();
+    }
+    var o = { size: 11.5, align: 'center', baseline: 'middle', color: color('ink-2') }, dd = r + 9;
+    canvasLabel(ctx, '$1$', cx + dd, cy, o);
+    canvasLabel(ctx, '$\\mathrm{i}$', cx, cy - dd, o);
+    canvasLabel(ctx, '$-1$', cx - dd - 3, cy, o);
+    canvasLabel(ctx, '$-\\mathrm{i}$', cx, cy + dd, o);
+  }
+  // A picture continued the short way round from a direction fades out towards the ray opposite
+  // it, at angle (counterclockwise, y up), where the two ways round meet: seen(t) is how much shows
+  // at angle t (0 on the cut, 1 from width away on), style(fn) a conic gradient round (cx, cy) of
+  // the colours fn(seen) (for the strokes and fills that fade with it, falling back to fn(1)), and
+  // veil(r) whitens the disc of radius r towards the cut.
+  function phaseCut(ctx, cx, cy, angle, width) {
+    var TAU = 2 * Math.PI;
+    function seen(t) { var x = Math.min(1, Math.abs(t - angle - TAU * Math.round((t - angle) / TAU)) / width); return x * x * (3 - 2 * x); }
+    function style(fn) {
+      if (!ctx.createConicGradient) return fn(1);
+      var gr = ctx.createConicGradient(-angle, cx, cy);
+      for (var q = 0; q <= 12; q++) { var u = q / 12 * width / TAU, a = seen(angle + q / 12 * width); gr.addColorStop(u, fn(a)); gr.addColorStop(1 - u, fn(a)); }
+      return gr;
+    }
+    function veil(r) {
+      ctx.fillStyle = style(function (a) { return rgba('surface', 1 - a); });
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+    }
+    return { seen: seen, style: style, veil: veil };
+  }
+  // a red mark on the rim of radius r at angle (y up), pointing in, with a pale edge
+  function phaseMark(ctx, cx, cy, r, angle, alpha) {
+    var a = alpha === undefined ? 1 : alpha, c = Math.cos(angle), s = Math.sin(angle), r0 = r - 0.5, r1 = r - 10, wd = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx + r0 * c - wd * s, cy - r0 * s - wd * c);
+    ctx.lineTo(cx + r0 * c + wd * s, cy - r0 * s + wd * c);
+    ctx.lineTo(cx + r1 * c, cy - r1 * s);
+    ctx.closePath();
+    ctx.fillStyle = rgba('highlight', a); ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = rgba('surface', 0.9 * a); ctx.stroke();
+  }
+  // the knob of an angle (y up): a thin line from radius r0 out to it, and the yellow knob at r1
+  function phaseKnob(ctx, cx, cy, r0, r1, angle) {
+    var c = Math.cos(angle), s = Math.sin(angle);
+    ctx.strokeStyle = rgba('ink', 0.55); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(cx + r0 * c, cy - r0 * s); ctx.lineTo(cx + (r1 - 5) * c, cy - (r1 - 5) * s); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + r1 * c, cy - r1 * s, 5.5, 0, 2 * Math.PI);
+    ctx.fillStyle = color('handle'); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = color('handle-rim'); ctx.stroke();
+  }
+
   window.MM = {
     tex: tex, rich: rich, setHTML: setHTML, renderMath: renderMath,
     color: color, rgba: rgba, cssVar: cssVar, font: font, onFonts: onFonts, esc: esc,
     canvasLabel: canvasLabel, measureLabel: measureLabel, svgLabel: svgLabel,
     turnDrag: turnDrag, pinchZoom: pinchZoom, handle: handle, strip: strip, moved: moved, copyPicture: copyPicture, pixelRatio: pixelRatio, whenVisible: whenVisible, matrix: matrix, dynkinPicture: dynkinPicture,
     kv: kv, svg: svgEl, fitCanvas: fitCanvas, clearCanvas: clearCanvas, reduceMotion: reduceMotion, undoRedo: undoRedo,
+    phase: { color: phaseColor, paint: phasePaint, key: phaseKey, cut: phaseCut, mark: phaseMark, knob: phaseKnob },
   };
 
   /* Components (segmented controls, tabs, sliders, toggles), inlined at build

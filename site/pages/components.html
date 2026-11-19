@@ -242,6 +242,15 @@ wide: true
 </section>
 
 <section class="gal-sec">
+  <h2>Complex functions</h2>
+  <p>A complex function drawn by its phase, with lines of constant phase and modulus: <code>MM.phase</code>. Over a disc, the key, a fade towards a branch cut, red marks on the rim at the Stokes rays, and the knob of an angle.</p>
+  <div class="gal-grid">
+    <div class="gal-item"><canvas id="demo-phase" style="width:100%;aspect-ratio:5/4"></canvas><code>MM.phase.paint(img, { w, h, dpr, ph, lm, kind })</code><code>MM.phase.key(ctx, x, y, r)</code></div>
+    <div class="gal-item"><canvas id="demo-phase-cut" style="width:100%;aspect-ratio:5/4"></canvas><code>MM.phase.cut(ctx, cx, cy, angle, width).veil(r)</code><code>MM.phase.mark(…), MM.phase.knob(…)</code></div>
+  </div>
+</section>
+
+<section class="gal-sec">
   <h2>Mark</h2>
   <p>Hover the knot: the control point travels round it, under each crossing.</p>
   <div class="gal-logo"><a class="brand" href="#" id="gal-brand" aria-label="Logo (hover to play)"></a></div>
@@ -345,6 +354,44 @@ wide: true
   }
   MM.onFonts(draw);
   window.addEventListener('resize', draw);
+  // complex functions: (z² − 1)/(z² + 1) on a disc, and √z·e^z, continued the short way from a knob
+  // at arg z = π/4, faded out towards the cut opposite it, with marks on the rim at ±2π/3
+  function phaseDemo(id, f, knob) {
+    var cv = document.getElementById(id), fit = MM.fitCanvas(cv), ctx = fit.ctx, W = fit.w, H = fit.h, dpr = fit.dpr;
+    var w = Math.round(W * dpr), h = Math.round(H * dpr), n = w * h, R = 0.36 * Math.min(W, H), Z = 2;
+    var ph = new Float32Array(n), lm = new Float32Array(n), kind = new Uint8Array(n);
+    for (var q = 0; q < n; q++) {
+      var x = ((q % w + 0.5) / dpr - W / 2) / R * Z, y = -((Math.floor(q / w) + 0.5) / dpr - H / 2) / R * Z;
+      if (Math.hypot(x, y) > Z) continue;
+      var v = f(x, y); ph[q] = v[0]; lm[q] = v[1]; kind[q] = 1;
+    }
+    var img = MM.phase.paint(new ImageData(w, h), { w: w, h: h, dpr: dpr, ph: ph, lm: lm, kind: kind, none: null });
+    var off = document.createElement('canvas'); off.width = w; off.height = h; off.getContext('2d').putImageData(img, 0, 0);
+    ctx.drawImage(off, 0, 0, W, H);
+    if (knob !== undefined) {
+      var cut = MM.phase.cut(ctx, W / 2, H / 2, knob + Math.PI, Math.PI / 6);
+      cut.veil(R + 1);
+      [2 * Math.PI / 3, -2 * Math.PI / 3].forEach(function (t) { MM.phase.mark(ctx, W / 2, H / 2, R, t, cut.seen(t)); });
+      MM.phase.knob(ctx, W / 2, H / 2, R, R + 12, knob);
+    }
+    ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(W / 2, H / 2, R, 0, 2 * Math.PI); ctx.stroke();
+    MM.phase.key(ctx, W - 32, H - 32, 14);
+  }
+  function phaseDemos() {
+    // log f = log(z² − 1) − log(z² + 1)
+    phaseDemo('demo-phase', function (x, y) {
+      var ar = x * x - y * y, ai = 2 * x * y, n1 = [ar - 1, ai], n2 = [ar + 1, ai];
+      return [Math.atan2(n1[1], n1[0]) - Math.atan2(n2[1], n2[0]), Math.log(Math.hypot(n1[0], n1[1])) - Math.log(Math.hypot(n2[0], n2[1]))];
+    });
+    // log f = ½ log z + z, with arg z in (knob − π, knob + π]
+    var knob = Math.PI / 4;
+    phaseDemo('demo-phase-cut', function (x, y) {
+      var t = Math.atan2(y, x); t += 2 * Math.PI * Math.round((knob - t) / (2 * Math.PI));
+      return [t / 2 + y, 0.5 * Math.log(Math.hypot(x, y)) + x];
+    }, knob);
+  }
+  MM.onFonts(phaseDemos);
+  window.addEventListener('resize', phaseDemos);
   var svg = document.getElementById('demo-svg');
   [['$S_{\\mathrm{reg}}$ and $s_\\alpha \\mathfrak b$', 30], ['$\\operatorname{tr}^2 = 4\\det$', 66], ['image of $C_+$', 102]].forEach(function (l) {
     var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');

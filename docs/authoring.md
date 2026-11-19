@@ -211,6 +211,7 @@ Rules:
 - Punctuation straight after a short inline formula (`$\Ran$:`, `$x$.`) is kept on the same line as it; the formula itself may still break where KaTeX allows (after a relation or an operator).
 - TeX is not rendered inside `<script>`, `<style>`, `<pre>`, `<code>`, `<textarea>`, `<svg>`, `<math>`, `<template>`, `<noscript>`, inside attributes, in HTML comments, or inside any element with a `data-notex` attribute or a `notex` class. Use those to show TeX source or dollar-heavy text.
 - A TeX error stops the build with its file and line. KaTeX warnings (for example, Unicode letters in maths mode) are printed but do not stop it.
+- A display that the text refers back to gets a number, `\tag{2}` at its end, and is cited as (2), so that a reader who starts in the middle can find what a formula is about. Number only displays that are referred to, in order down the page.
 - `\mathbb{1}` gives 𝟙, and `\mathbb` of a capital Greek letter (which has no double-struck form) is set bold, as in new-banana. These rewrites also apply in the browser.
 
 ### Macros
@@ -260,6 +261,29 @@ The maths is a one-line subset of TeX:
 - operator names (`\det`, `\sin`, `\lim`, …), set upright. For any other, write `\operatorname{tr}`; a command labels do not know is set the same way, with a warning in the console. `\left`, `\right` and `\big` are ignored.
 
 Unicode works as well. Malformed TeX in a label (`$x^$`) does not throw: the label is drawn as plain text and the console says why. Screen readers read a label's text as drawn. A plain SVG `<text>` with Unicode (`ℝⁿ`, `Σ₃`, `𝔩`) is already in the label font; add `font-style: italic` for variables. For a long formula in a figure, an HTML element placed over the figure and filled with `MM.setHTML` is still an option.
+
+### Complex functions
+
+A complex function is drawn as the site draws them all (Stokes phenomenon: the integral as a function of $\hbar$, Airy's function in the plane of $z$): by its phase, a colour from a wheel of the theme's colours, with thin lines of constant phase and of constant modulus, a grid of small squares since $\log f$ is holomorphic, faded out where its lines would crowd and broken where the function jumps. The page works out the phase and the log of the modulus at each pixel of an `ImageData` the size of the canvas's backing store, and `MM.phase.paint` colours it:
+
+```js
+const { ctx, w: W, h: H, dpr } = MM.fitCanvas(canvas), w = Math.round(W * dpr), h = Math.round(H * dpr);
+const ph = new Float32Array(w * h), lm = new Float32Array(w * h), kind = new Uint8Array(w * h);
+for (let q = 0; q < w * h; q++) {
+  const z = /* the point of pixel q */;
+  if (/* outside the region */) continue;               // kind 0: painted o.none
+  ph[q] = /* arg f(z) */; lm[q] = /* log |f(z)| */; kind[q] = 1;   // 2: the same, pale
+}
+const img = MM.phase.paint(new ImageData(w, h), { w, h, dpr, ph, lm, kind, step: Math.PI / 12, none: null });
+// put img on an offscreen canvas of w × h and drawImage it at W × H
+```
+
+- `shade` (a `Float32Array`, 1 for none) darkens pixels, for example near the zeros of a sum whose terms cancel there. Shade by something that does not jump where the function does not: a measure of cancellation among terms that jump makes a seam the function does not have.
+- `step` is the spacing of the lines in both phase and log modulus (π/12; π/6 where the phase turns fast across the picture). `pale` (0.4) is how far a `kind` 2 pixel goes to the ground: a term of an expansion shown where it is not part of it.
+- `only(q)` limits the pixels painted, to paint again only the rows that changed (the integral as a function of ħ does when ħ turns).
+- `MM.phase.color(ph)` is the colour of one phase (`[r, g, b]`), for a picture shaded in its own way (the Borel plane), and `MM.phase.key(ctx, x, y, r)` draws the key, a ring of the colours with $1$, $\mathrm i$, $-1$, $-\mathrm i$, in a corner of every such picture.
+
+Over a disc, a multivalued function is drawn continued the short way round from a direction (a parameter's handle, or a knob of the angle): `const fade = MM.phase.cut(ctx, cx, cy, angle, width)` for the ray opposite it, where the two ways round meet and do not agree. `fade.veil(r)` whitens the disc towards it (a white fade, not a line: it is no jump of the function), `fade.style(fn)` is a conic gradient of `fn(seen)` for what fades with it (the arcs round the rim), and `fade.seen(t)` how much shows at angle `t`. `MM.phase.mark(ctx, cx, cy, r, angle, alpha)` is a red mark on the rim (a Stokes ray), and `MM.phase.knob(ctx, cx, cy, r0, r1, angle)` the knob of an angle at radius `r1`, with a thin line in from it to `r0`; the page drags it (a press outside the disc) and turns it with the arrow keys. Angles are counterclockwise, with $y$ up. The gallery at `/components/` shows both.
 
 ## Scripts
 
