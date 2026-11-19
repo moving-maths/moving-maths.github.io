@@ -13,7 +13,7 @@ sort: listed
 # the order of site/tags.yml. Under each, its pages (folder names) in
 # order: either a list, or `pages: [...]` with `sort: updated` beside it.
 topics:
-  algebraic-geometry: [amoebas, hilbert-schemes]
+  algebraic-geometry: [amoebas, hilbert-schemes, picard-lefschetz-formula]
   representation-theory: [root-systems, dynkin-diagrams, highest-weight-representations]
   topology: [knots, configuration-spaces]
-  complex-analysis: [stokes-phenomenon]
+  complex-analysis: [stokes-phenomenon, picard-lefschetz-formula]

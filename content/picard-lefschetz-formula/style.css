@@ -1,0 +1,80 @@
+/* Picard–Lefschetz formula.
+   Wide: the plane of x on the left; on the right the function and the legend, the plane of values
+   with the handle of z, the monodromy and the intersection form.
+   Phone: the plane of x, the plane of values (so that both show while z moves), then the rest. */
+
+/* One colour for each vanishing cycle Δ_i, its path γ_i, its critical point and critical value;
+   main.js reads the same names through MM.color. */
+body {
+  --cy-1: var(--c1);
+  --cy-2: var(--c2);
+  --cy-3: var(--c3);
+  --cy-4: var(--c4);
+  --cy-5: var(--c5);
+  --cy-1-text: var(--c1-text);
+  --cy-2-text: var(--c2-text);
+  --cy-3-text: var(--c3-text);
+  --cy-4-text: var(--c4-text);
+  --cy-5-text: var(--c5-text);
+  --cy-1-line: var(--c1-line);
+  --cy-2-line: var(--c2-line);
+  --cy-3-line: var(--c3-line);
+  --cy-4-line: var(--c4-line);
+  --cy-5-line: var(--c5-line);
+  --cy-1-soft: var(--c1-soft);
+  --cy-2-soft: var(--c2-soft);
+  --cy-3-soft: var(--c3-soft);
+  --cy-4-soft: var(--c4-soft);
+  --cy-5-soft: var(--c5-soft);
+}
+
+.pl { --split-main: 1.25fr; --split-below: 40px; }
+@media (max-width: 899.98px) {
+  .pl > .split-main, .pl > .split-side { display: contents; }
+  .pl .pl-main { order: 0; }
+  .pl .pl-zblock { order: 1; border-top: 0; padding-top: 0; }
+  .pl .side-head { order: 2; }
+  .pl .side-block:not(.side-head):not(.pl-zblock) { order: 3; }
+}
+
+/* ---------- the plane of x ---------- */
+.pl-xplane { position: relative; }
+#xcv { display: block; width: 100%; aspect-ratio: 1; }
+.pl-over { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pl-over .pl-pt { pointer-events: auto; }
+.pl-pad { fill: transparent; }
+/* a critical point: the handle's yellow dot, ringed in its cycle's colour, its number in it */
+.pl-pt .handle-point { stroke-width: 2.2; }
+.pl-pt:focus-visible { outline: none; }
+
+/* ---------- the plane of values, with the handle of z ---------- */
+.pl-zplane { position: relative; max-width: 320px; margin: 0 auto; }
+#zcv { display: block; width: 100%; aspect-ratio: 1; }
+.pl-zh { --handle-size: 40px; cursor: grab; }
+.pl-zh:active { cursor: grabbing; }
+
+/* ---------- readouts ---------- */
+.pl-mono { font-size: 15px; line-height: 1.7; color: var(--ink-2); }
+.pl-mono p { margin: 0; }
+.pl-rule { margin: 6px 0 0; color: var(--ink-3); font-size: 14px; }
+.pl-note { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.pl-form { font-size: 15px; overflow-x: auto; }
+.pl-d { white-space: nowrap; }
+
+/* legend marks drawn as the figure draws them */
+.pl-key { display: inline-block; width: 26px; height: 18px; flex: none; overflow: visible; }
+.legend-line.pl-multi { overflow: visible; }
+
+/* ---------- the figures in the text ---------- */
+.pl-pair { align-items: center; }
+.pl-v3 { position: relative; }
+#v3-cv { display: block; width: 100%; aspect-ratio: 4 / 3; }
+.pl-tw { position: relative; }
+#tw-cv { display: block; width: 100%; aspect-ratio: 4 / 3; }
+.pl-dialbox { position: relative; width: 170px; margin: 0 auto; }
+.pl-dialbox canvas { display: block; width: 170px; height: 170px; }
+.pl-dialh { --handle-size: 36px; cursor: grab; }
+.pl-dialval { margin: 2px 0 0; text-align: center; font-size: 14px; color: var(--ink-2); }
+.pl-twval { margin-top: 6px; }
+.pl-dynbox { display: flex; justify-content: center; }
+.pl-eigbox { display: flex; justify-content: center; }
