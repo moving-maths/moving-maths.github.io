@@ -982,14 +982,18 @@
     // around the rim, an arc for each thimble where it is in Γ: they begin and end on the Stokes rays
     hctx.lineCap = 'butt';
     hctx.lineWidth = 0.62 * V.sp;
-    for (let i = 0; i < model.act.n; i++) {
-      const rr = V.D + V.gap + V.sp * (i + 0.5), k = !hv || hv === i + 1 ? 1 : 0.3;
-      hctx.strokeStyle = fade.style((a) => MM.rgba('th-' + (i + 1), k * a));
-      for (const run of runs) {
-        if (!run.n || !run.n[i]) continue;
-        hctx.beginPath(); hctx.arc(V.cx, V.cy, rr, -run.b, -run.a); hctx.stroke();
+    fade.faded((c) => {
+      c.lineCap = 'butt';
+      c.lineWidth = 0.62 * V.sp;
+      for (let i = 0; i < model.act.n; i++) {
+        const rr = V.D + V.gap + V.sp * (i + 0.5), k = !hv || hv === i + 1 ? 1 : 0.3;
+        c.strokeStyle = MM.rgba('th-' + (i + 1), k);
+        for (const run of runs) {
+          if (!run.n || !run.n[i]) continue;
+          c.beginPath(); c.arc(V.cx, V.cy, rr, -run.b, -run.a); c.stroke();
+        }
       }
-    }
+    }, V.D + 1, V.D + V.gap + V.sp * model.act.n + 2);
     // arg ħ, out from the handle across the arcs, to read off which thimbles are in Γ there (the
     // handle stays on the rim when |ħ| is beyond the disc drawn)
     const rOut = V.D + V.gap + V.sp * model.act.n, ct = Math.cos(state.phi), st = Math.sin(state.phi), rk = Math.min(cur().r, V.R) * V.k;
@@ -2398,17 +2402,18 @@
       ctx.beginPath(); ctx.moveTo(V.cx, V.cy); ctx.lineTo(V.cx + V.D * Math.cos(t), V.cy - V.D * Math.sin(t)); ctx.stroke();
     }
     // the arcs: where each term is in the expansion, between the Stokes rays
-    ctx.lineCap = 'butt';
-    ctx.lineWidth = 0.62 * V.sp;
-    for (let i = 0; i < 2; i++) {
-      const k = !zpView || zpView === i + 1 ? 1 : 0.3;
-      ctx.strokeStyle = fade.style((x) => MM.rgba('th-' + (i + 1), k * x));
-      for (let q = 0; q + 1 < bounds.length; q++) {
-        const a = bounds[q], b = bounds[q + 1];
-        if (!zpNonzero(zpCoef((a + b) / 2)[i])) continue;
-        ctx.beginPath(); ctx.arc(V.cx, V.cy, V.D + V.gap + V.sp * (i + 0.5), -b, -a); ctx.stroke();
+    fade.faded((c) => {
+      c.lineCap = 'butt';
+      c.lineWidth = 0.62 * V.sp;
+      for (let i = 0; i < 2; i++) {
+        c.strokeStyle = MM.rgba('th-' + (i + 1), !zpView || zpView === i + 1 ? 1 : 0.3);
+        for (let q = 0; q + 1 < bounds.length; q++) {
+          const a = bounds[q], b = bounds[q + 1];
+          if (!zpNonzero(zpCoef((a + b) / 2)[i])) continue;
+          c.beginPath(); c.arc(V.cx, V.cy, V.D + V.gap + V.sp * (i + 0.5), -b, -a); c.stroke();
+        }
       }
-    }
+    }, V.D + 1, V.rOut + 2);
     // the knob of arg z the branches are continued from, out across the arcs, and the box over it
     MM.phase.knob(ctx, V.cx, V.cy, V.D, V.rOut + 8, zpTheta);
     zknob.style.transform = 'translate(' + (V.cx + (V.rOut + 8) * Math.cos(zpTheta)).toFixed(1) + 'px,' + (V.cy - (V.rOut + 8) * Math.sin(zpTheta)).toFixed(1) + 'px)';

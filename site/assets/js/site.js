@@ -86,7 +86,7 @@
  *     .key(ctx, x, y, r)    the key of the colours: a ring, with 1, i, −1, −i
  *     .cut(ctx, cx, cy, angle, width)
  *                           a picture fading out towards a branch cut (the ray at angle):
- *                           { seen(t), style(fn), veil(r) }
+ *                           { seen(t), veil(r[, r0]), faded(draw, r0, r1) }
  *     .mark(ctx, cx, cy, r, angle[, alpha])   a red mark on a rim, pointing in (a Stokes ray)
  *     .knob(ctx, cx, cy, r0, r1, angle)       a knob of an angle: a line out to it from r0,
  *                           and the yellow knob at r1
@@ -278,7 +278,7 @@
     var v = rgbOf(name, scope);
     return v[3] === 1 ? 'rgb(' + v[0] + ',' + v[1] + ',' + v[2] + ')' : 'rgba(' + v.join(',') + ')';
   }
-  color.clear = function () { colorCache.clear(); phaseWheel = null; if (phaseKeys) phaseKeys.clear(); };
+  color.clear = function () { colorCache.clear(); phaseWheel = null; if (phaseKeys) phaseKeys.clear(); if (phaseMasks) phaseMasks.clear(); };
 
   function rgba(name, alpha, scope) {
     var v = rgbOf(name, scope);
@@ -1221,25 +1221,56 @@
   }
   // A picture continued the short way round from a direction fades out towards the ray opposite
   // it, at angle (counterclockwise, y up), where the two ways round meet: seen(t) is how much shows
-  // at angle t (0 on the cut, 1 from width away on), style(fn) a conic gradient round (cx, cy) of
-  // the colours fn(seen) (for the strokes and fills that fade with it, falling back to fn(1)), and
-  // veil(r) whitens the disc of radius r towards the cut.
+  // at angle t (0 on the cut, 1 from width away on), veil(r[, r0]) whitens the disc of radius r
+  // (the ring from r0 out to r) towards the cut, and faded(draw, r0, r1) draws draw(ctx) (strokes
+  // round the rim, say) faded out towards the cut between radii r0 and r1. Both use a mask drawn
+  // once for each size, with the cut along the x axis, and turned to the cut when it is copied (no
+  // conic gradients: Firefox on Android draws them in pieces).
+  var phaseMasks = new Map(), phaseLayer = null;
   function phaseCut(ctx, cx, cy, angle, width) {
     var TAU = 2 * Math.PI;
     function seen(t) { var x = Math.min(1, Math.abs(t - angle - TAU * Math.round((t - angle) / TAU)) / width); return x * x * (3 - 2 * x); }
-    function style(fn) {
-      if (!ctx.createConicGradient) return fn(1);
-      var gr = ctx.createConicGradient(-angle, cx, cy);
-      for (var q = 0; q <= 12; q++) { var u = q / 12 * width / TAU, a = seen(angle + q / 12 * width); gr.addColorStop(u, fn(a)); gr.addColorStop(1 - u, fn(a)); }
-      return gr;
+    // the mask of radii r0 … r1: colour rgb, opaque by 1 − seen, at most at twice the CSS resolution
+    function mask(r0, r1, rgb) {
+      var m = ctx.getTransform(), sc = Math.min(2, Math.hypot(m.a, m.b) || 1), key = [r0, r1, width, sc, rgb].join('|'), off = phaseMasks.get(key);
+      if (off) return off;
+      var n = Math.ceil(2 * r1 * sc), c = n / 2;
+      off = document.createElement('canvas'); off.width = n; off.height = n;
+      var oc = off.getContext('2d'), img = oc.createImageData(n, n), d = img.data;
+      for (var j = 0; j < n; j++) for (var i = 0; i < n; i++) {
+        var x = (i + 0.5 - c) / sc, y = (c - j - 0.5) / sc, r = Math.hypot(x, y);
+        if (r > r1 + 1 || r < r0 - 1) continue;
+        var t = Math.abs(Math.atan2(y, x)), u = Math.min(1, t / width), a = 1 - u * u * (3 - 2 * u);
+        if (a <= 0) continue;
+        a *= Math.max(0, Math.min(1, (r1 - r) * sc + 0.5)) * Math.max(0, Math.min(1, (r - r0) * sc + 0.5));
+        var o = 4 * (j * n + i);
+        d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = Math.round(255 * a);
+      }
+      oc.putImageData(img, 0, 0);
+      return remember(phaseMasks, key, off, 12);
     }
-    // (only the sector within width of the cut: beyond it nothing is veiled)
-    function veil(r) {
-      ctx.fillStyle = style(function (a) { return rgba('surface', 1 - a); });
-      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, -angle - width, -angle + width); ctx.closePath(); ctx.fill();
+    function put(c, img, r1) {
+      c.save(); c.translate(cx, cy); c.rotate(-angle); c.drawImage(img, -r1, -r1, 2 * r1, 2 * r1); c.restore();
     }
-    return { seen: seen, style: style, veil: veil };
+    function veil(r, r0) { put(ctx, mask(r0 || 0, r, phaseRGB('surface')), r); }
+    function faded(draw, r0, r1) {
+      var cv = ctx.canvas;
+      if (!phaseLayer) phaseLayer = document.createElement('canvas');
+      if (phaseLayer.width !== cv.width || phaseLayer.height !== cv.height) { phaseLayer.width = cv.width; phaseLayer.height = cv.height; }
+      var lc = phaseLayer.getContext('2d');
+      lc.setTransform(1, 0, 0, 1, 0, 0);
+      lc.clearRect(0, 0, cv.width, cv.height);
+      lc.setTransform(ctx.getTransform());
+      lc.globalCompositeOperation = 'source-over';
+      draw(lc);
+      lc.globalCompositeOperation = 'destination-out';
+      put(lc, mask(r0, r1, [0, 0, 0]), r1);
+      lc.globalCompositeOperation = 'source-over';
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(phaseLayer, 0, 0); ctx.restore();
+    }
+    return { seen: seen, veil: veil, faded: faded };
   }
+
   // a red mark on the rim of radius r at angle (y up), pointing in, with a pale edge
   function phaseMark(ctx, cx, cy, r, angle, alpha) {
     var a = alpha === undefined ? 1 : alpha, c = Math.cos(angle), s = Math.sin(angle), r0 = r - 0.5, r1 = r - 10, wd = 5;
