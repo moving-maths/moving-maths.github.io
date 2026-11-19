@@ -62,7 +62,6 @@ references:
     </mm-seg>
   </div>
   <mm-toggle id="turn">Turn $\hbar$</mm-toggle>
-  <div class="control"><span class="label">Flow</span><input type="range" id="flow" class="sp-flowrange" min="0" max="1000" value="0" aria-label="How far the flow has pushed the path Gamma towards the thimbles"></div>
   <mm-zoom id="zoom" min="0.5" max="6" aria-label="Zoom the plane of x"></mm-zoom>
   <div class="control">
     <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
@@ -73,6 +72,7 @@ references:
 <div class="wrap section">
   <figure class="panel split sp" id="figure">
     <div class="split-main sp-main">
+      <div class="sp-planebar"><div class="control"><span class="label">Flow</span><input type="range" id="flow" class="sp-flowrange" min="0" max="1000" value="0" aria-label="How far the flow has pushed the path Gamma towards the thimbles"></div></div>
       <div class="sp-plane split-fit" id="plane">
         <canvas id="xcv" tabindex="0" role="img" aria-label="The plane of x: the landscape of the integrand, the critical points of S, their thimbles, and the path Gamma as a sum of thimbles"></canvas>
         <svg id="xsvg" class="sp-over" aria-label="Critical points and the ends of the path"></svg>
@@ -159,7 +159,7 @@ references:
   <p>The rays $\arg z=\pm\frac{2\pi}3$ are the Stokes rays $\arg\hbar=\mp\pi$ of $J_1$, since $\arg z=-\frac23\arg\hbar$.</p>
   <figure id="zplane-fig">
     <div class="fig-bar"><div class="seg sp-zpick" id="zpick" role="radiogroup" aria-label="The function in the picture of the plane of z"><button type="button" role="radio" aria-checked="true" data-v="0">$\mathrm{Ai}$</button><button type="button" role="radio" aria-checked="false" data-v="1">$w_1$</button><button type="button" role="radio" aria-checked="false" data-v="2">$w_2$</button></div></div>
-    <div class="sp-zplane"><canvas id="zplane-cv" tabindex="0" role="img" aria-label="Airy’s function in a disc of the plane of z, coloured by its phase, with lines of constant phase and modulus, the Stokes rays, and arcs showing which of w1 and w2 are in its expansion"></canvas></div>
+    <div class="sp-zplane"><canvas id="zplane-cv" role="img" aria-label="Airy’s function in a disc of the plane of z, coloured by its phase, with lines of constant phase and modulus, the Stokes rays, and arcs showing which of w1 and w2 are in its expansion"></canvas><div class="handle draggable sp-zknob" id="zknob" role="slider" tabindex="0" aria-label="arg z, the direction the branches are continued from: drag it round, or turn it with the arrow keys"></div></div>
     <figcaption class="caption" id="zplane-cap">$\mathrm{Ai}(z)$ for $|z|\le5$, coloured by its phase, with lines of constant phase and modulus, darker near its zeros. The arcs around show which of $w_1$ and $w_2$ are in its expansion, in their branches continued the short way round from the knob of $\arg z$, and the red marks on the rim are the Stokes rays: across one a coefficient jumps, but $\mathrm{Ai}$ stays continuous.</figcaption>
   </figure>
   <p>On the real line the result is the chart below: $\mathrm{Ai}(z)$ is one decaying exponential, $w_1$, for $z&gt;0$, and two oscillating ones, $w_1\pm\mathrm{i}\,w_2$, for $z&lt;0$. This change of form is what Stokes found in Airy’s integral [@stokes1864].</p>

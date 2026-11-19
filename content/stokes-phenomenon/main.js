@@ -182,8 +182,7 @@
   /* ---------- drawing the plane of x ---------- */
 
   const land = document.createElement('canvas'), lctx = land.getContext('2d');
-  const LAND_STEP = 3;               // CSS pixels per sample of the landscape
-  const CONTOUR_STEP = 4;            // and of the grid its level lines are found on
+  const GRID = 4;                    // CSS pixels per sample of the landscape and of its level lines
   // g(x) = asinh(Re((S(x) − S̄) e^{−iφ}) / σ): the landscape, in a scale that grows slowly
   function landFn() {
     const s = model.act.s, rc = Math.cos(state.phi), rs = Math.sin(state.phi), sb = model.Sbar, sig = model.sigma;
@@ -193,54 +192,82 @@
       return Math.asinh(((re - sb[0]) * rc + (im - sb[1]) * rs) / sig);
     };
   }
-  // light blue where the integrand is large (g < 0), white where it dies
-  function paintLand(ctx, V, g) {
-    const w = Math.ceil(V.W / LAND_STEP), h = Math.ceil(V.H / LAND_STEP);
-    if (land.width !== w || land.height !== h) { land.width = w; land.height = h; }
-    const img = lctx.createImageData(w, h), d = img.data;
+  // g at the corners of a grid of GRID-pixel cells over the picture, shared by the shading and the
+  // level lines
+  function landGrid(V, g) {
+    const nx = Math.ceil(V.W / GRID) + 1, ny = Math.ceil(V.H / GRID) + 1, G = new Float64Array(nx * ny);
+    for (let j = 0; j < ny; j++) { const y = V.y(j * GRID); for (let i = 0; i < nx; i++) G[j * nx + i] = g(V.x(i * GRID), y); }
+    return { nx, ny, G };
+  }
+  // light blue where the integrand is large (g < 0), white where it dies (the grid, smoothed)
+  function paintLand(ctx, V, grid) {
+    const { nx, ny, G } = grid;
+    if (land.width !== nx || land.height !== ny) { land.width = nx; land.height = ny; }
+    const img = lctx.createImageData(nx, ny), d = img.data;
     const P = rgbOf('surface'), B = rgbOf('land');
-    for (let j = 0; j < h; j++) {
-      const y = V.y((j + 0.5) * LAND_STEP);
-      for (let i = 0; i < w; i++) {
-        const v = g(V.x((i + 0.5) * LAND_STEP), y);
-        const a = 0.24 * (1 - Math.tanh(v / 1.1)) / 2;
-        const o = 4 * (j * w + i);
-        d[o] = P[0] + (B[0] - P[0]) * a; d[o + 1] = P[1] + (B[1] - P[1]) * a; d[o + 2] = P[2] + (B[2] - P[2]) * a; d[o + 3] = 255;
-      }
+    for (let q = 0; q < nx * ny; q++) {
+      const a = 0.24 * (1 - Math.tanh(G[q] / 1.1)) / 2, o = 4 * q;
+      d[o] = P[0] + (B[0] - P[0]) * a; d[o + 1] = P[1] + (B[1] - P[1]) * a; d[o + 2] = P[2] + (B[2] - P[2]) * a; d[o + 3] = 255;
     }
     lctx.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(land, 0, 0, w, h, 0, 0, w * LAND_STEP, h * LAND_STEP);
+    // (the samples are at the cells' corners: half a sample beyond each edge)
+    ctx.drawImage(land, 0, 0, nx, ny, -GRID / 2, -GRID / 2, nx * GRID, ny * GRID);
   }
   // level lines of g by marching squares: evenly in g (so ever further apart in Re(S/ħ)), and
-  // the lines through the critical points a little darker
-  function drawContours(ctx, V, g, fade) {
-    const nx = Math.ceil(V.W / CONTOUR_STEP) + 1, ny = Math.ceil(V.H / CONTOUR_STEP) + 1;
-    const G = new Float64Array(nx * ny);
-    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) G[j * nx + i] = g(V.x(i * CONTOUR_STEP), V.y(j * CONTOUR_STEP));
-    const levels = [];
-    for (let k = -14; k <= 14; k++) levels.push({ v: k * 0.55, a: 0.11 * fade });
-    for (const p of model.act.crit) levels.push({ v: g(p[0], p[1]), a: 0.3 * fade });
-    ctx.lineWidth = 1;
-    for (const L of levels) {
-      ctx.strokeStyle = MM.rgba('c1-text', L.a);
-      ctx.beginPath();
-      for (let j = 0; j < ny - 1; j++) {
-        for (let i = 0; i < nx - 1; i++) {
-          const a = G[j * nx + i] - L.v, b = G[j * nx + i + 1] - L.v, c = G[(j + 1) * nx + i + 1] - L.v, d = G[(j + 1) * nx + i] - L.v;
-          const code = (a > 0 ? 1 : 0) | (b > 0 ? 2 : 0) | (c > 0 ? 4 : 0) | (d > 0 ? 8 : 0);
-          if (code === 0 || code === 15) continue;
-          const x0 = i * CONTOUR_STEP, y0 = j * CONTOUR_STEP, s = CONTOUR_STEP;
-          const e = [];
-          if ((a > 0) !== (b > 0)) e.push([x0 + s * a / (a - b), y0]);
-          if ((b > 0) !== (c > 0)) e.push([x0 + s, y0 + s * b / (b - c)]);
-          if ((d > 0) !== (c > 0)) e.push([x0 + s * d / (d - c), y0 + s]);
-          if ((a > 0) !== (d > 0)) e.push([x0, y0 + s * a / (a - d)]);
-          for (let q = 0; q + 1 < e.length; q += 2) { ctx.moveTo(e[q][0], e[q][1]); ctx.lineTo(e[q + 1][0], e[q + 1][1]); }
-        }
+  // the lines through the critical points a little darker. Each cell adds a piece to the lines of
+  // the levels between its corners' values, so that the grid is gone through once.
+  const LEVEL = 0.55, NLEV = 14;
+  function drawContours(ctx, V, grid, g, fade) {
+    const { nx, ny, G } = grid;
+    const even = Array.from({ length: 2 * NLEV + 1 }, () => []);
+    const crit = model.act.crit.map((p) => ({ v: g(p[0], p[1]), segs: [] }));
+    const cut = (a, b, c, d, v, x0, y0, out) => {
+      const A = a - v, B = b - v, Cc = c - v, D = d - v, s = GRID, e = [];
+      if ((A > 0) !== (B > 0)) e.push(x0 + s * A / (A - B), y0);
+      if ((B > 0) !== (Cc > 0)) e.push(x0 + s, y0 + s * B / (B - Cc));
+      if ((D > 0) !== (Cc > 0)) e.push(x0 + s * D / (D - Cc), y0 + s);
+      if ((A > 0) !== (D > 0)) e.push(x0, y0 + s * A / (A - D));
+      for (let q = 0; q + 3 < e.length; q += 4) out.push(e[q], e[q + 1], e[q + 2], e[q + 3]);
+    };
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const a = G[j * nx + i], b = G[j * nx + i + 1], c = G[(j + 1) * nx + i + 1], d = G[(j + 1) * nx + i];
+        const lo = Math.min(a, b, c, d), hi = Math.max(a, b, c, d), x0 = i * GRID, y0 = j * GRID;
+        for (let k = Math.max(-NLEV, Math.ceil(lo / LEVEL)); k <= Math.min(NLEV, Math.floor(hi / LEVEL)); k++) cut(a, b, c, d, k * LEVEL, x0, y0, even[k + NLEV]);
+        for (const L of crit) if (L.v >= lo && L.v <= hi) cut(a, b, c, d, L.v, x0, y0, L.segs);
       }
-      ctx.stroke();
     }
+    ctx.lineWidth = 1;
+    const stroke = (segs, alpha) => {
+      if (!segs.length) return;
+      ctx.strokeStyle = MM.rgba('c1-text', alpha);
+      ctx.beginPath();
+      for (let q = 0; q < segs.length; q += 4) { ctx.moveTo(segs[q], segs[q + 1]); ctx.lineTo(segs[q + 2], segs[q + 3]); }
+      ctx.stroke();
+    };
+    for (const segs of even) stroke(segs, 0.11 * fade);
+    for (const L of crit) stroke(L.segs, 0.3 * fade);
+  }
+  // the landscape, its level lines and the axes of the picture at the top, kept while they stay the
+  // same (they depend on the critical points, arg ħ, the window and the size: not on Γ, |ħ| or Flow)
+  const base = document.createElement('canvas'), bctx = base.getContext('2d');
+  let baseKey = '';
+  function drawBase(ctx, V, k) {
+    const dpr = MM.pixelRatio(), key = [critKey(cur()), state.phi.toFixed(9), state.frame.c.join(','), V.R, V.W, V.H, dpr, k].join('|');
+    if (k === 1 && key === baseKey) { ctx.drawImage(base, 0, 0, V.W, V.H); return; }
+    const into = k === 1 ? bctx : ctx;
+    if (k === 1) {
+      const w = Math.round(V.W * dpr), h = Math.round(V.H * dpr);
+      if (base.width !== w || base.height !== h) { base.width = w; base.height = h; }
+      bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    MM.clearCanvas(into, MM.color('surface'));
+    const g = landFn(), grid = landGrid(V, g);
+    paintLand(into, V, grid);
+    drawContours(into, V, grid, g, k < 1 ? 0.7 : 1);
+    drawAxes(into, V, ['$\\mathrm{Re}\\,x$', '$\\mathrm{Im}\\,x$'], k < 1);
+    if (k === 1) { baseKey = key; ctx.drawImage(base, 0, 0, V.W, V.H); }
   }
   // the real and imaginary axes through 0, named at their ends
   function drawAxes(ctx, V, names, small) {
@@ -343,12 +370,14 @@
     const go = (x0) => (tt > 0 ? St.flowPoint(act, state.phi, x0, tt, cap, dt) : x0);
     // where Γ crosses the ascending paths: found on the polylines, then made exact (on K_i,
     // (S − S(p_i))/ħ is real), so that the flow carries them into the critical points
+    // (they do not depend on Flow: kept while only Flow changes)
+    const N1 = 240, path0 = [], ck = [critKey(cur()), state.phi.toFixed(7), ta.toFixed(6), tb.toFixed(6), f.join(','), rr, dirsSig()].join('|');
+    for (let q = 0; q <= N1; q++) path0.push(at(q / N1));
+    if (gam.ck === ck) { finishGamma(V, at, go, path0, gam.asc, gam.crossS, ck); return; }
     const asc = act.crit.map((p, i) => {
       const dd = St.mul(model.dirs[i], [0, 1]), o = { R: 30 * act.scale };
       return [St.branch(act, i, state.phi + Math.PI, dd, o), St.branch(act, i, state.phi + Math.PI, St.scl(dd, -1), o)];
     });
-    const N1 = 240, path0 = [];
-    for (let q = 0; q <= N1; q++) path0.push(at(q / N1));
     const seg = (p, q, r, t) => {
       const d1 = [q[0] - p[0], q[1] - p[1]], d2 = [t[0] - r[0], t[1] - r[1]], den = d1[0] * d2[1] - d1[1] * d2[0];
       if (Math.abs(den) < 1e-300) return null;
@@ -372,6 +401,11 @@
         }
       }
     }));
+    finishGamma(V, at, go, path0, asc, crossS, ck);
+  }
+  // Γ after the flow: its points, refined where neighbours draw apart on the screen, and the
+  // crossings carried along
+  function finishGamma(V, at, go, path0, asc, crossS, ck) {
     const pts = [];
     const N0 = 120;
     for (let q = 0; q <= N0; q++) { const s = q / N0; pts.push({ s, x: go(at(s)) }); }
@@ -393,7 +427,7 @@
     }
     const marks = [];
     pts.forEach((p, q) => { if (p.mark) marks.push(q); });
-    gam = { key: gammaKey(V), pts: pts.map((p) => p.x), orig: path0, asc, marks, cross: marks.map((q) => pts[q].x) };
+    gam = { key: gammaKey(V), ck, crossS, pts: pts.map((p) => p.x), orig: path0, asc, marks, cross: marks.map((q) => pts[q].x) };
   }
   function drawGamma(ctx, V, k) {
     // where Γ was before the flow, grey and dashed
@@ -455,10 +489,7 @@
   // the plane into a canvas: at full size (k = 1), or small, as a copy beside a figure in the text
   function renderPlane(ctx, V, k) {
     MM.clearCanvas(ctx, MM.color('surface'));
-    const g = landFn();
-    paintLand(ctx, V, g);
-    drawContours(ctx, V, g, k < 1 ? 0.7 : 1);
-    drawAxes(ctx, V, ['$\\mathrm{Re}\\,x$', '$\\mathrm{Im}\\,x$'], k < 1);
+    drawBase(ctx, V, k);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     const n = model.n || [];
@@ -679,6 +710,21 @@
   // The moduli are spaced evenly in log |ħ|, from far inside the disc at its largest zoom (HZ_MAX)
   // out to the rim at none, so that the picture zooms without computing again.
   const H_NA = 360, H_NR = 48, H_MARGIN = 0.5, H_U = 6.5, HZ_MAX = 16;
+  // The rows are worked out coarse to fine: every 8th, then those half way between, and so on; a
+  // row not yet worked out is painted from the nearest that is, so that the disc fills at once
+  // and sharpens (H_ORDER). The picture is painted at most at twice the CSS resolution.
+  const H_ORDER = [];
+  for (const [step, off] of [[8, 0], [8, 4], [4, 2], [2, 1]]) for (let a = off; a < H_NA; a += step) H_ORDER.push(a);
+  // While it zooms, and for a moment after its view changes, it is painted at the CSS resolution
+  // (hQuick), and sharpened once that is over.
+  const fullRes = () => { const pr = MM.pixelRatio(); return pr === (window.devicePixelRatio || 1) ? Math.min(pr, 2) : pr; };
+  let hFast = false, hFastT = 0;
+  const hRes = () => (hFast ? Math.min(1, fullRes()) : fullRes());
+  function hQuick(ms) {
+    hFast = true;
+    clearTimeout(hFastT);
+    hFastT = setTimeout(() => { hFast = false; drawH(); drawHCopies(); }, ms);
+  }
   let hData = { key: '' }, hReq = 0;
   // the disc, with room around it for an arc for each thimble (sp apart, the first gap out), and
   // above that for the name of the axis
@@ -706,9 +752,14 @@
     hReq = 0;
     if (hData.key !== hKey()) { hStart(); return; }
     const t0 = performance.now();
-    while (hData.next < H_NA && performance.now() - t0 < 10) hRow(hData.next++);
+    // (a longer step while the disc is still coarse, so that it fills sooner)
+    const budget = hData.next < H_NA / 8 ? 40 : 16;
+    while (hData.next < H_NA && performance.now() - t0 < budget) hRow(H_ORDER[hData.next++]);
     drawH();
     drawHCopies();
+    // (busy while the rows are worked out; data-rows says how many are)
+    hcv.setAttribute('aria-busy', String(hData.next < H_NA));
+    hcv.dataset.rows = hData.next;
     if (hData.next < H_NA) hReq = soon(hStep);
   }
   function hRow(a) {
@@ -751,12 +802,15 @@
   const hOff = document.createElement('canvas'), hoctx = hOff.getContext('2d');
   // the colours: every pixel of the rows whose branch (or whose data) is new
   function paintH(V) {
-    const dpr = MM.pixelRatio(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr), gk = cur().gamma.join(','), hv = hvNow();
+    const dpr = hRes(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr), gk = cur().gamma.join(','), hv = hvNow();
     let img = hData.img;
-    const fresh = !img || img.w !== w || img.h !== h || hData.gkey !== gk || img.hv !== hv || img.R !== V.R;
+    // (the lines of constant phase and modulus once every row is worked out: before, borrowed rows
+    // break them)
+    const lines = hData.next >= H_NA;
+    const fresh = !img || img.w !== w || img.h !== h || hData.gkey !== gk || img.hv !== hv || img.R !== V.R || img.lines !== lines;
     if (hData.gkey !== gk) { hData.ncache = new Map(); hData.gkey = gk; }
     if (fresh) {
-      img = hData.img = { w, h, hv, R: V.R, data: new ImageData(w, h), ks: new Array(H_NA).fill(null), row: new Int16Array(w * h), rho: new Float32Array(w * h), th: new Float32Array(w * h), side: new Float32Array(w * h), ph: new Float32Array(w * h), lm: new Float32Array(w * h), sh: new Float32Array(w * h), kind: new Uint8Array(w * h) };
+      img = hData.img = { w, h, hv, lines, R: V.R, data: new ImageData(w, h), ks: new Array(H_NA).fill(null), use: new Int16Array(H_NA).fill(-2), pix: null, row: new Int16Array(w * h), rho: new Float32Array(w * h), th: new Float32Array(w * h), side: new Float32Array(w * h), ph: new Float32Array(w * h), lm: new Float32Array(w * h), sh: new Float32Array(w * h), kind: new Uint8Array(w * h) };
       for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
         const q = py * w + px, x = ((px + 0.5) / dpr - V.cx) / V.k, y = -((py + 0.5) / dpr - V.cy) / V.k, r = Math.hypot(x, y), t = Math.atan2(y, x);
         img.rho[q] = r; img.th[q] = t;
@@ -766,14 +820,35 @@
         // where the pixel lies between its row's direction and the next row's (signed, < ½)
         img.side[q] = fa - a - 0.5;
       }
+      // the pixels of each row, and the ground outside the disc
+      const count = new Int32Array(H_NA), S = rgbOf('surface'), d0 = img.data.data;
+      for (let q = 0; q < w * h; q++) {
+        const a = img.row[q];
+        if (a >= 0) { count[a]++; continue; }
+        const o = 4 * q; d0[o] = S[0]; d0[o + 1] = S[1]; d0[o + 2] = S[2]; d0[o + 3] = 255;
+      }
+      img.pix = Array.from({ length: H_NA }, (_, a) => new Int32Array(count[a]));
+      count.fill(0);
+      for (let q = 0; q < w * h; q++) { const a = img.row[q]; if (a >= 0) img.pix[a][count[a]++] = q; }
     }
     // the rows to paint: the branch each takes now (and their neighbours, which they are blended with)
-    const changed = new Uint8Array(H_NA), todo = new Uint8Array(H_NA);
-    let any = false;
+    // (a row not yet worked out uses the nearest that is, `use`; one whose branch or whose row in
+    // use has changed is painted again)
+    const changed = new Uint8Array(H_NA), todo = new Uint8Array(H_NA), kOld = img.ks.slice();
     for (let a = 0; a < H_NA; a++) {
       const row = hData.rows[a];
-      const k = row ? Math.round((St.liftNear(row.th, state.phi) - row.th) / TAU) : null;
-      if (k !== img.ks[a] || fresh) { changed[a] = 1; img.ks[a] = k; any = true; }
+      img.ks[a] = row ? Math.round((St.liftNear(row.th, state.phi) - row.th) / TAU) : null;
+    }
+    const near = new Int16Array(H_NA).fill(-1), dist = new Int16Array(H_NA).fill(H_NA);
+    for (let pass = 0; pass < 2; pass++) for (let q = 0; q < 2 * H_NA; q++) {
+      const a = pass ? (2 * H_NA - 1 - q) % H_NA : q % H_NA, prev = pass ? (a + 1) % H_NA : (a + H_NA - 1) % H_NA;
+      if (hData.rows[a]) { near[a] = a; dist[a] = 0; } else if (near[prev] >= 0 && dist[prev] + 1 < dist[a]) { near[a] = near[prev]; dist[a] = dist[prev] + 1; }
+    }
+    let any = false;
+    for (let a = 0; a < H_NA; a++) {
+      const u = near[a];
+      if (fresh || u !== img.use[a] || (u >= 0 && img.ks[u] !== kOld[u])) { changed[a] = 1; any = true; }
+      img.use[a] = u;
     }
     if (!any) return img;
     for (let a = 0; a < H_NA; a++) todo[a] = changed[a] | changed[(a + 1) % H_NA] | changed[(a + H_NA - 1) % H_NA];
@@ -781,9 +856,9 @@
     const lifted = (a) => hData.rows[a].th + TAU * img.ks[a];
     const nextRow = (a, sd) => {
       const b = (a + (sd < 0 ? H_NA - 1 : 1)) % H_NA;
-      return hData.rows[b] && Math.abs(Math.abs(lifted(b) - lifted(a)) - TAU / H_NA) < 1e-6 ? b : -1;
+      return hData.rows[a] && hData.rows[b] && Math.abs(Math.abs(lifted(b) - lifted(a)) - TAU / H_NA) < 1e-6 ? b : -1;
     };
-    const d = img.data.data, S = rgbOf('surface'), vals = model.act.values, nT = model.act.n;
+    const vals = model.act.values, nT = model.act.n;
     const re = new Float64Array(nT), im = new Float64Array(nT), Tr = new Float64Array(nT), Ti = new Float64Array(nT), Ur = new Float64Array(nT), Ui = new Float64Array(nT);
     // the size of each term to leading order, |e^{-S(p_i)/ħ}| √(2π|ħ|/|S''(p_i)|), without the exponential
     const lead = model.act.second.map((s2) => Math.sqrt(TAU / St.abs(s2)));
@@ -791,19 +866,23 @@
     // dark it is (near the zeros of I, where the terms cancel), and whether it is pale (kind 2: J_i
     // where J_i is not in Γ); kind 0 has no value
     const PH = img.ph, LM = img.lm, SH = img.sh, KIND = img.kind;
-    for (let q = 0; q < w * h; q++) {
-      const a = img.row[q];
-      if (a < 0) { if (fresh) { const o = 4 * q; d[o] = S[0]; d[o + 1] = S[1]; d[o + 2] = S[2]; d[o + 3] = 255; } continue; }
-      if (!todo[a]) continue;
+    let total = 0;
+    for (let a = 0; a < H_NA; a++) if (todo[a]) total += img.pix[a].length;
+    const list = new Int32Array(total);
+    let fill = 0;
+    for (let a0 = 0; a0 < H_NA; a0++) if (todo[a0]) for (const q of img.pix[a0]) {
+      list[fill++] = q;
       KIND[q] = 0;
-      const row = hData.rows[a];
-      const n = row ? hCoef(a, img.ks[a]) : null;
+      const a = img.use[a0];
+      if (a < 0) continue;
+      const row = hData.rows[a], n = hCoef(a, img.ks[a]);
       if (!n) continue;
       const rho = img.rho[q], t = img.th[q], ct = Math.cos(t), st = Math.sin(t);
       // (between moduli in log |ħ|; inside the first, the integrals over √|ħ| hardly change)
       const fr = (Math.log(rho) - hData.lr0) / hData.lq, r0 = Math.max(0, Math.min(H_NR - 2, Math.floor(fr))), u = Math.max(0, Math.min(1, fr - r0));
       // the thimble integrals, from the row's moduli on either side, and from the next row's (U)
-      const sd = img.side[q], b0 = nextRow(a, sd), nb = b0 < 0 ? null : hCoef(b0, img.ks[b0]), b = nb ? b0 : -1;
+      // (blended only in a row of its own, not one borrowed while the disc is coarse)
+      const sd = img.side[q], b0 = a === a0 ? nextRow(a, sd) : -1, nb = b0 < 0 ? null : hCoef(b0, img.ks[b0]), b = nb ? b0 : -1;
       const wb = b < 0 ? 0 : Math.abs(sd), wa = 1 - wb;
       for (let i = 0; i < nT; i++) {
         re[i] = -(vals[i][0] * ct + vals[i][1] * st) / rho;
@@ -848,7 +927,7 @@
     }
     // then the colours (MM.phase.paint), with thin lines of constant phase and of constant modulus,
     // which break across a jump; pale where J_i is not in Γ
-    MM.phase.paint(img.data, { w, h, dpr, ph: PH, lm: LM, kind: KIND, shade: SH, only: (q) => img.row[q] >= 0 && todo[img.row[q]] === 1 });
+    MM.phase.paint(img.data, { w, h, dpr, ph: PH, lm: LM, kind: KIND, shade: SH, lines, pixels: list });
     if (hOff.width !== w || hOff.height !== h) { hOff.width = w; hOff.height = h; }
     hoctx.putImageData(img.data, 0, 0);
     return img;
@@ -914,8 +993,10 @@
     // arg ħ, out from the handle across the arcs, to read off which thimbles are in Γ there (the
     // handle stays on the rim when |ħ| is beyond the disc drawn)
     const rOut = V.D + V.gap + V.sp * model.act.n, ct = Math.cos(state.phi), st = Math.sin(state.phi), rk = Math.min(cur().r, V.R) * V.k;
-    // ending in a knob that turns ħ round and keeps |ħ| (a press anywhere outside the disc does)
+    // ending in a knob that turns ħ round and keeps |ħ| (a press anywhere outside the disc does,
+    // with a mouse), and the box over it for a finger
     MM.phase.knob(hctx, V.cx, V.cy, rk + 9, rOut + 8, state.phi);
+    placeBox(hknob, V.cx + (rOut + 8) * ct, V.cy - (rOut + 8) * st);
     // 0, where I has its essential singularity: the colours turn ever faster there
     hctx.fillStyle = MM.color('surface');
     hctx.beginPath(); hctx.arc(V.cx, V.cy, 5, 0, TAU); hctx.fill();
@@ -966,8 +1047,9 @@
     const b = e.target.closest('button[data-v]');
     if (!b) return;
     state.hv = +b.dataset.v;
+    hQuick(60);
     drawH();
-    drawCopies();
+    drawHCopies();
     if (example) example.changed();
   });
 
@@ -1057,7 +1139,7 @@
     drawH();
     drawZeta();
     drawReadouts();
-    drawCopies();
+    // (the figures in the text and their copies of the pictures, while they are in view)
     textDirty();
     // a lit term is let go once its moment is over
     clearTimeout(newTimer);
@@ -1073,6 +1155,26 @@
   }
 
   /* ---------- ħ ---------- */
+
+  // A box over a handle that a canvas draws (a knob), which on a touch screen takes the finger from
+  // the page (.draggable): elsewhere on the picture a finger scrolls the page. Hidden until placed.
+  function touchBox(parent) {
+    const b = document.createElement('div');
+    b.className = 'handle draggable sp-touchbox';
+    b.setAttribute('aria-hidden', 'true');
+    b.hidden = true;
+    parent.appendChild(b);
+    return b;
+  }
+  // how far from the point ħ (as the picture of I(ħ), or a copy of it, draws it) a press is
+  function grabOffset(e, cv) {
+    const [px, py] = localXY(e, cv), V = hview(cv.clientWidth, cv.clientHeight), r = Math.min(cur().r, V.R) * V.k;
+    return [px - (V.cx + Math.cos(state.phi) * r), py - (V.cy - Math.sin(state.phi) * r)];
+  }
+  function placeBox(b, x, y) {
+    b.hidden = false;
+    b.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+  }
 
   // φ set by a drag or the keys: held on a Stokes ray within tol of it
   function setPhi(phi, tol) {
@@ -1209,35 +1311,29 @@
   });
 
   // ħ: a press on the picture of I(ħ) puts it there, a drag moves it (held on the Stokes rays)
-  hplane.classList.add('draggable');
-  // Two fingers zoom it instead (ħ goes back to where the first one found it), as do a pinch on a
-  // trackpad, the zoom by its menu and the keys + and −; it zooms about 0, its middle.
-  const hzoomEl = $('hzoom'), fingers = new Map();
-  let pinch = null, hzReq = 0, hzEnd = 0, gest = 1;
+  // On a touch screen a finger moves ħ only from its handle or from the knob of arg ħ (a box over
+  // it, touchBox); elsewhere it scrolls the page, and two fingers zoom (MM.pinchZoom, which takes
+  // a pinch on a trackpad too). A mouse or a pen moves ħ from anywhere on the picture. The zoom by
+  // its menu and the keys + and − zoom too; it zooms about 0, its middle.
+  const hzoomEl = $('hzoom'), hknob = touchBox(hplane);
+  let hzReq = 0;
   function zoomH(f) {
     const z = clamp(state.hz * f, 1, HZ_MAX);
     if (Math.abs(z - state.hz) < 1e-9) return;
     state.hz = z;
     hzoomEl.value = z;
+    hQuick(220);
     if (!hzReq) hzReq = soon(() => { hzReq = 0; drawH(); drawHCopies(); if (example) example.changed(); });
   }
-  const zoomedH = () => { clearTimeout(hzEnd); hzEnd = setTimeout(() => MM.moved(), 250); };
-  const spread = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
   hzoomEl.addEventListener('input', () => zoomH(hzoomEl.value / state.hz));
+  MM.pinchZoom(hplane, { zoom: (f) => zoomH(f) });
   hplane.addEventListener('pointerdown', (e) => {
     if (e.button) return;
+    const onHbar = hbarEl.contains(e.target), fromHandle = onHbar || e.target === hknob;
+    if (e.pointerType === 'touch' && !fromHandle) return;
     e.preventDefault();
-    if (e.pointerType === 'touch') {
-      fingers.set(e.pointerId, [e.clientX, e.clientY]);
-      if (fingers.size >= 2) {
-        hplane.setPointerCapture(e.pointerId);
-        if (drag && drag.kind === 'hbar') { cur().r = drag.r0; setPhi(drag.phi0, 1e-7); drag = null; later(); }
-        if (fingers.size === 2) pinch = { d: spread() };
-        return;
-      }
-    }
     stopTurn();
-    drag = { kind: 'hbar', r0: cur().r, phi0: state.phi, arg: onRing(e) };
+    drag = { kind: 'hbar', r0: cur().r, phi0: state.phi, arg: e.target === hknob || (!onHbar && onRing(e)), off: onHbar ? grabOffset(e, hcv) : null };
     hplane.setPointerCapture(e.pointerId);
     hbarEl.focus({ preventScroll: true });
     moveHbar(e);
@@ -1254,26 +1350,12 @@
   }
   hplane.addEventListener('pointermove', (e) => { if (!drag && e.pointerType !== 'touch') hplane.classList.toggle('on-knob', onKnob(e)); });
   hplane.addEventListener('pointerleave', () => hplane.classList.remove('on-knob'));
-  hplane.addEventListener('pointermove', (e) => {
-    if (fingers.has(e.pointerId)) fingers.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pinch && fingers.size === 2) { const d = spread(); if (pinch.d > 0) zoomH(d / pinch.d); pinch.d = d; }
-  });
-  ['pointerup', 'pointercancel'].forEach((t) => hplane.addEventListener(t, (e) => {
-    fingers.delete(e.pointerId);
-    if (pinch && fingers.size < 2) { pinch = null; MM.moved(); }
-  }));
-  hplane.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    zoomH(Math.exp(-e.deltaY * 0.01));
-    zoomedH();
-  }, { passive: false });
-  hplane.addEventListener('gesturestart', (e) => { e.preventDefault(); gest = 1; });
-  hplane.addEventListener('gesturechange', (e) => { e.preventDefault(); if (e.scale > 0) { zoomH(e.scale / gest); gest = e.scale; } zoomedH(); });
   function moveHbar(e) {
     if (!drag || drag.kind !== 'hbar') return;
     // (on the picture, or on one of its copies beside the figures in the text)
-    const cv = drag.cv || hcv, [px, py] = localXY(e, cv), V = hview(cv.clientWidth, cv.clientHeight), x = (px - V.cx) / V.k, y = (V.cy - py) / V.k, r = Math.hypot(x, y);
+    // (less how far from ħ its handle was taken, so that ħ does not jump to the finger)
+    const cv = drag.cv || hcv, [qx, qy] = localXY(e, cv), px = qx - (drag.off ? drag.off[0] : 0), py = qy - (drag.off ? drag.off[1] : 0);
+    const V = hview(cv.clientWidth, cv.clientHeight), x = (px - V.cx) / V.k, y = (V.cy - py) / V.k, r = Math.hypot(x, y);
     // (on the ring round the disc only the angle; held on a Stokes ray within a few pixels)
     if (!drag.arg) setR(r);
     setPhi(St.liftNear(Math.atan2(y, x), state.phi), Math.min(0.15, 6 / Math.max((drag.arg ? r : cur().r) * V.k, 1)));
@@ -1527,9 +1609,12 @@
   /* ---------- copies of the pictures at the top ---------- */
 
   const planeCopies = [$('copy-stokes'), $('copy-borel')], hCopies = [$('copy-trunc'), $('copy-smooth')];
+  // the copies are drawn only while their figure is in view (or Save image is open); one that
+  // comes into view is drawn then, with its figure (drawText)
+  const copyShown = (cv) => !!cv.clientWidth && (document.documentElement.classList.contains('is-dialog-open') || [...visible].some((f) => f.el.contains(cv)));
   function drawCopies() {
     for (const cv of planeCopies) {
-      if (!cv.clientWidth) continue;
+      if (!copyShown(cv)) continue;
       const { w, h, ctx } = MM.fitCanvas(cv);
       const V = view(w, h);
       renderPlane(ctx, V, 0.5);
@@ -1545,31 +1630,38 @@
     }
     drawHCopies();
   }
-  // the copies take a drag as the picture does: inside the disc ħ, outside it only arg ħ
+  // the copies take a drag as the picture does: inside the disc ħ, outside it only arg ħ; on a touch
+  // screen only from the point ħ or the knob (boxes over them), elsewhere the finger scrolls
+  const copyBoxes = new Map();
   hCopies.forEach((cv) => {
-    cv.classList.add('draggable');
-    cv.addEventListener('pointerdown', (e) => {
+    const box = cv.parentNode, dot = touchBox(box), knob = touchBox(box);
+    copyBoxes.set(cv, { dot, knob });
+    box.addEventListener('pointerdown', (e) => {
       if (e.button) return;
+      const fromHandle = e.target === dot || e.target === knob;
+      if (e.pointerType === 'touch' && !fromHandle) return;
       e.preventDefault();
       stopTurn();
       const [px, py] = localXY(e, cv), V = hview(cv.clientWidth, cv.clientHeight);
-      drag = { kind: 'hbar', cv, r0: cur().r, phi0: state.phi, arg: Math.hypot(px - V.cx, py - V.cy) > V.D + 3 };
-      cv.setPointerCapture(e.pointerId);
+      drag = { kind: 'hbar', cv, r0: cur().r, phi0: state.phi, arg: e.target === knob || (e.target !== dot && Math.hypot(px - V.cx, py - V.cy) > V.D + 3), off: e.target === dot ? grabOffset(e, cv) : null };
+      box.setPointerCapture(e.pointerId);
       moveHbar(e);
     });
-    cv.addEventListener('pointermove', moveHbar);
-    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => cv.addEventListener(t, () => {
+    box.addEventListener('pointermove', moveHbar);
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => box.addEventListener(t, () => {
       if (drag && drag.kind === 'hbar' && drag.cv === cv) { drag = null; commit(); draw(); }
     }));
   });
   function drawHCopies() {
     for (const cv of hCopies) {
-      if (!cv.clientWidth || !hcv.width) continue;
+      if (!copyShown(cv) || !hcv.width) continue;
       const { w, h, ctx } = MM.fitCanvas(cv);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(hcv, 0, 0, w, h);
-      const V = hview(w, h), r = Math.min(cur().r, V.R);
+      const V = hview(w, h), r = Math.min(cur().r, V.R), b = copyBoxes.get(cv), kn = V.D + V.gap + V.sp * model.act.n + 8;
+      placeBox(b.dot, V.cx + Math.cos(state.phi) * r * V.k, V.cy - Math.sin(state.phi) * r * V.k);
+      placeBox(b.knob, V.cx + Math.cos(state.phi) * kn, V.cy - Math.sin(state.phi) * kn);
       ctx.beginPath(); ctx.arc(V.cx + Math.cos(state.phi) * r * V.k, V.cy - Math.sin(state.phi) * r * V.k, 4.5, 0, TAU);
       ctx.fillStyle = MM.color('handle'); ctx.fill();
       ctx.lineWidth = 1.4; ctx.strokeStyle = MM.color('accent'); ctx.stroke();
@@ -1818,6 +1910,7 @@
     ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.moveTo(V.cx, V.cy); ctx.lineTo(V.cx + e[0] * len, V.cy - e[1] * len); ctx.stroke();
     MM.phase.knob(ctx, V.cx, V.cy, len, kn, state.phi);
+    placeBox(bknob, V.cx + e[0] * kn, V.cy - e[1] * kn);
     if (state.snap && state.snap.i === i) {
       const t = model.th[i];
       if (t.hit >= 0) {
@@ -1878,7 +1971,8 @@
   // outside the disc only the angle (the knob); inside, the point ħ
   const borelAt = (e) => { const rc = borelCv.getBoundingClientRect(), V = borelView(); return { V, x: (e.clientX - rc.left - V.cx) / V.k, y: (V.cy - (e.clientY - rc.top)) / V.k }; };
   function borelPhi(e) {
-    const { V, x, y } = borelAt(e);
+    // (less how far from ħ its handle was taken)
+    const at = borelAt(e), V = at.V, x = at.x - (borelDrag.off ? borelDrag.off[0] : 0), y = at.y - (borelDrag.off ? borelDrag.off[1] : 0);
     if (!borelDrag.arg) setR(Math.hypot(x, y));
     const i = focusI(), px = Math.max((borelDrag.arg ? Math.hypot(x, y) : cur().r) * V.k, 1);
     let to = St.liftNear(Math.atan2(y, x), state.phi), snapTo = null, best = Math.min(0.15, 6 / px);
@@ -1886,13 +1980,16 @@
     if (snapTo !== null) setPhi(snapTo, 1e-9); else setPhi(to, 0);
     draw();
   }
-  borelBox.classList.add('draggable');
+  // (on a touch screen only from the handle of ħ or the knob, elsewhere the finger scrolls)
+  const bknob = touchBox(borelBox);
   borelBox.addEventListener('pointerdown', (e) => {
     if (e.button) return;
+    const onH = borelH.contains(e.target), fromHandle = onH || e.target === bknob;
+    if (e.pointerType === 'touch' && !fromHandle) return;
     e.preventDefault();
     stopTurn();
-    const { x, y } = borelAt(e);
-    borelDrag = { arg: Math.hypot(x, y) > borelData.R * 1.02 };
+    const { V, x, y } = borelAt(e), rk = Math.min(cur().r, borelData.R);
+    borelDrag = { arg: e.target === bknob || (!onH && Math.hypot(x, y) > borelData.R * 1.02), off: onH ? [x - Math.cos(state.phi) * rk, y - Math.sin(state.phi) * rk] : null };
     borelBox.setPointerCapture(e.pointerId);
     borelH.focus({ preventScroll: true });
     borelPhi(e);
@@ -2167,7 +2264,8 @@
   // only the arcs and the marks, which depend on the branches, follow the knob.
   const zpCv = $('zplane-cv'), zpick = $('zpick'), zpCap = $('zplane-cap'), ZCAP0 = zpCap.innerHTML, ZR = 5, ZS = 2 * Math.PI / 3;
   const zpOff = document.createElement('canvas'), zpoctx = zpOff.getContext('2d'), L2P = Math.log(2 * Math.sqrt(Math.PI));
-  let zpView = 0, zpTheta = 0, zpData = { key: '' }, zpDrag = false;
+  let zpView = 0, zpTheta = 0, zpDrag = false, zpFast = false, zpSharp = false;
+  const zpCache = new Map();          // by resolution: { key (the size), vals, imgs }
   function zpLayout(w, h) {
     const W = w || zpCv.clientWidth, H = h || zpCv.clientHeight, M = Math.min(W, H);
     const gap = 0.016 * M, sp = 0.018 * M, D = 0.5 * M - gap - sp * 2 - 0.065 * M;
@@ -2184,15 +2282,26 @@
     return c;
   }
   const zpNonzero = (u) => Math.abs(u[0]) + Math.abs(u[1]) > 1e-9;
-  // the values at each pixel that do not depend on the branch: Ai, and the logs of r and r^{3/2}
+  // the values at each pixel that do not depend on the branch: the angle, the logs of r and r^{3/2},
+  // and Ai (zpAi, the first time its view is painted at this size)
   function zpValues(V, w, h, dpr) {
-    const n = w * h, out = { w, h, in: new Uint8Array(n), th: new Float32Array(n), r: new Float32Array(n), lr: new Float32Array(n), r15: new Float32Array(n), aph: new Float32Array(n), alm: new Float32Array(n), wph: new Float32Array(n), wlm: new Float32Array(n) };
-    const c1 = 0.355028053887817239, c2 = 0.258819403792806798;
+    const n = w * h, out = { w, h, ai: false, in: new Uint8Array(n), x: new Float32Array(n), y: new Float32Array(n), th: new Float32Array(n), r: new Float32Array(n), lr: new Float32Array(n), r15: new Float32Array(n), aph: new Float32Array(n), alm: new Float32Array(n), wph: new Float32Array(n), wlm: new Float32Array(n) };
     for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
       const q = py * w + px, x = ((px + 0.5) / dpr - V.cx) / V.k, y = -((py + 0.5) / dpr - V.cy) / V.k, r = Math.hypot(x, y);
       if (r > ZR || r < 1e-9) continue;
       out.in[q] = 1;
       out.th[q] = Math.atan2(y, x); out.r[q] = r; out.lr[q] = Math.log(r); out.r15[q] = Math.pow(r, 1.5);
+      out.x[q] = x; out.y[q] = y;
+    }
+    return out;
+  }
+  function zpAi(out) {
+    if (out.ai) return;
+    out.ai = true;
+    const c1 = 0.355028053887817239, c2 = 0.258819403792806798;
+    for (let q = 0; q < out.w * out.h; q++) {
+      if (!out.in[q]) continue;
+      const x = out.x[q], y = out.y[q];
       // Ai: Σ z^{3k}/… in two series
       const zr2 = x * x - y * y, zi2 = 2 * x * y, z3r = zr2 * x - zi2 * y, z3i = zr2 * y + zi2 * x;
       let fr = 1, fi = 0, gr = x, gi = y, tfr = 1, tfi = 0, tgr = x, tgi = y;
@@ -2216,6 +2325,7 @@
   // the colours of one view, with the lines of constant phase and modulus as in the picture of I(ħ)
   function zpPaint(D, view, dpr) {
     const { w, h } = D, n = w * h, kind = new Uint8Array(n);
+    if (!view) zpAi(D);
     let PH = D.aph, LM = D.alm, shade = null;
     if (view) {
       // the branch continued from θ₀ the short way round, pale where w_i is not in the expansion
@@ -2243,13 +2353,25 @@
   }
   function drawZPlane() {
     if (!zpCv.clientWidth) return;
-    const { ctx } = MM.fitCanvas(zpCv), V = zpLayout(), dpr = MM.pixelRatio(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr);
-    const key = w + 'x' + h;
-    if (zpData.key !== key) zpData = { key, vals: zpValues(V, w, h, dpr), imgs: {} };
+    const { ctx } = MM.fitCanvas(zpCv), V = zpLayout();
+    // at most twice the CSS resolution, and the CSS resolution while the knob is dragged over w₁ or
+    // w₂; a picture not yet painted sharp is shown coarse first, and sharpened at the next frame
     const ik = zpView ? zpView + ':' + zpTheta.toFixed(5) : '0';
-    if (!zpData.imgs[ik]) { if (zpView) for (const k2 of Object.keys(zpData.imgs)) if (k2 !== '0') delete zpData.imgs[k2]; zpData.imgs[ik] = zpPaint(zpData.vals, zpView, dpr); }
-    if (zpOff.width !== w || zpOff.height !== h) { zpOff.width = w; zpOff.height = h; }
-    zpoctx.putImageData(zpData.imgs[ik], 0, 0);
+    const cacheAt = (dpr) => {
+      const w = Math.round(V.W * dpr), h = Math.round(V.H * dpr), key = w + 'x' + h;
+      let c = zpCache.get(dpr);
+      if (!c || c.key !== key) { c = { key, w, h, vals: zpValues(V, w, h, dpr), imgs: {} }; zpCache.set(dpr, c); }
+      return c;
+    };
+    let dpr = zpFast ? Math.min(1, fullRes()) : fullRes(), c = cacheAt(dpr);
+    if (!c.imgs[ik] && dpr > 1 && !zpSharp) {
+      dpr = 1; c = cacheAt(1);
+      zpSharp = true;
+      soon(() => { zpSharp = false; drawZPlane(); });
+    }
+    if (!c.imgs[ik]) { if (zpView) for (const k2 of Object.keys(c.imgs)) if (k2 !== '0') delete c.imgs[k2]; c.imgs[ik] = zpPaint(c.vals, zpView, dpr); }
+    if (zpOff.width !== c.w || zpOff.height !== c.h) { zpOff.width = c.w; zpOff.height = c.h; }
+    zpoctx.putImageData(c.imgs[ik], 0, 0);
     MM.clearCanvas(ctx, MM.color('surface'));
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(zpOff, 0, 0, V.W, V.H);
@@ -2287,14 +2409,16 @@
         ctx.beginPath(); ctx.arc(V.cx, V.cy, V.D + V.gap + V.sp * (i + 0.5), -b, -a); ctx.stroke();
       }
     }
-    // the knob of arg z the branches are continued from, out across the arcs
+    // the knob of arg z the branches are continued from, out across the arcs, and the box over it
     MM.phase.knob(ctx, V.cx, V.cy, V.D, V.rOut + 8, zpTheta);
+    zknob.style.transform = 'translate(' + (V.cx + (V.rOut + 8) * Math.cos(zpTheta)).toFixed(1) + 'px,' + (V.cy - (V.rOut + 8) * Math.sin(zpTheta)).toFixed(1) + 'px)';
+    zknob.setAttribute('aria-valuetext', 'arg z = ' + Math.round(zpTheta * 180 / Math.PI) + '°');
     const kr = Math.max(13, Math.min(18, 0.045 * Math.min(V.W, V.H)));
     MM.phase.key(ctx, V.W - kr - 16, V.H - kr - 16, kr);
     zpick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(+b.dataset.v === zpView)));
     zpCv.setAttribute('aria-label', (zpView
       ? 'The leading term of w' + zpView + ' in a disc of the plane of z, coloured by its phase'
-      : 'Airy’s function in a disc of the plane of z, coloured by its phase, with the Stokes rays, and arcs showing which of w1 and w2 are in its expansion') + ', continued from arg z = ' + Math.round(zpTheta * 180 / Math.PI) + '°; the arrow keys turn it');
+      : 'Airy’s function in a disc of the plane of z, coloured by its phase, with the Stokes rays, and arcs showing which of w1 and w2 are in its expansion') + ', continued from arg z = ' + Math.round(zpTheta * 180 / Math.PI) + '°');
     if (zpCap.dataset.v !== String(zpView)) {
       zpCap.dataset.v = String(zpView);
       if (!zpView) zpCap.innerHTML = ZCAP0;
@@ -2303,28 +2427,50 @@
   }
   zpCap.dataset.v = '0';
   zpick.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (!b) return; zpView = +b.dataset.v; drawZPlane(); });
-  // the knob: a drag outside the disc turns it, as do the arrow keys on the picture
+  // the knob: a drag outside the disc turns it, and so does one that starts on the knob itself (a
+  // box over it, which on a touch screen takes the finger from the page), as do the arrow keys on
+  // the knob; the picture is painted coarse while a drag over w₁ or w₂ lasts
+  const zknob = $('zknob');
   const zpAt = (e) => { const r = zpCv.getBoundingClientRect(), V = zpLayout(); return { V, x: e.clientX - r.left - V.cx, y: V.cy - (e.clientY - r.top) }; };
-  zpCv.addEventListener('pointerdown', (e) => {
-    if (e.button) return;
-    const { V, x, y } = zpAt(e);
-    if (Math.hypot(x, y) < V.D + 3) return;
+  function zpStart(e, el) {
+    const { x, y } = zpAt(e);
     e.preventDefault();
     zpDrag = true;
-    zpCv.setPointerCapture(e.pointerId);
+    zpFast = zpView > 0;
+    el.setPointerCapture(e.pointerId);
+    zknob.focus({ preventScroll: true });
     zpTheta = St.liftNear(Math.atan2(y, x), zpTheta);
     drawZPlane();
-  });
-  zpCv.addEventListener('pointermove', (e) => {
+  }
+  function zpMove(e) {
+    if (!zpDrag) return false;
+    const { x, y } = zpAt(e);
+    zpTheta = St.liftNear(Math.atan2(y, x), zpTheta);
+    drawZPlane();
+    return true;
+  }
+  function zpEnd() {
+    if (!zpDrag) return;
+    zpDrag = false;
+    if (zpFast) { zpFast = false; drawZPlane(); }
+  }
+  zpCv.addEventListener('pointerdown', (e) => {
+    if (e.button || e.pointerType === 'touch') return;
     const { V, x, y } = zpAt(e);
-    if (zpDrag) { zpTheta = St.liftNear(Math.atan2(y, x), zpTheta); drawZPlane(); return; }
-    if (e.pointerType === 'touch') return;
-    const kn = V.rOut + 8;
-    zpCv.classList.toggle('on-knob', Math.hypot(x - kn * Math.cos(zpTheta), y - kn * Math.sin(zpTheta)) < 11);
+    if (Math.hypot(x, y) < V.D + 3) return;
+    zpStart(e, zpCv);
   });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => zpCv.addEventListener(t, () => { zpDrag = false; }));
+  zknob.addEventListener('pointerdown', (e) => { if (!e.button) zpStart(e, zknob); });
+  zknob.addEventListener('pointermove', zpMove);
+  zpCv.addEventListener('pointermove', (e) => {
+    if (zpMove(e) || e.pointerType === 'touch') return;
+    // (over the ring round the disc, outside the knob's box, a hand too)
+    const { V, x, y } = zpAt(e);
+    zpCv.classList.toggle('on-knob', Math.hypot(x, y) > V.D + 3);
+  });
+  for (const el of [zpCv, zknob]) ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, zpEnd));
   zpCv.addEventListener('pointerleave', () => zpCv.classList.remove('on-knob'));
-  zpCv.addEventListener('keydown', (e) => {
+  zknob.addEventListener('keydown', (e) => {
     const turn = { ArrowLeft: 1, ArrowUp: 1, ArrowRight: -1, ArrowDown: -1 }[e.key];
     if (!turn || e.altKey || e.ctrlKey || e.metaKey) return;
     e.preventDefault();
@@ -2365,7 +2511,9 @@
     syncPickers();
     syncSliders();
     const all = document.documentElement.classList.contains('is-dialog-open');
-    for (const f of textFigs) if (f.dirty && (all || visible.has(f))) { f.dirty = false; f.draw(); }
+    let copies = false;
+    for (const f of textFigs) if (f.dirty && (all || visible.has(f))) { f.dirty = false; f.draw(); copies = true; }
+    if (copies) drawCopies();
   }
   document.addEventListener('mm:dialog', () => textDirty());
 

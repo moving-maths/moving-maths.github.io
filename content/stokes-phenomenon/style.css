@@ -20,7 +20,8 @@ body {
   --gamma: var(--ink);
 }
 
-.sp { --split-main: 1.4fr; --split-below: 52px; }
+/* (room under the bar for the Flow slider above the plane of x and the hint below it) */
+.sp { --split-main: 1.4fr; --split-below: 96px; }
 @media (max-width: 899.98px) {
   .sp > .split-main, .sp > .split-side { display: contents; }
   .sp .sp-main { order: 0; }
@@ -42,7 +43,9 @@ body {
 .sp-pt.is-lit .handle-point { stroke: var(--highlight); }
 .sp-end { cursor: grab; }
 .sp-end:active { cursor: grabbing; }
-.sp-flowrange { width: 110px; }
+/* Flow, by the plane of x it changes, above it */
+.sp-planebar { display: flex; justify-content: center; margin: 0 0 8px; }
+.sp-flowrange { width: 240px; max-width: 60vw; }
 
 /* ---------- the integral as a function of ħ, with the handle of ħ; the plane of values ---------- */
 .sp-hplane { position: relative; }
@@ -85,7 +88,10 @@ body {
 .sp-zcopy { --fig-copy-ratio: 5 / 4; }
 
 /* the plane of z of Airy's function */
-.sp-zplane { max-width: 460px; margin: 0 auto; }
+.sp-zplane { position: relative; max-width: 460px; margin: 0 auto; }
+/* the box over the knob of arg z: no picture of its own (the canvas draws the knob) */
+.sp-zknob, .sp-touchbox { --handle-size: 40px; }
+.sp-zknob:focus-visible { outline: 2px solid var(--accent); outline-offset: -10px; }
 #zplane-cv { display: block; width: 100%; aspect-ratio: 5 / 4; }
 #zplane-cv.on-knob { cursor: grab; }
 #zplane-cv.on-knob:active { cursor: grabbing; }
