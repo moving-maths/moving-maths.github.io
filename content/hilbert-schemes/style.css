@@ -48,7 +48,7 @@ body {
 
 /* the menu of a multiple point, beside it (.fig-menu): the disc of triple points, the monomial ideals, and setting its points apart */
 .hs-menu { display: grid; justify-items: center; }
-.hs-mdisc { display: block; width: 150px; height: 150px; overflow: visible; touch-action: none; }
+.hs-mdisc { display: block; width: 150px; height: 150px; overflow: visible; } /* (its handles are .draggable: a finger elsewhere scrolls the page) */
 .hs-mrow { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px; max-width: 232px; }
 .hs-menu .btn-icon { align-self: center; margin-left: 4px; }
 
@@ -136,7 +136,7 @@ body {
 
 /* the triple points at one place, and the germ the dot stands for */
 .hs-discrow { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 28px; width: fit-content; max-width: 100%; margin: 0 auto; }
-#disc { display: block; width: 280px; max-width: 100%; aspect-ratio: 1; overflow: visible; touch-action: none; }
+#disc { display: block; width: 280px; max-width: 100%; aspect-ratio: 1; overflow: visible; } /* (its dot is .draggable) */
 #germ { display: block; width: 180px; max-width: 100%; aspect-ratio: 1; overflow: visible; }
 /* with a triple point at the top, which the disc changes, a copy of the figure there (theme: .fig-copy);
    on a phone the germ and the copy side by side under the disc */

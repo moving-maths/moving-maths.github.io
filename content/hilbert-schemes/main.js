@@ -1060,15 +1060,24 @@
     return ((a % TAU) + TAU) % TAU;
   }
 
+  // how far (in CSS pixels) a press is from the point of the handle it is on (none: [0, 0])
+  function grabOffset(e, h) {
+    const dot = h && h.querySelector('.handle-point');
+    if (!dot) return [0, 0];
+    const b = dot.getBoundingClientRect();
+    return [e.clientX - (b.left + b.width / 2), e.clientY - (b.top + b.height / 2)];
+  }
   // Dragging the editor's handles: the main one (the triple point, in the disc) or a small one; the
   // picture's place on the screen is taken when a drag starts, so that the page moving under it
-  // does not move the handle. The special points hold a handle when near.
+  // does not move the handle. The special points hold a handle when near. A press elsewhere puts the
+  // triple point there, but not a touch: on a touch screen the handles alone take a finger. A drag
+  // from a handle keeps how far from its point it was taken (ref.off), so that it does not jump.
   function wireEditor(svg) {
     let ref = null;
     const local = (e) => {
       const pt = svg.createSVGPoint();
-      pt.x = e.clientX + (window.scrollX - ref.sx);
-      pt.y = e.clientY + (window.scrollY - ref.sy) - (pinned - ref.pin);
+      pt.x = e.clientX + (window.scrollX - ref.sx) - ref.off[0];
+      pt.y = e.clientY + (window.scrollY - ref.sy) - (pinned - ref.pin) - ref.off[1];
       return pt.matrixTransform(ref.ctm);
     };
     function stateAt(c, step, q, e) {
@@ -1095,11 +1104,11 @@
     }
     svg.addEventListener('pointerdown', (e) => {
       if (e.button) return;
-      const c = state.menu !== null ? byId(state.menu) : null;
-      if (!c) return;
+      const c = state.menu !== null ? byId(state.menu) : null, held = e.target.closest('.ed-handle, .dc-handle, .dc-ghost');
+      if (!c || (e.pointerType === 'touch' && !held)) return;
       e.preventDefault();
-      const h = e.target.closest('[data-step]');
-      ref = { id: e.pointerId, ctm: svg.getScreenCTM().inverse(), sx: window.scrollX, sy: window.scrollY, pin: pinned, step: h ? +h.dataset.step : -1, places: len(c) > 3 ? stepPlaces(editorOf(c)) : [] };
+      const h = e.target.closest('[data-step]'), ctm = svg.getScreenCTM().inverse();
+      ref = { id: e.pointerId, ctm, sx: window.scrollX, sy: window.scrollY, pin: pinned, off: grabOffset(e, held), step: h ? +h.dataset.step : -1, places: len(c) > 3 ? stepPlaces(editorOf(c)) : [] };
       record();
       try { svg.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
       // (the handle itself takes the focus, when the drag starts on its mirror image too)
@@ -1322,7 +1331,7 @@
     state.wall = best;
     state.phi = best ? Math.atan2(best[1], best[0]) / DEG : deg;
   }
-  // The handle is dragged round the dial. The ideal above it may take more lines as the order
+  // The handle is dragged round the dial (from where it was taken). The ideal above it may take more lines as the order
   // changes, moving the picture: the drag keeps to where the picture was when it started, and the
   // readouts only grow meanwhile (lock).
   let dial = null;
@@ -1336,14 +1345,16 @@
   stair.addEventListener('pointerdown', (e) => {
     if (e.button || !e.target.closest('.st-handle')) return;
     e.preventDefault();
-    dial = { id: e.pointerId, ctm: stair.getScreenCTM().inverse(), sx: window.scrollX, sy: window.scrollY, pin: pinned };
+    dial = { id: e.pointerId, ctm: stair.getScreenCTM().inverse(), sx: window.scrollX, sy: window.scrollY, pin: pinned, off: 0 };
+    // (how far round from the weight it was taken, so that the weight does not jump to the pointer)
+    dial.off = dialAngle(e) - wAngle();
     lock('dial');
     try { stair.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
     e.target.closest('.st-handle').focus({ preventScroll: true });
   });
   stair.addEventListener('pointermove', (e) => {
     if (!dial || dial.id !== e.pointerId) return;
-    setAngle(dialAngle(e));
+    setAngle(dialAngle(e) - dial.off);
     changed();
   });
   const endDial = (e) => {
@@ -1666,15 +1677,18 @@
     if (E) drawChain(svg, E, true, focusStep);
   }
   // dragging the dot of a disc (the picture's place on the screen taken when the drag starts, so
-  // that the page moving under it does not move the dot), and the arrow keys
+  // that the page moving under it does not move the dot), and the arrow keys. A press elsewhere on
+  // the disc puts the dot there, but not a touch: on a touch screen a finger moves the dot only from
+  // it (or its image across the rim), and elsewhere scrolls the page. A drag from the dot keeps how
+  // far from it it was taken (ref.off), so that the dot does not jump to the pointer.
   function wireDisc(svg, target) {
     let ref = null;
     // past the rim the dot comes back in across the disc, on the opposite side; the fixed points
     // and the rim hold it when near
     const at = (e) => {
       const pt = svg.createSVGPoint();
-      pt.x = e.clientX + (window.scrollX - ref.sx);
-      pt.y = e.clientY + (window.scrollY - ref.sy);
+      pt.x = e.clientX + (window.scrollX - ref.sx) - ref.off[0];
+      pt.y = e.clientY + (window.scrollY - ref.sy) - ref.off[1];
       const q = pt.matrixTransform(ref.ctm);
       return discPoint(q.x / DR, -q.y / DR, holdTol(e, Math.hypot(ref.ctm.a, ref.ctm.b), DR), HS.MARKS.triple);
     };
@@ -1686,9 +1700,11 @@
     };
     svg.addEventListener('pointerdown', (e) => {
       if (e.button) return;
+      const held = e.target.closest('.dc-handle, .dc-ghost');
+      if (e.pointerType === 'touch' && !held) return;
       e.preventDefault();
       if (target()) record();
-      ref = { id: e.pointerId, ctm: svg.getScreenCTM().inverse(), sx: window.scrollX, sy: window.scrollY };
+      ref = { id: e.pointerId, ctm: svg.getScreenCTM().inverse(), sx: window.scrollX, sy: window.scrollY, off: grabOffset(e, held) };
       try { svg.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
       const h = svg.querySelector('.dc-handle');
       if (h) h.focus({ preventScroll: true });

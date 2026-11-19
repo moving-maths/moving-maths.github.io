@@ -1307,25 +1307,28 @@
     const r = chartSvg.getBoundingClientRect();
     return chartX.s((clientX - r.left) * chartX.W / (r.width || 1));
   }
-  // the handle: a drag moves it along the curve, and t with it
+  // the handle: a drag moves it along the curve, and t with it (less how far from t it was taken,
+  // so that t does not jump to the pointer)
   knob.addEventListener('pointerdown', (e) => {
     if (e.button || !chartX) return;
     e.preventDefault();
     e.stopPropagation();
     knob.setPointerCapture(e.pointerId);
-    tHeld = { id: e.pointerId };
+    tHeld = { id: e.pointerId, off: sOnChart(e.clientX) - state.s };
     knob.focus({ preventScroll: true });
   });
-  knob.addEventListener('pointermove', (e) => { if (tHeld && tHeld.id === e.pointerId) setS(snap(sOnChart(e.clientX))); });
+  knob.addEventListener('pointermove', (e) => { if (tHeld && tHeld.id === e.pointerId) setS(snap(sOnChart(e.clientX) - tHeld.off)); });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => knob.addEventListener(t, (e) => {
     if (!tHeld || tHeld.id !== e.pointerId) return;
     tHeld = false;
     commit();
   }));
   knob.addEventListener('keydown', tKeys);
-  // a click on the chart puts t there
+  // a click on the chart puts t there; a tap does not (on a touch screen t moves by its handle only)
+  let chartTouch = false;
+  chartSvg.addEventListener('pointerdown', (e) => { chartTouch = e.pointerType === 'touch'; });
   chartSvg.addEventListener('click', (e) => {
-    if (!chartX || e.target.closest('.ch-handle')) return;
+    if (!chartX || chartTouch || e.target.closest('.ch-handle')) return;
     const s = sOnChart(e.clientX);
     if (s < -0.25 || s > S1 + 0.25) return;
     setS(snap(s));

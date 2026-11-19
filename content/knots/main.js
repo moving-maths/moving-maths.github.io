@@ -1561,13 +1561,19 @@
       if (press.kind === 'cross') { const c = state.X[press.k]; press.i = Math.floor(state.over[press.k] ? c.b : c.a); }
       press.kind = 'pull';
       press.moved = true;
+      // the strand is held where it was taken: the point pulled keeps its offset from the pointer
+      // (from here on p0 is that point, where the pull started), so that it does not jump to it
+      const g0 = state.pts[press.i];
+      press.off = [press.p0[0] - g0[0], press.p0[1] - g0[1]];
+      press.p0 = g0.slice();
       closeMenu(false);
       remember('pull');
       state.name = null;
     }
-    const R = K.ring(state.pts.length, state.cut), c = R.cp[press.i], M = state.cut[c + 1] - state.cut[c], g = state.pts[press.i], far = Math.hypot(p[0] - press.p0[0], p[1] - press.p0[1]);
+    const b = F().back(q), t = inside([b[0] - press.off[0], b[1] - press.off[1]]);
+    const R = K.ring(state.pts.length, state.cut), c = R.cp[press.i], M = state.cut[c + 1] - state.cut[c], g = state.pts[press.i], far = Math.hypot(t[0] - press.p0[0], t[1] - press.p0[1]);
     const reach = Math.max(5, Math.min(Math.floor(M / 3), Math.round((0.25 + 0.7 * far) / H0)));
-    let r = K.pull(knot(), press.i, p[0] - g[0], p[1] - g[1], reach);
+    let r = K.pull(knot(), press.i, t[0] - g[0], t[1] - g[1], reach);
     const big = tooBig(r, false);
     if (big) { say(big); draw(); return; }
     // stretched too far: the vertices are spaced evenly again, and the pull goes on from the nearest
@@ -1577,7 +1583,7 @@
     if (longest > 2.2 * H0) { const held = r.pts[press.i], cc = r.caught; r = K.respace(r, H0); r.caught = cc; state.pts = r.pts; press.i = nearest(held); }
     state.pts = r.pts; state.cut = r.cut; state.over = r.over; state.X = r.X || K.crossings(r.pts, r.cut);
     catchAt(r.caught);
-    state.near = contactAt(press.i, [p[0] - press.p0[0], p[1] - press.p0[1]]);
+    state.near = contactAt(press.i, [t[0] - press.p0[0], t[1] - press.p0[1]]);
     draw();
   });
   function release(e, cancelled) {

@@ -56,8 +56,11 @@ body {
 .cs-trail { fill: none; stroke: var(--cs-trail); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: .75; pointer-events: none; }
 .cs-ghost .cs-trail { opacity: .4; }
 
-/* the sphere: turned by a drag (.draggable); its far half shows through a pale disc, the graticule shows how it is turned */
-.cs-turn { fill: transparent; }
+/* the sphere: turned by a drag (MM.turnDrag, which gives the stage .turnable: the grab cursor only
+   over the sphere); its far half shows through a pale disc, the graticule shows how it is turned */
+#stage.turnable { cursor: default; }
+.cs-turn { fill: transparent; cursor: grab; }
+.cs-turn:active { cursor: grabbing; }
 .cs-ball { fill: var(--surface); fill-opacity: .72; pointer-events: none; }
 .cs-rim { fill: none; stroke: var(--cs-edge); stroke-width: 1.4; pointer-events: none; }
 .cs-grid { fill: none; stroke: var(--rule); stroke-width: 1; pointer-events: none; }

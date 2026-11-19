@@ -35,7 +35,7 @@
   let stage = $('stage'); // (for a moment another picture, as the copy beside the braids is drawn)
   const stagebox = $('stagebox'), strataSvg = $('strata'), spaceCv = $('space'), sctx = spaceCv.getContext('2d');
   const braidCv = $('braid'), bctx = braidCv.getContext('2d');
-  let spaceTurn = null, braidTurn = null; // their drags (MM.turnDrag), set up below
+  let spaceTurn = null, braidTurn = null, ballTurn = null; // their drags (MM.turnDrag), and the stage's sphere's, set up below
   const measure = document.createElement('canvas').getContext('2d'); // for the widths of labels
   const el = MM.svg;
 
@@ -104,7 +104,6 @@
     views: { ...VIEWS }, // the rotations of the 3D pictures
     ball: VIEWBALL,       // the rotation of the stage's sphere
     turning: null,        // while a 3D picture is turned by a drag
-    rolling: null,        // while the stage's sphere is turned by a drag
     anim: null,           // a move under way, or one played back: { path, t0, T, then }
   };
 
@@ -281,6 +280,7 @@
       : ball ? (s.antipodal ? 'The projective plane as a sphere whose opposite points are the same point, so that each point shows twice, and the points on it.' : 'The sphere, and the points on it; its far side shows through, fainter.') + ' Drag a point, or move it with the arrow keys; drag the sphere to turn it.'
         : 'The ' + s.name + ' as a square with its edges glued as the arrows say, and the points on it. Drag a point, or move it with the arrow keys.');
     stage.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    if (ballTurn) ballTurn.update();
   }
   const sx = (x) => G.m + x * G.S, sy = (y) => (G.one ? G.y0 : G.m + (1 - y) * G.S);
   // the pointer, in the stage's own units
@@ -472,8 +472,8 @@
   const dOf = (pts) => pts.map((q, j) => (j ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join('');
   function drawBall(cl) {
     const s = CS.SURFACES[state.surface], signs = s.antipodal ? [1, -1] : [1];
-    // the handle for turning the sphere, under everything; then the far half, the disc, the near half
-    el('circle', { class: 'cs-turn draggable', cx: G.cx, cy: G.cy, r: G.R + 6 }, stage);
+    // what a drag turns the sphere by (MM.turnDrag, below), under everything; then the far half, the disc, the near half
+    el('circle', { class: 'cs-turn', cx: G.cx, cy: G.cy, r: G.R + 6 }, stage);
     const farG = el('g', {}, stage);
     el('circle', { class: 'cs-ball', cx: G.cx, cy: G.cy, r: G.R }, stage);
     const nearG = el('g', {}, stage);
@@ -1833,18 +1833,11 @@
 
   // A point is dragged by itself or any of its copies. From a collision, the point on top of the
   // pile (the last dragged) comes out; dropped on another point, it collides with it. Elsewhere
-  // on a sphere, a drag turns the sphere.
+  // on a sphere, a drag turns the sphere (ballTurn, below).
   stage.addEventListener('pointerdown', (e) => {
     if (e.button) return;
     const g = e.target.closest('.cs-pt');
-    if (!g) {
-      if (G.ball && e.target.closest('.cs-turn')) {
-        e.preventDefault();
-        state.rolling = { x: e.clientX, y: e.clientY, id: e.pointerId };
-        try { stage.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
-      }
-      return;
-    }
+    if (!g) return;
     e.preventDefault();
     stop();
     const c = clusters()[+g.dataset.c], t = +g.dataset.t, i = topOf(c.idx), m = stageXY(e), before = snap();
@@ -1862,17 +1855,6 @@
     try { stage.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ }
   });
   stage.addEventListener('pointermove', (e) => {
-    const r = state.rolling;
-    if (r && e.pointerId === r.id) {
-      // the near side of the sphere follows the pointer
-      const f = G.W / (stage.getBoundingClientRect().width || G.W);
-      state.ball = mm(mm(rotY((e.clientX - r.x) * f / G.R), rotX((e.clientY - r.y) * f / G.R)), state.ball);
-      r.x = e.clientX;
-      r.y = e.clientY;
-      dirty.stage = true;
-      wake();
-      return;
-    }
     const d = state.drag;
     if (!d || e.pointerId !== d.id || d.pick) return;
     if (!d.moved && Math.hypot(e.clientX - d.start[0], e.clientY - d.start[1]) < 3) return;
@@ -1890,7 +1872,6 @@
     redraw();
   });
   function endDrag(e, cancelled) {
-    if (state.rolling && e.pointerId === state.rolling.id) { state.rolling = null; return; }
     const d = state.drag;
     if (!d || e.pointerId !== d.id) return;
     state.drag = null;
@@ -1925,6 +1906,19 @@
     } else return;
     e.preventDefault();
     draw();
+  });
+
+  // The sphere on the stage turns under a drag from it, off the points: on a touch screen one that
+  // starts sideways (one that starts up or down scrolls the page, MM.turnDrag). The near side of the
+  // sphere follows the pointer.
+  ballTurn = MM.turnDrag(stage, {
+    when: (e) => G.ball && (!e || !!e.target.closest('.cs-turn')),
+    move: (dx, dy) => {
+      const f = G.W / (stage.getBoundingClientRect().width || G.W);
+      state.ball = mm(mm(rotY(dx * f / G.R), rotX(dy * f / G.R)), state.ball);
+      dirty.stage = true;
+      wake();
+    },
   });
 
   // the 3D pictures turn under a drag (on a touch screen, one that starts sideways), or the arrow
@@ -2801,7 +2795,7 @@
       if (order && (x.r.length !== k || new Set(x.r).size !== k || !x.r.every((i) => Number.isInteger(i) && i >= 0 && i < k))) return false;
       stop();
       forget();
-      Object.assign(state, { surface: x.x, k, ordered: x.o, paths: x.t, spin: x.s && !MM.reduceMotion(), ball: x.b, views: { ...VIEWS }, drag: null, target: null, turning: null, rolling: null });
+      Object.assign(state, { surface: x.x, k, ordered: x.o, paths: x.t, spin: x.s && !MM.reduceMotion(), ball: x.b, views: { ...VIEWS }, drag: null, target: null, turning: null });
       state.order = order ? x.r.slice() : Array.from({ length: k }, (_, i) => i);
       state.pts = Array.from({ length: k }, (_, i) => (pts ? CS.wrap(x.x, x.p.slice(dim * i, dim * i + dim), LO) : home(i)));
       if (VIEWS[kindNow()] && named.has('v')) state.views[kindNow()] = x.v;

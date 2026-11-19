@@ -1496,21 +1496,28 @@
     pan: (dx, dy) => { const sys = system(); if (zoomsNow(sys) && sys.rank === 3) { slide(sys, 0, 0, dx, -dy); draw(); } },
   });
 
-  // the handle: drag it, or move it with the arrow keys
-  let dragging = false;
+  // the handle: drag it, or move it with the arrow keys. A drag keeps how far from the handle's
+  // point it was taken (grabOff), so that the handle does not jump to the pointer.
+  let dragging = false, grabOff = [0, 0];
   function handleTo(e) {
-    const r = canvas.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = r.top + r.height / 2 - e.clientY, sys = system();
+    const cx = e.clientX - grabOff[0], cy = e.clientY - grabOff[1];
+    const r = canvas.getBoundingClientRect(), x = cx - r.left - r.width / 2, y = r.top + r.height / 2 - cy, sys = system();
     if (isFlat(sys)) {
       const V = viewFlat(sys);
-      if (V.disc) placeHandle(sys, V, e.clientX - r.left, e.clientY - r.top);
-      else state.n = V.from(e.clientX - r.left, e.clientY - r.top);
+      if (V.disc) placeHandle(sys, V, cx - r.left, cy - r.top);
+      else state.n = V.from(cx - r.left, cy - r.top);
       return;
     }
     if (state.rank === 2) { if (x || y) state.n = unit([x, y]); return; }
     const K = sphereK(sys), d = Math.hypot(x, y) / K;
     state.n = tmv(state.view, d >= 1 ? [x / K / d, y / K / d, 0] : [x / K, y / K, Math.sqrt(1 - d * d)]);
   }
-  handle.addEventListener('pointerdown', (e) => { handle.setPointerCapture(e.pointerId); dragging = true; });
+  handle.addEventListener('pointerdown', (e) => {
+    const b = handle.getBoundingClientRect();
+    grabOff = [e.clientX - (b.left + b.width / 2), e.clientY - (b.top + b.height / 2)];
+    handle.setPointerCapture(e.pointerId);
+    dragging = true;
+  });
   handle.addEventListener('pointermove', (e) => { if (dragging) { handleTo(e); draw(); } });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => handle.addEventListener(t, () => { dragging = false; }));
   const ARROWS = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };

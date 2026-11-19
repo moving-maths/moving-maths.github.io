@@ -2364,9 +2364,11 @@
     }
     return out;
   }
-  let dragging = null;
+  // the handle dragged, and how far from its point it was taken (taken off every move, so that the
+  // weight does not jump to the pointer)
+  let dragging = null, grabOff = [0, 0];
   function dragTo(which, e) {
-    const r = canvas.getBoundingClientRect(), x = clamp(e.clientX - r.left, 6, r.width - 6), y = clamp(e.clientY - r.top, 6, r.height - 6);
+    const r = canvas.getBoundingClientRect(), x = clamp(e.clientX - grabOff[0] - r.left, 6, r.width - 6), y = clamp(e.clientY - grabOff[1] - r.top, 6, r.height - 6);
     const k = kind();
     if (k === 'aff-line' || k === 'aff-space') {
       // the finite part of Λ, anywhere; it snaps to the integral weights (without Any weight, it
@@ -2420,7 +2422,11 @@
   }
   for (const which of ['lam', 'nu']) {
     const el = handles[which];
-    el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); dragging = which; e.preventDefault(); draw(); });
+    el.addEventListener('pointerdown', (e) => {
+      const b = el.getBoundingClientRect();
+      grabOff = [e.clientX - (b.left + b.width / 2), e.clientY - (b.top + b.height / 2)];
+      el.setPointerCapture(e.pointerId); dragging = which; e.preventDefault(); draw();
+    });
     el.addEventListener('pointermove', (e) => { if (dragging === which) dragTo(which, e); });
     const end = () => { if (dragging === which) { dragging = null; retarget(); } };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, end));
