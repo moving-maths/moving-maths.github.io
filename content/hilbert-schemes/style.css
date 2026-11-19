@@ -55,6 +55,12 @@ body {
 /* the further points of a point of multiplicity four or more: a small handle on a circle round
    the handle before it, or in a small disc (after m², the disc of D, with its circle of squares) */
 .hs-mdisc.is-wide { width: min(260px, calc(100vw - 64px)); height: min(260px, calc(100vw - 64px)); }
+/* on a touch screen the handles in the menu's disc, drawn small, take a finger well beyond their dots:
+   a transparent ring round each pad, the same width on the screen at any size (about 22 px round
+   the small handles) */
+@media (pointer: coarse) {
+  .hs-mdisc .hs-pad { stroke: transparent; stroke-width: 28px; vector-effect: non-scaling-stroke; }
+}
 .hs-mdisc.is-wide + .hs-mrow { max-width: min(260px, calc(100vw - 64px)); }
 .ed-orbit { fill: none; stroke: var(--ink-3); stroke-width: 1.1; pointer-events: none; }
 .ed-disc { fill: color-mix(in srgb, var(--surface) 60%, transparent); stroke: var(--ink-3); stroke-width: 1.1; pointer-events: none; }
