@@ -39,6 +39,8 @@
 //   localInverse(act, i, K)       the coefficients b_k of y(w), S(p_i + y) − S(p_i) = w²
 //   integral(act, i, hbar, d)     the integral over J_i: { e: −S(p_i)/ħ, v } with I = e^e·v
 //   predict(...)                  the large orders of the series from the other series
+//   remainders(...)               the error of the series summed to N terms, from the other
+//                                 series, far below what doubles resolve directly
 //   borelRay(...)                 the Borel transform of the series along a ray
 //   flowPath(...)                 a path pushed along the upward flow of Re(S/ħ)
 //
@@ -336,40 +338,45 @@
   // midpoint strays from the Hermite cubic: the path turns sharply there); Gauss–Legendre on
   // each step, its nodes found by Newton from the cubic.
   function halfIntegral(act, i, hbar, v0, U) {
-    const p = act.crit[i], Si = act.values[i];
-    const solve = (x, u) => {
-      const tg = add(Si, scl(hbar, u * u));
+    // (in y = x − p_i, with S expanded about p_i, so that S'(p_i + y) is as precise as y itself:
+    // near p_i, S'(x) from x would lose the digits that p_i and x share)
+    const p = act.crit[i], tc = taylorAt(act, p), ds = [];
+    for (let k = 1; k < tc.length; k++) ds.push(scl(tc[k], k));
+    ds[0] = C(0);
+    const g0 = tc.slice(0, 2).map(() => C(0)).concat(tc.slice(2));          // S(p_i + y) − S(p_i)
+    const solve = (y, u) => {
+      const tg = scl(hbar, u * u);
       for (let it = 0; it < 40; it++) {
-        const dx = div(sub(evalS(act, x), tg), evalDS(act, x));
-        x = sub(x, dx);
-        if (abs(dx) < 1e-15 * (1 + abs(x))) break;
+        const dy = div(sub(horner(g0, y), tg), horner(ds, y));
+        y = sub(y, dy);
+        if (abs(dy) < 1e-16 * abs(y) + 1e-300) break;
       }
-      return x;
+      return y;
     };
-    const deriv = (x, u) => (u === 0 ? v0 : div(scl(hbar, 2 * u), evalDS(act, x)));
+    const deriv = (y, u) => (u === 0 ? v0 : div(scl(hbar, 2 * u), horner(ds, y)));
     const hermite = (xa, da, xb, db, h, s) => {
       const s2 = s * s, s3 = s2 * s;
       return add(add(scl(xa, 2 * s3 - 3 * s2 + 1), scl(da, (s3 - 2 * s2 + s) * h)), add(scl(xb, -2 * s3 + 3 * s2), scl(db, (s3 - s2) * h)));
     };
-    let u = 0, x = p, dx = v0, total = C(0);
+    let u = 0, y = C(0), dy = v0, total = C(0);
     while (u < U - 1e-12) {
       let near = Infinity;
-      for (let j = 0; j < act.n; j++) if (j !== i) near = Math.min(near, abs(sub(x, act.crit[j])));
-      let h = Math.min(0.2, U - u, 0.12 * near / Math.max(abs(dx), 1e-300));
-      let x1, dx1;
+      for (let j = 0; j < act.n; j++) if (j !== i) near = Math.min(near, abs(sub(add(p, y), act.crit[j])));
+      let h = Math.min(0.2, U - u, 0.12 * near / Math.max(abs(dy), 1e-300));
+      let y1, dy1;
       for (;;) {
-        x1 = solve(add(x, scl(dx, h)), u + h);
-        dx1 = deriv(x1, u + h);
-        const guess = hermite(x, dx, x1, dx1, h, 0.5), xm = solve(guess, u + h / 2);
-        if (abs(sub(xm, guess)) <= 1e-3 * abs(sub(x1, x)) + 1e-14 || h < 1e-10) break;
+        y1 = solve(add(y, scl(dy, h)), u + h);
+        dy1 = deriv(y1, u + h);
+        const guess = hermite(y, dy, y1, dy1, h, 0.5), ym = solve(guess, u + h / 2);
+        if (abs(sub(ym, guess)) <= 1e-3 * abs(sub(y1, y)) + 1e-14 * abs(y1) || h < 1e-10) break;
         h /= 2;
       }
       for (let k = 0; k < GL.nodes.length; k++) {
-        const s = GL.nodes[k], uu = u + h * s;
-        const xg = solve(hermite(x, dx, x1, dx1, h, s), uu);
-        total = add(total, scl(deriv(xg, uu), GL.weights[k] * h * Math.exp(-uu * uu)));
+        const t = GL.nodes[k], uu = u + h * t;
+        const yg = solve(hermite(y, dy, y1, dy1, h, t), uu);
+        total = add(total, scl(deriv(yg, uu), GL.weights[k] * h * Math.exp(-uu * uu)));
       }
-      x = x1; dx = dx1; u += h;
+      y = y1; dy = dy1; u += h;
     }
     return total;
   }
@@ -467,6 +474,82 @@
     }
     return out;
   }
+  // The error of the series of J_i summed to N terms, R_N = f(ħ) − Σ_{k<N} a_k ħ^k for N = 0 … K,
+  // where f is the integral over J_i divided by e^{−S(p_i)/ħ} √(2πħ/S''(p_i)), from the series
+  // of the points J_i runs into (the first L coefficients of each). By (4), R_N is the Laplace
+  // integral of β_i less its Taylor polynomial, and Cauchy's formula takes that onto the cut of β_i
+  // from each singularity A = A_ij outward, where β_i jumps by κ_ij β_j(t − A) √t/√(t − A). With
+  // ζ = ħs on the ray of ħ and t = A(1 + y²) on the cut,
+  //   R_N = Σ_j κ_ij/(2πi√π) (ħ/A)^N ∫_0^∞ ds e^{−s} s^{N−1/2}
+  //           ∫_0^∞ dy 2 (1 + y²)^{1/2−N} Σ_l b^{(j)}_l A^l y^{2l} / (1 + y² − sħ/A),
+  // b_l = a_l/(½)_l. For ħ far from the ray these are Γ(N − l)/A^{N−l} times ħ^N, the large
+  // orders of predict; near it the pole of the inner integral is avoided by turning the path of s
+  // a little the other way (the side the integral over J_i is on). Exact apart from the
+  // coefficients left out, which matter only for the first few N; worked out with logarithms, so
+  // that nothing overflows. With `from`, only the N from there on (the rest are left 0). With
+  // act, β_j itself is used on the cut (borelAlong) in place of its first L coefficients, which
+  // makes R_N exact but for the quadrature (the values are kept in cache, by j and N, for the
+  // next call with the same act and A).
+  function remainders(rays, hbar, K, L, ser, from, act, cache) {
+    const out = [];
+    for (let N = 0; N <= K; N++) out.push(C(0));
+    const lp = (l) => lgamma(l + 0.5) - lgamma(0.5);
+    for (const r of rays) for (const j of r.js) {
+      const A = r.A[j], F = div(A, hbar), aF = arg(F), lF = Math.log(abs(F)), aj = ser(j), la = Math.log(abs(A)), ta = arg(A);
+      const W = [];
+      for (let l = 0; l < L; l++) W.push(mul(aj[l], cexp(C(l * la - lp(l), l * ta))));
+      const psi = Math.abs(aF) < 0.35 ? (aF < 0 ? 0.35 : -0.35) : 0, cp = Math.cos(psi), sp = Math.sin(psi), rot = cis(psi), invF = div(C(1), F);
+      const pre = div(r.kappa[j], C(0, TAU * Math.sqrt(Math.PI)));
+      const M = 96, P = 64;
+      for (let N = from || 1; N <= K; N++) {
+        const n = N - 0.5, rs = n / cp, sig = Math.sqrt(N + 0.5) / cp, r0 = Math.max(1e-12, rs - 10 * sig), r1 = rs + 10 * sig + 5;
+        const lmax = -rs * cp + n * Math.log(rs), hr = (r1 - r0) / M, hy = 7 / Math.sqrt(Math.max(n, 0.5)) / P;
+        // the inner weights, by Simpson's rule in y
+        const yr = new Float64Array(P + 1), yi = new Float64Array(P + 1), yv = new Float64Array(P + 1);
+        if (act) {
+          // β_j itself, which decays like t^{1/m − 1/2}: the integrand falls off only as a power of
+          // y for small N, so y = tan τ, out to where the rest is below 10⁻⁸
+          const key = j + ':' + N + ':' + A[0] + ',' + A[1];
+          let c = cache && cache.get(key);
+          if (!c) {
+            const Y = Math.min(1e4, Math.max(7 / Math.sqrt(Math.max(n, 0.5)), Math.pow(10, 8 / (2 * N + 1 - 2 / act.m)))), T = Math.atan(Y), ht = T / P;
+            const radii = [], cw = [];
+            for (let q = 0; q <= P; q++) { const t = Math.tan(q * ht); radii.push(abs(A) * t * t); cw.push((q === 0 || q === P ? 1 : q % 2 ? 4 : 2) * ht / 3 * 2 * Math.pow(Math.cos(q * ht), 2 * N - 3)); }
+            c = { b: borelAlong(act, j, ta, radii), v: radii.map((x) => x / abs(A)), cw };
+            if (cache) cache.set(key, c);
+          }
+          for (let q = 0; q <= P; q++) { yr[q] = c.b[2 * q] * c.cw[q]; yi[q] = c.b[2 * q + 1] * c.cw[q]; yv[q] = c.v[q]; }
+        } else for (let q = 0; q <= P; q++) {
+          const y = q * hy, v = y * y, w = (q === 0 || q === P ? 1 : q % 2 ? 4 : 2) * hy / 3;
+          let wr = 0, wi = 0, vl = 1;
+          for (let l = 0; l < L; l++) { wr += W[l][0] * vl; wi += W[l][1] * vl; vl *= v; }
+          const f = 2 * w * Math.pow(1 + v, 0.5 - N);
+          yr[q] = wr * f; yi[q] = wi * f; yv[q] = v;
+        }
+        let tr = 0, ti = 0;
+        for (let q = 0; q <= M; q++) {
+          const rr = r0 + q * hr, wq = (q === 0 || q === M ? 1 : q % 2 ? 4 : 2) * hr / 3;
+          const sr = rr * cp, si = rr * sp, fr = sr * invF[0] - si * invF[1], fi = sr * invF[1] + si * invF[0];
+          // Σ_y weight / (1 + y² − s/F)
+          let ir = 0, ii = 0;
+          for (let p = 0; p <= P; p++) {
+            const dr = 1 + yv[p] - fr, di = -fi, dd = dr * dr + di * di;
+            ir += (yr[p] * dr + yi[p] * di) / dd;
+            ii += (yi[p] * dr - yr[p] * di) / dd;
+          }
+          // e^{−s} s^{N−1/2}, over e^{lmax}
+          const m = Math.exp(-rr * cp + n * Math.log(rr) - lmax) * wq, ph = -rr * sp + n * psi, er = m * Math.cos(ph), ei = m * Math.sin(ph);
+          tr += er * ir - ei * ii;
+          ti += er * ii + ei * ir;
+        }
+        // × e^{iψ} (ds) × e^{lmax} (ħ/A)^N
+        const tot = mul(mul(C(tr, ti), rot), cexp(C(lmax - N * lF, -N * aF)));
+        out[N] = add(out[N], mul(pre, tot));
+      }
+    }
+    return out;
+  }
+
 
   /* ---------- the Borel transform ---------- */
 
@@ -478,15 +561,22 @@
   // On the principal sheet it is singular where the ray meets a critical value that J_i runs
   // into; there |β| grows without bound, and the values beyond it on the two sides differ.
   function borelRay(act, i, alpha, rhoMax, nR, inv, out) {
+    const radii = [];
+    for (let k = 0; k <= nR; k++) radii.push(rhoMax * k / nR);
+    return borelAlong(act, i, alpha, radii, inv, out);
+  }
+  // β_i at the radii (increasing, from 0 or more) along the ray of direction α from 0, by
+  // following the two roots x± of S(x) = S(p_i) + ζ out from p_i: β_i(ζ) = √ζ (1/S'(x₊) − 1/S'(x₋))/b₁
+  function borelAlong(act, i, alpha, radii, inv, out) {
+    inv = inv || localInverse(act, i, 24);
     const p = act.crit[i], Si = act.values[i], b1 = inv[1];
-    const e = cis(alpha), sq = cis(alpha / 2);
+    const e = cis(alpha), sq = cis(alpha / 2), nR = radii.length - 1, rhoMax = Math.max(radii[nR], 1e-300);
     out = out || new Float64Array(2 * (nR + 1));
-    out[0] = 1; out[1] = 0;
     // start on the local series, at a radius well inside its circle of convergence
     let near = Infinity;
     for (let j = 0; j < act.n; j++) if (j !== i) near = Math.min(near, abs(sub(act.crit[j], p)));
     const yOf = (w) => { let y = C(0), pw = C(1); for (let k = 1; k < inv.length; k++) { pw = mul(pw, w); y = add(y, mul(inv[k], pw)); } return y; };
-    let rho = Math.min(rhoMax / nR, Math.pow(0.05 * near / abs(b1), 2));
+    let rho = Math.min(radii.find((r) => r > 0) || rhoMax, Math.pow(0.05 * near / abs(b1), 2));
     let w = scl(sq, Math.sqrt(rho));
     let xp = add(p, yOf(w)), xm = add(p, yOf(scl(w, -1)));
     const solve = (x, z) => {
@@ -502,8 +592,17 @@
       const a = div(C(1), evalDS(act, xp)), b = div(C(1), evalDS(act, xm));
       return mul(div(scl(sq, Math.sqrt(r)), b1), sub(a, b));
     };
-    for (let k = 1; k <= nR; k++) {
-      const goal = rhoMax * k / nR;
+    for (let k = 0; k <= nR; k++) {
+      const goal = radii[k];
+      if (goal <= 0) { out[2 * k] = 1; out[2 * k + 1] = 0; continue; }
+      if (goal < rho) {
+        // (inside the first step: from the local series)
+        w = scl(sq, Math.sqrt(goal));
+        const sp = add(p, yOf(w)), sm = add(p, yOf(scl(w, -1))), a = div(C(1), evalDS(act, solve(sp, scl(e, goal)))), b = div(C(1), evalDS(act, solve(sm, scl(e, goal))));
+        const v = mul(div(scl(sq, Math.sqrt(goal)), b1), sub(a, b));
+        out[2 * k] = v[0]; out[2 * k + 1] = v[1];
+        continue;
+      }
       while (rho < goal) {
         // a step that moves each root by at most a tenth of its distance to the other critical points
         let lim = Infinity;
@@ -525,6 +624,7 @@
     }
     return out;
   }
+
 
   /* ---------- the integrals along a ray of ħ ---------- */
 
@@ -644,6 +744,6 @@
     fromRoots, horner, action, evalS, evalDS, taylorAt,
     valleyAngle, valleyOf, mod, directions, branch, thimbles, decompose,
     powSeries, series, localInverse, integral,
-    turnDirs, liftNear, stokesRays, predict, borelRay, rayTargets, thimbleRay, rayCombine, rayAngle, rayPlan, rayStep, flowPoint,
+    turnDirs, liftNear, stokesRays, predict, remainders, borelRay, borelAlong, rayTargets, thimbleRay, rayCombine, rayAngle, rayPlan, rayStep, flowPoint,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -8,6 +8,8 @@ category-theory:
   name: Category theory
 combinatorics:
   name: Combinatorics
+complex-analysis:
+  name: Complex analysis
 differential-geometry:
   name: Differential geometry
 higher-algebra:
@@ -18,5 +20,3 @@ representation-theory:
   name: Representation theory
 topology:
   name: Topology
-mathematical-physics:
-  name: Mathematical physics

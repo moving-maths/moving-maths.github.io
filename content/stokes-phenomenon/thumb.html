@@ -1,42 +1,46 @@
-<!-- The card image (npm run thumbs): the plane of x of Airy's integral, S = x³/3 − x, just
-     before the Stokes ray at arg ħ = π, drawn as the page draws it with heavier marks so that it
-     reads at card size: the landscape of the integrand (light blue where it is large), the
-     thimble J₁ of p₁ = −1 (which Γ flows onto, thick) swinging close past p₂ = 1 on its way to the
-     valley, the thimble J₂ through p₂ thin, the path Γ part of the way along its flow, and the
-     critical points. Computed with stokes.js, as on the page. -->
+<!-- The card image (npm run thumbs): the picture at the top as the page opens, Airy's integral
+     S = x³/3 − x at arg ħ ≈ 34°, drawn as main.js draws it with heavier marks so that it reads at
+     card size: the landscape of the integrand (light blue where it is large) and its level lines,
+     the axes, the ascending paths K_i (dashed), the thimble J₁ of p₁ = −1 (thick, Γ's thimble) and
+     J₂ (thin), the path Γ between its two valleys with its arrow, the point where it crosses K₁
+     (red ring), and the critical points. Computed with
+     stokes.js, as on the page, in the page's window (its middle at the centre of the critical
+     points, ±1.9 across), here wider than high. -->
 <script src="stokes.js"></script>
 <script>
 (function () {
   const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), St = window.Stokes, TAU = 2 * Math.PI;
-  const act = St.action([[-1, 0], [1, 0]]), phi = Math.PI - 0.1;
-  const k = W / 4.7, X = (x) => W / 2 + x * k, Y = (y) => H / 2 - y * k;
+  const act = St.action([[-1, 0], [1, 0]]), phi = 0.6, gamma = [1, 2];
+  // the page's window is ±1.9 square; here it is ±1.85 high, so that both ends of Γ show, clear of
+  // the edges
+  const k = (H / 2) / 1.85, X = (x) => W / 2 + x * k, Y = (y) => H / 2 - y * k;
   const xOf = (px) => (px - W / 2) / k, yOf = (py) => (H / 2 - py) / k;
-  // the landscape: g = asinh(Re((S − S̄)e^{−iφ}) / σ), darker where the integrand is large
-  const sigma = 2 / 3, rc = Math.cos(phi), rs = Math.sin(phi);
+  // the landscape: g = asinh(Re((S − S̄) e^{−iφ}) / σ), S̄ the mean of the critical values (0) and
+  // σ their largest distance from it
+  const sigma = Math.max(...act.values.map((v) => St.abs(v))), rc = Math.cos(phi), rs = Math.sin(phi);
   const g = (x, y) => { const s = St.evalS(act, [x, y]); return Math.asinh((s[0] * rc + s[1] * rs) / sigma); };
+  const rgb = (n) => MM.color(n).match(/[\d.]+/g).slice(0, 3).map(Number);
   function draw() {
     cx.clearRect(0, 0, W, H);
-    const step = 2, w = Math.ceil(W / step), h = Math.ceil(H / step);
-    const off = document.createElement('canvas');
+    const step = 2, w = Math.ceil(W / step), h = Math.ceil(H / step), off = document.createElement('canvas');
     off.width = w; off.height = h;
-    const o = off.getContext('2d'), img = o.createImageData(w, h), d = img.data;
-    const rgb = (n) => MM.color(n).match(/[\d.]+/g).slice(0, 3).map(Number), P = rgb('paper'), I = rgb('land');
+    const o = off.getContext('2d'), img = o.createImageData(w, h), d = img.data, P = rgb('surface'), B = rgb('land');
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const a = 0.26 * (1 - Math.tanh(g(xOf((i + 0.5) * step), yOf((j + 0.5) * step)) / 1.1)) / 2, q = 4 * (j * w + i);
-      d[q] = P[0] + (I[0] - P[0]) * a; d[q + 1] = P[1] + (I[1] - P[1]) * a; d[q + 2] = P[2] + (I[2] - P[2]) * a; d[q + 3] = 255;
+      const a = 0.24 * (1 - Math.tanh(g(xOf((i + 0.5) * step), yOf((j + 0.5) * step)) / 1.1)) / 2, q = 4 * (j * w + i);
+      d[q] = P[0] + (B[0] - P[0]) * a; d[q + 1] = P[1] + (B[1] - P[1]) * a; d[q + 2] = P[2] + (B[2] - P[2]) * a; d[q + 3] = 255;
     }
     o.putImageData(img, 0, 0);
     cx.imageSmoothingEnabled = true;
     cx.drawImage(off, 0, 0, w * step, h * step);
-    // level lines, by marching squares, the ones through the critical points darker
-    const s = 6, nx = Math.ceil(W / s) + 1, ny = Math.ceil(H / s) + 1, G = new Float64Array(nx * ny);
+    // level lines, evenly in g, those through the critical points darker (marching squares)
+    const s = 5, nx = Math.ceil(W / s) + 1, ny = Math.ceil(H / s) + 1, G = new Float64Array(nx * ny);
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) G[j * nx + i] = g(xOf(i * s), yOf(j * s));
     const levels = [];
-    for (let q = -10; q <= 10; q++) levels.push([q * 0.55, 0.13, 1.6]);
-    for (const p of act.crit) levels.push([g(p[0], p[1]), 0.32, 2]);
-    for (const [L, al, lw] of levels) {
+    for (let q = -14; q <= 14; q++) levels.push([q * 0.55, 0.14]);
+    for (const p of act.crit) levels.push([g(p[0], p[1]), 0.34]);
+    cx.lineWidth = 1.8;
+    for (const [L, al] of levels) {
       cx.strokeStyle = MM.rgba('c1-text', al);
-      cx.lineWidth = lw;
       cx.beginPath();
       for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
         const a = G[j * nx + i] - L, b = G[j * nx + i + 1] - L, c = G[(j + 1) * nx + i + 1] - L, e = G[(j + 1) * nx + i] - L;
@@ -49,52 +53,78 @@
       }
       cx.stroke();
     }
-    // the thimbles: J₂ thin, then J₁ (Γ) thick
-    const dirs = St.directions(act, phi), th = St.thimbles(act, phi, dirs, { R: 20 });
-    const line = (b) => { cx.beginPath(); for (let q = 0; q < b.pts.length; q += 2) { const px = X(b.pts[q]), py = Y(b.pts[q + 1]); if (q) cx.lineTo(px, py); else cx.moveTo(px, py); } cx.stroke(); };
+    // the axes
+    cx.strokeStyle = MM.rgba('ink', 0.32); cx.lineWidth = 1.6;
+    cx.beginPath(); cx.moveTo(0, Y(0)); cx.lineTo(W, Y(0)); cx.moveTo(X(0), 0); cx.lineTo(X(0), H); cx.stroke();
     cx.lineCap = cx.lineJoin = 'round';
-    cx.strokeStyle = MM.color('th-2');
-    cx.lineWidth = 3.4;
-    line(th[1].plus); line(th[1].minus);
-    cx.strokeStyle = MM.color('th-1');
-    cx.lineWidth = 6.5;
-    line(th[0].plus); line(th[0].minus);
-    // Γ, Airy's path from the valley on the left to the one below on the right, part of the way
-    // along the upward flow of Re(S/ħ), as the page draws it with Flow half way
-    const va = (k) => (phi + TAU * k) / 3, rr = 1.12, far = 3.5;
-    const ua = [Math.cos(va(1)), Math.sin(va(1))], ub = [Math.cos(va(2)), Math.sin(va(2))];
-    const Ha = [rr * ua[0], rr * ua[1]], Hb = [rr * ub[0], rr * ub[1]], C = [0.14 * (ub[1] - ua[1]), -0.14 * (ub[0] - ua[0])];
-    const at = (s) => {
-      if (s < 0.12) { const t = s / 0.12; return [far * ua[0] + (Ha[0] - far * ua[0]) * t, far * ua[1] + (Ha[1] - far * ua[1]) * t]; }
-      if (s > 0.88) { const t = (s - 0.88) / 0.12; return [Hb[0] + (far * ub[0] - Hb[0]) * t, Hb[1] + (far * ub[1] - Hb[1]) * t]; }
-      const t = (s - 0.12) / 0.76;
-      return [0, 1].map((q) => (1 - t) * (1 - t) * Ha[q] + 2 * t * (1 - t) * C[q] + t * t * Hb[q]);
+    const line = (pts) => { cx.beginPath(); for (let q = 0; q < pts.length; q += 2) { const px = X(pts[q]), py = Y(pts[q + 1]); if (q) cx.lineTo(px, py); else cx.moveTo(px, py); } cx.stroke(); };
+    // the orientations as the page sets them up (each thimble of Γ runs the way Γ does), the
+    // ascending paths K_i, dashed, and the thimbles: J₂ thin, then J₁, Γ's, thick
+    const dirs = St.directions(act, phi), o2 = { R: 30 };
+    const asc = act.crit.map((p, i) => { const dd = St.mul(dirs[i], [0, 1]); return [St.branch(act, i, phi + Math.PI, dd, o2), St.branch(act, i, phi + Math.PI, St.scl(dd, -1), o2)]; });
+    cx.setLineDash([9, 8]); cx.lineWidth = 2.4; cx.globalAlpha = 0.8;
+    asc.forEach((halves, i) => { cx.strokeStyle = MM.color('th-' + (i + 1)); halves.forEach((b) => line(b.pts)); });
+    cx.setLineDash([]); cx.globalAlpha = 1;
+    const th = St.thimbles(act, phi, dirs, { R: 30 });
+    cx.strokeStyle = MM.color('th-2'); cx.lineWidth = 3; line(th[1].plus.pts); line(th[1].minus.pts);
+    cx.strokeStyle = MM.color('th-1'); cx.lineWidth = 6.5; line(th[0].plus.pts); line(th[0].minus.pts);
+    // Γ as the page draws it before any flow: in from far out along its first valley, through the
+    // handle of that end on a circle of radius 1.672 (the page's rim), along a cubic that leaves
+    // each handle along its valley and bulges a little to one side, and out along the other valley
+    const va = (j) => (phi + TAU * j) / 3, rr = 0.44 * 2 * 1.9, far = 3.2 * rr;
+    const ua = [Math.cos(va(gamma[0])), Math.sin(va(gamma[0]))], ub = [Math.cos(va(gamma[1])), Math.sin(va(gamma[1]))];
+    const Ha = [rr * ua[0], rr * ua[1]], Hb = [rr * ub[0], rr * ub[1]], dl = Math.hypot(Hb[0] - Ha[0], Hb[1] - Ha[1]);
+    const side = [-0.1 * (Hb[1] - Ha[1]) / dl, 0.1 * (Hb[0] - Ha[0]) / dl];
+    const P1 = [Ha[0] - 0.7 * rr * ua[0], Ha[1] - 0.7 * rr * ua[1]], P2 = [Hb[0] - 0.7 * rr * ub[0], Hb[1] - 0.7 * rr * ub[1]];
+    const at = (sv) => {
+      if (sv < 0.12) { const t = sv / 0.12; return [far * ua[0] + (Ha[0] - far * ua[0]) * t, far * ua[1] + (Ha[1] - far * ua[1]) * t]; }
+      if (sv > 0.88) { const t = (sv - 0.88) / 0.12; return [Hb[0] + (far * ub[0] - Hb[0]) * t, Hb[1] + (far * ub[1] - Hb[1]) * t]; }
+      const t = (sv - 0.12) / 0.76, u = 1 - t, b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t, bump = 16 * t * t * u * u;
+      return [0, 1].map((c) => b0 * Ha[c] + b1 * P1[c] + b2 * P2[c] + b3 * Hb[c] + bump * side[c]);
     };
-    const go = (x) => St.flowPoint(act, phi, x, 0.9, 3, 0.02);
-    let pts = [];
-    for (let q = 0; q <= 160; q++) pts.push({ s: q / 160, x: go(at(q / 160)) });
-    for (let pass = 0; pass < 10; pass++) {
-      let added = 0;
-      for (let q = pts.length - 2; q >= 0; q--) {
-        const A = pts[q], B = pts[q + 1];
-        if (Math.hypot(X(A.x[0]) - X(B.x[0]), Y(A.x[1]) - Y(B.x[1])) > 4 && B.s - A.s > 1e-9) { const sm = (A.s + B.s) / 2; pts.splice(q + 1, 0, { s: sm, x: go(at(sm)) }); added++; }
-      }
-      if (!added) break;
+    const path = [];
+    for (let q = 0; q <= 600; q++) { const p = at(q / 600); path.push(p[0], p[1]); }
+    cx.strokeStyle = MM.color('gamma'); cx.lineWidth = 4.4; line(path);
+    // where Γ crosses K₁, (S − S(p₁))/ħ real and negative there: a red ring, and the arrow a little
+    // after it along Γ
+    const F = (sv) => St.mul(St.sub(St.evalS(act, at(sv)), act.values[0]), St.cis(-phi));
+    let sc = null;
+    for (let q = 0; q < 600 && sc === null; q++) {
+      let lo = q / 600, hi = (q + 1) / 600;
+      if (F(lo)[1] * F(hi)[1] > 0 || F(lo)[0] > 0) continue;
+      for (let it = 0; it < 60; it++) { const mid = (lo + hi) / 2; if (F(mid)[1] * F(lo)[1] <= 0) hi = mid; else lo = mid; }
+      sc = (lo + hi) / 2;
     }
-    cx.strokeStyle = MM.color('gamma');
-    cx.lineWidth = 4.5;
-    cx.beginPath();
-    pts.forEach((p, q) => { const px = X(p.x[0]), py = Y(p.x[1]); if (q) cx.lineTo(px, py); else cx.moveTo(px, py); });
-    cx.stroke();
-    // the critical points: the handle's yellow, ringed in the colour of their thimbles
+    if (sc !== null) {
+      const c0 = at(sc), cxp = X(c0[0]), cyp = Y(c0[1]);
+      // the arrow 56 pixels on along Γ
+      let left = 56, prev = [cxp, cyp], arr = null;
+      for (let q = 1; q <= 400 && !arr; q++) {
+        const p = at(sc + q / 4000), np = [X(p[0]), Y(p[1])], l = Math.hypot(np[0] - prev[0], np[1] - prev[1]);
+        if (l >= left) { const t = left / l, dx = (np[0] - prev[0]) / l, dy = (np[1] - prev[1]) / l; arr = { x: prev[0] + t * (np[0] - prev[0]), y: prev[1] + t * (np[1] - prev[1]), dx, dy }; }
+        left -= l; prev = np;
+      }
+      cx.lineWidth = 4;
+      if (arr) {
+        const z = 11, px = -arr.dy, py = arr.dx;
+        cx.beginPath();
+        cx.moveTo(arr.x - arr.dx * z + px * z * 0.8, arr.y - arr.dy * z + py * z * 0.8);
+        cx.lineTo(arr.x + arr.dx * z * 0.6, arr.y + arr.dy * z * 0.6);
+        cx.lineTo(arr.x - arr.dx * z - px * z * 0.8, arr.y - arr.dy * z - py * z * 0.8);
+        cx.stroke();
+      }
+      cx.strokeStyle = MM.color('highlight'); cx.lineWidth = 3.2;
+      cx.beginPath(); cx.arc(cxp, cyp, 10, 0, TAU); cx.stroke();
+    }
+    // Γ named by its first end, inside the rim and to one side, as the page names it
+    const lp = [X(Ha[0]) - ua[0] * 46 - ua[1] * 28, Y(Ha[1]) + ua[1] * 46 - ua[0] * 28];
+    cx.fillStyle = MM.rgba('surface', 0.8); cx.beginPath(); cx.arc(lp[0], lp[1], 19, 0, TAU); cx.fill();
+    MM.canvasLabel(cx, '$\\Gamma$', lp[0], lp[1], { size: 36, align: 'center', baseline: 'middle', color: MM.color('ink') });
+    // the critical points: yellow, ringed in their thimbles' colours
     act.crit.forEach((p, i) => {
-      cx.beginPath();
-      cx.arc(X(p[0]), Y(p[1]), 13, 0, TAU);
-      cx.fillStyle = MM.color('handle');
-      cx.fill();
-      cx.lineWidth = 4.5;
-      cx.strokeStyle = MM.color('th-' + (i + 1));
-      cx.stroke();
+      cx.beginPath(); cx.arc(X(p[0]), Y(p[1]), 12, 0, TAU);
+      cx.fillStyle = MM.color('handle'); cx.fill();
+      cx.lineWidth = 4; cx.strokeStyle = MM.color('th-' + (i + 1)); cx.stroke();
     });
   }
   MM.onFonts(draw);

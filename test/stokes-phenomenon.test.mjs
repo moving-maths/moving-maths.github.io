@@ -180,6 +180,42 @@ test('the large orders of each series follow from the others (resurgence)', () =
   }
 });
 
+test('the error of the truncated series follows from the other series, also beside a Stokes ray', () => {
+  // the error computed directly (where doubles resolve it) against the remainder from the
+  // neighbours' series, for random actions, at |A/ħ| about 12, and for Airy's integral on either
+  // side of the Stokes ray of J_1
+  const cases = [];
+  for (let trial = 0; trial < 6; trial++) cases.push({ act: spreadAction(2 + (trial % 3)), phi: 0.2 + trial });
+  const airy = St.action([[-1, 0], [1, 0]]);
+  cases.push({ act: airy, phi: Math.PI - 0.03, only: 0 }, { act: airy, phi: Math.PI + 0.03, only: 0 });
+  for (const { act, phi, only } of cases) {
+    const dirs = St.directions(act, phi), ser = [];
+    const sj = (j) => ser[j] || (ser[j] = St.series(act, j, 40));
+    for (let i = 0; i < act.n; i++) {
+      if (only !== undefined && i !== only) continue;
+      const rays = St.stokesRays(act, i, dirs, phi);
+      if (!rays.length) continue;
+      let amin = Infinity;
+      for (const r of rays) for (const j of r.js) amin = Math.min(amin, St.abs(r.A[j]));
+      const hb = St.scl(St.cis(phi), amin / 12), a = sj(i), I = St.integral(act, i, hb, dirs[i]);
+      const exact = St.div(I.v, St.scl(I.v0, Math.sqrt(Math.PI))), R = St.remainders(rays, hb, 20, 3, sj);
+      // with β_j itself on the cut (borelAlong) in place of three of its coefficients: exact but
+      // for the quadrature (to 10⁻³ of the error from N = 2, 10⁻⁴ from N = 6)
+      const Rx = St.remainders(rays, hb, 20, 3, sj, 1, act, new Map());
+      let sum = St.C(0), hk = St.C(1);
+      for (let N = 1; N <= 20; N++) {
+        sum = St.add(sum, St.mul(a[N - 1], hk)); hk = St.mul(hk, hb);
+        const err = St.sub(exact, sum), direct = St.abs(err);
+        if (direct < 1e-11 * St.abs(exact)) continue;
+        if (N >= 2) assert.ok(St.abs(St.sub(Rx[N], err)) / direct < (N < 6 ? 1e-3 : 1e-4), `exact β, i = ${i}, N = ${N}, φ = ${phi}: ${St.abs(St.sub(Rx[N], err)) / direct}`);
+        if (N < 8) continue;
+        const rel = St.abs(St.sub(R[N], err)) / direct;
+        assert.ok(rel < 0.02, `i = ${i}, N = ${N}, φ = ${phi}: ${rel}`);
+      }
+    }
+  }
+});
+
 test('the Borel transform along a ray agrees with its series near 0', () => {
   const act = St.action([[0.3, -0.2], [-0.8, 0.4], [0.5, 0.9]]), i = 0;
   const a = St.series(act, i, 40), inv = St.localInverse(act, i, 24);

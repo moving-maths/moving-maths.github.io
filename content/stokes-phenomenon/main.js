@@ -40,8 +40,9 @@
   const DEGREES = [3, 4, 5];
   const NAMES = { 3: 'Airy integral', 4: 'Pearcey integral', 5: 'Swallowtail integral' };
   const PHI0 = 0.6;                 // arg ħ as the page opens
-  const RH_FIT = 0.6;               // the disc of ħ: |ħ| up to this times the largest difference of critical values
-  const R_SPAN = 200;               // and down to that over this
+  const RH_FIT = 2;                 // the disc of ħ: |ħ| up to this times the largest difference of critical values
+                                    // (on its Stokes rays J_i jumps by about e^{−|A|/|ħ|} of itself, ⅗ or more at the rim)
+  const R_SPAN = 600;               // and down to that over this
   const FLOW0 = 0;                  // how far Γ has flowed as the page opens (a fraction of the slider)
   const TURN = 48;                  // seconds for a whole turn of ħ, with Turn on
   const HOLD = 0.9;                 // seconds Turn rests on a Stokes ray
@@ -61,6 +62,8 @@
     lit: -1,                        // the thimble pointed at in the sum
     flow: FLOW0,                    // how far Γ has flowed, 0 … 1
     focus: 0,                       // the critical point the figures in the text are about
+    hv: 0,                          // the integral the picture of ħ shows: 0 over Γ, i over J_i
+    hz: 1,                          // the picture of ħ's magnification: |ħ| up to RH / hz
   };
   const cur = () => state.cases[state.deg];
   function freshCase(d) {
@@ -171,6 +174,8 @@
   const fmtN = (x) => { const r = Math.round(x * 100) / 100; return (r < 0 ? '−' : '') + Math.abs(r); };
   const fmtC = (p) => fmtN(p[0]) + (p[1] < 0 ? ' − ' : ' + ') + fmtN(Math.abs(p[1])) + 'i';
   const texNum = (x, d) => x.toFixed(d).replace(/\.?0+$/, '');
+  // a list in words: "a", "a and b", "a, b and c"
+  const listTex = (xs) => (xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]);
   const rTex = (r) => texNum(r, r < 0.01 ? 4 : r < 0.1 ? 3 : 2);
   const degOf = (phi) => { const d = Math.round(((phi * 180 / Math.PI) % 360 + 540) % 360 - 180); return d === -180 ? 180 : d; };
 
@@ -297,10 +302,12 @@
 
   // Γ before the flow: in from far out along the direction of its first valley, through the
   // handle of that end, round near the middle of the window, out through the handle of the other
-  // end and far out along its valley. Flow pushes every point of it up the landscape for a time
-  // that grows as the square of the slider (the flow is slowed where S' is large, so that nothing
-  // reaches infinity: the same paths, at other speeds), with points put in wherever neighbours
-  // draw apart on the screen. The points where Γ crossed the ascending paths K_i are carried too.
+  // end and far out along its valley, without corners (the flow would sharpen a corner into a
+  // kink). Flow pushes every point of it up the landscape for a time that grows as the square of
+  // the slider (the flow is slowed where S' is large, so that nothing reaches infinity: the same
+  // paths, at other speeds), with points put in wherever neighbours draw apart on the screen. The
+  // points where Γ crosses the ascending paths K_i are carried too; they run into the critical
+  // points, and the arrows that show which way Γ runs follow them.
   let gam = { key: '' };
   // the direction of an end of Γ: its valley's, or where a drag holds it, or on the way back
   function endAngle(e) {
@@ -316,10 +323,14 @@
     const rr = rimRadius(V) / V.k, far = 3.2 * rr;
     const Ha = [f[0] + rr * ua[0], f[1] + rr * ua[1]], Hb = [f[0] + rr * ub[0], f[1] + rr * ub[1]];
     const Fa = [f[0] + far * ua[0], f[1] + far * ua[1]], Fb = [f[0] + far * ub[0], f[1] + far * ub[1]];
-    // the bend: about the middle of the window, a little to one side, clear of a critical point there
-    const d = [Hb[0] - Ha[0], Hb[1] - Ha[1]], dl = Math.hypot(d[0], d[1]) || 1;
-    const C = [f[0] - 0.14 * act.scale * d[1] / dl, f[1] + 0.14 * act.scale * d[0] / dl];
-    const bez = (t) => [(1 - t) * (1 - t) * Ha[0] + 2 * t * (1 - t) * C[0] + t * t * Hb[0], (1 - t) * (1 - t) * Ha[1] + 2 * t * (1 - t) * C[1] + t * t * Hb[1]];
+    // the bend: a cubic that leaves each handle along its end's direction, bulging a little to one
+    // side about the middle of the window, clear of a critical point there
+    const d = [Hb[0] - Ha[0], Hb[1] - Ha[1]], dl = Math.hypot(d[0], d[1]) || 1, side = [-0.1 * act.scale * d[1] / dl, 0.1 * act.scale * d[0] / dl];
+    const P1 = [Ha[0] - 0.7 * rr * ua[0], Ha[1] - 0.7 * rr * ua[1]], P2 = [Hb[0] - 0.7 * rr * ub[0], Hb[1] - 0.7 * rr * ub[1]];
+    const bez = (t) => {
+      const u = 1 - t, b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t, bump = 16 * t * t * u * u;
+      return [0, 1].map((c) => b0 * Ha[c] + b1 * P1[c] + b2 * P2[c] + b3 * Hb[c] + bump * side[c]);
+    };
     const at = (s) => {
       if (s < 0.12) { const t = s / 0.12; return [Fa[0] + (Ha[0] - Fa[0]) * t, Fa[1] + (Ha[1] - Fa[1]) * t]; }
       if (s > 0.88) { const t = (s - 0.88) / 0.12; return [Hb[0] + (Fb[0] - Hb[0]) * t, Hb[1] + (Fb[1] - Hb[1]) * t]; }
@@ -330,9 +341,42 @@
     const T = 7 / lmin, tt = T * state.flow * state.flow;
     const cap = 3 * Math.pow(act.scale, act.n), dt = Math.min(0.06 / lmax, 0.02 * rr / cap);
     const go = (x0) => (tt > 0 ? St.flowPoint(act, state.phi, x0, tt, cap, dt) : x0);
+    // where Γ crosses the ascending paths: found on the polylines, then made exact (on K_i,
+    // (S − S(p_i))/ħ is real), so that the flow carries them into the critical points
+    const asc = act.crit.map((p, i) => {
+      const dd = St.mul(model.dirs[i], [0, 1]), o = { R: 30 * act.scale };
+      return [St.branch(act, i, state.phi + Math.PI, dd, o), St.branch(act, i, state.phi + Math.PI, St.scl(dd, -1), o)];
+    });
+    const N1 = 240, path0 = [];
+    for (let q = 0; q <= N1; q++) path0.push(at(q / N1));
+    const seg = (p, q, r, t) => {
+      const d1 = [q[0] - p[0], q[1] - p[1]], d2 = [t[0] - r[0], t[1] - r[1]], den = d1[0] * d2[1] - d1[1] * d2[0];
+      if (Math.abs(den) < 1e-300) return null;
+      const u = ((r[0] - p[0]) * d2[1] - (r[1] - p[1]) * d2[0]) / den, v = ((r[0] - p[0]) * d1[1] - (r[1] - p[1]) * d1[0]) / den;
+      return u >= 0 && u < 1 && v >= 0 && v < 1 ? u : null;
+    };
+    const rot = St.cis(-state.phi), crossS = [];
+    asc.forEach((halves, i) => halves.forEach((hh) => {
+      const F = (s) => St.mul(St.sub(St.evalS(act, at(s)), act.values[i]), rot)[1];
+      for (let k = 0; k + 3 < hh.pts.length; k += 2) {
+        const r = [hh.pts[k], hh.pts[k + 1]], t = [hh.pts[k + 2], hh.pts[k + 3]];
+        for (let e = 0; e + 1 < path0.length; e++) {
+          const u = seg(path0[e], path0[e + 1], r, t);
+          if (u === null) continue;
+          let lo = e / N1, hi = (e + 1) / N1, flo = F(lo), sc = (e + u) / N1;
+          if (flo * F(hi) < 0) {
+            for (let it = 0; it < 60; it++) { const mid = (lo + hi) / 2, fm = F(mid); if (fm * flo <= 0) hi = mid; else { lo = mid; flo = fm; } }
+            sc = (lo + hi) / 2;
+          }
+          crossS.push(sc);
+        }
+      }
+    }));
     const pts = [];
     const N0 = 120;
     for (let q = 0; q <= N0; q++) { const s = q / N0; pts.push({ s, x: go(at(s)) }); }
+    for (const sc of crossS) pts.push({ s: sc, x: go(at(sc)), mark: true });
+    pts.sort((p, q) => p.s - q.s);
     const scr = (x) => [V.X(x[0]), V.Y(x[1])];
     const shown = (p) => p[0] > -V.W * 0.4 && p[0] < V.W * 1.4 && p[1] > -V.H * 0.4 && p[1] < V.H * 1.4;
     for (let pass = 0; pass < 14 && pts.length < 1800; pass++) {
@@ -347,30 +391,9 @@
       }
       if (!added) break;
     }
-    // the ascending paths, and where Γ before the flow crosses them
-    const asc = act.crit.map((p, i) => {
-      const dd = St.mul(model.dirs[i], [0, 1]), o = { R: 30 * act.scale };
-      return [St.branch(act, i, state.phi + Math.PI, dd, o), St.branch(act, i, state.phi + Math.PI, St.scl(dd, -1), o)];
-    });
-    const path0 = [];
-    for (let q = 0; q <= 240; q++) path0.push(at(q / 240));
-    const cross = [];
-    const seg = (p, q, r, t) => {
-      const d1 = [q[0] - p[0], q[1] - p[1]], d2 = [t[0] - r[0], t[1] - r[1]], den = d1[0] * d2[1] - d1[1] * d2[0];
-      if (Math.abs(den) < 1e-300) return null;
-      const u = ((r[0] - p[0]) * d2[1] - (r[1] - p[1]) * d2[0]) / den, v = ((r[0] - p[0]) * d1[1] - (r[1] - p[1]) * d1[0]) / den;
-      return u >= 0 && u < 1 && v >= 0 && v < 1 ? u : null;
-    };
-    asc.forEach((halves) => halves.forEach((h) => {
-      for (let k = 0; k + 3 < h.pts.length; k += 2) {
-        const r = [h.pts[k], h.pts[k + 1]], t = [h.pts[k + 2], h.pts[k + 3]];
-        for (let e = 0; e + 1 < path0.length; e++) {
-          const u = seg(path0[e], path0[e + 1], r, t);
-          if (u !== null) cross.push(go([path0[e][0] + u * (path0[e + 1][0] - path0[e][0]), path0[e][1] + u * (path0[e + 1][1] - path0[e][1])]));
-        }
-      }
-    }));
-    gam = { key: gammaKey(V), pts: pts.map((p) => p.x), orig: path0, asc, cross };
+    const marks = [];
+    pts.forEach((p, q) => { if (p.mark) marks.push(q); });
+    gam = { key: gammaKey(V), pts: pts.map((p) => p.x), orig: path0, asc, marks, cross: marks.map((q) => pts[q].x) };
   }
   function drawGamma(ctx, V, k) {
     // where Γ was before the flow, grey and dashed
@@ -395,10 +418,39 @@
     pieces.push(piece);
     for (const pc of pieces) strokePath(ctx, pc);
     if (k < 1) return;
-    // which way Γ runs: chevrons along what is in view
-    const inView = pieces.map((pc) => pc.filter((p) => p[0] > 4 && p[0] < V.W - 4 && p[1] > 4 && p[1] < V.H - 4)).filter((pc) => pc.length > 4);
+    // which way Γ runs: an arrow a little after each point where it crosses an ascending path,
+    // carried with those points, so that it moves smoothly with the flow and the handles (with
+    // the flow it runs along the thimble that point is on); with none in view, one in the middle
+    // of the longest part of Γ in view
     ctx.lineWidth = 2.2;
-    for (const pc of inView) for (const f of [0.3, 0.7]) { const a = along(pc, f); if (a) chevron(ctx, a, 6); }
+    const inside = (p) => p[0] > 4 && p[0] < V.W - 4 && p[1] > 4 && p[1] < V.H - 4, far = 0.5 * V.W;
+    let drawn = 0;
+    for (const q0 of gam.marks) {
+      if (!inside(P[q0])) continue;
+      let left = 30, a = null;
+      for (let q = q0 + 1; q < P.length; q++) {
+        const dx = P[q][0] - P[q - 1][0], dy = P[q][1] - P[q - 1][1], l = Math.hypot(dx, dy);
+        if (l > far || !inside(P[q])) break;
+        if (l >= left && l > 0) { const t = left / l; a = { x: P[q - 1][0] + t * dx, y: P[q - 1][1] + t * dy, dx: dx / l, dy: dy / l }; break; }
+        left -= l;
+      }
+      if (a) { chevron(ctx, a, 6); drawn++; }
+    }
+    if (drawn) return;
+    let best = null, bestL = 60;
+    for (const pc of pieces) {
+      let run = [];
+      const done = () => {
+        let L = 0;
+        for (let q = 1; q < run.length; q++) L += Math.hypot(run[q][0] - run[q - 1][0], run[q][1] - run[q - 1][1]);
+        if (L > bestL) { bestL = L; best = run; }
+        run = [];
+      };
+      for (const p of pc) { if (inside(p)) run.push(p); else done(); }
+      done();
+    }
+    const a = best && along(best, 0.5);
+    if (a) chevron(ctx, a, 6);
   }
   // the plane into a canvas: at full size (k = 1), or small, as a copy beside a figure in the text
   function renderPlane(ctx, V, k) {
@@ -574,6 +626,45 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(String(i + 1), p[0], p[1] + 0.5);
     }
+    // their names: S(p_i) by each value, away from its ray, and S(J_i) beside the ray; each where it
+    // covers no ray, dot or other name, or not at all
+    const boxes = [], w0 = 46, h0 = 18, nx = [-e[1], e[0]];
+    const clear = (w0 / 2) * Math.abs(nx[0]) + (h0 / 2) * Math.abs(nx[1]) + 3;
+    const offRays = (x, y) => pos.every((q) => {
+      const dx = x - q[0], dy = y - q[1], along = dx * e[0] + dy * e[1];
+      return along < -clear || Math.abs(dx * nx[0] + dy * nx[1]) > clear;
+    });
+    const put = (tex, x, y, color) => {
+      const b = [x - w0 / 2, y - h0 / 2, x + w0 / 2, y + h0 / 2];
+      if (b[0] < 2 || b[2] > Z.W - 2 || b[1] < 2 || b[3] > Z.H - 2) return false;
+      if (boxes.some((q) => b[0] < q[2] && q[0] < b[2] && b[1] < q[3] && q[1] < b[3])) return false;
+      if (pos.some((q) => Math.max(b[0] - q[0], q[0] - b[2], b[1] - q[1], q[1] - b[3]) < 9)) return false;
+      if (!offRays(x, y)) return false;
+      boxes.push(b);
+      // (on a pale ground, where it crosses an axis)
+      ctx.fillStyle = MM.rgba('surface', 0.85);
+      ctx.beginPath(); ctx.roundRect(x - w0 / 2 + 3, y - h0 / 2 + 1, w0 - 6, h0 - 2, 4); ctx.fill();
+      MM.canvasLabel(ctx, tex, x, y, { size: 13, align: 'center', baseline: 'middle', color });
+      return true;
+    };
+    pos.forEach((p, i) => {
+      // beside the dot, on the side away from its ray first: left or right of it, then below or above
+      const tex = '$S(p_{' + (i + 1) + '})$', col = MM.color('th-' + (i + 1) + '-text'), sx = e[0] >= 0 ? -1 : 1, sy = e[1] >= 0 ? -1 : 1;
+      for (const [dx, dy] of [[sx * 32, 0], [0, sy * 19], [-sx * 32, 0], [0, -sy * 19], [sx * 30, sy * 15]]) if (put(tex, p[0] + dx, p[1] + dy, col)) break;
+    });
+    pos.forEach((p, i) => {
+      // some way back from where the ray leaves the picture, on either side of it
+      let t = far;
+      if (e[0] > 1e-9) t = Math.min(t, (Z.W - p[0]) / e[0]); else if (e[0] < -1e-9) t = Math.min(t, -p[0] / e[0]);
+      if (e[1] > 1e-9) t = Math.min(t, (Z.H - p[1]) / e[1]); else if (e[1] < -1e-9) t = Math.min(t, -p[1] / e[1]);
+      const tex = '$S(J_{' + (i + 1) + '})$', col = MM.color('th-' + (i + 1) + '-text');
+      for (const d of [t - 40, t - 90, 0.5 * t]) for (const sg of [1, -1]) {
+        if (d < 30) continue;
+        // (beside its own ray: clear of it by just over the margin)
+        const x = p[0] + e[0] * d + nx[0] * sg * (clear + 1), y = p[1] + e[1] * d + nx[1] * sg * (clear + 1);
+        if (put(tex, x, y, col)) return;
+      }
+    });
   }
 
   /* ---------- the integral as a function of ħ ---------- */
@@ -581,23 +672,30 @@
   // I(ħ) on the disc |ħ| ≤ R of the plane of ħ, in ordinary coordinates. It is computed row by row,
   // a row for each of H_NA directions: the thimbles there and their integrals for H_NR moduli at
   // once (stokes.js, rayIntegrals), a few rows a frame. A pixel takes the branch of I continued
-  // from ħ the short way round, so the picture has a cut on the ray opposite ħ; its colour is the
-  // phase of I (the key), darkened where the terms Σ n_i ∫_{J_i} cancel, near the zeros of I. Since
-  // a row's colours depend on ħ only through the branch it takes, only the rows the cut passes are
-  // painted again as ħ turns.
-  const H_NA = 360, H_NR = 32, H_MARGIN = 0.5, H_U = 6.5;
+  // from ħ the short way round, so the picture has a cut on the ray opposite ħ (hidden by a fade);
+  // its colour is the phase of I (the key), with lines of constant phase and modulus, darkened where
+  // the terms Σ n_i ∫_{J_i} cancel, near the zeros of I. Since a row's colours depend on ħ only
+  // through the branch it takes, only the rows the cut passes are painted again as ħ turns.
+  // The moduli are spaced evenly in log |ħ|, from far inside the disc at its largest zoom (HZ_MAX)
+  // out to the rim at none, so that the picture zooms without computing again.
+  const H_NA = 360, H_NR = 48, H_MARGIN = 0.5, H_U = 6.5, HZ_MAX = 16;
   let hData = { key: '' }, hReq = 0;
+  // the disc, with room around it for an arc for each thimble (sp apart, the first gap out), and
+  // above that for the name of the axis
   function hview(w, h) {
-    const W = w || hcv.clientWidth, H = h || hcv.clientHeight, D = 0.45 * Math.min(W, H), R = model.RH;
-    return { W, H, D, R, k: D / R, cx: W / 2, cy: H / 2, X: (x) => W / 2 + x * D / R, Y: (y) => H / 2 - y * D / R };
+    const W = w || hcv.clientWidth, H = h || hcv.clientHeight, M = Math.min(W, H), R = model.RH / state.hz;
+    const gap = 0.016 * M, sp = 0.018 * M, D = 0.5 * M - gap - sp * model.act.n - 0.065 * M;
+    return { W, H, D, R, k: D / R, gap, sp, cx: W / 2, cy: H / 2, X: (x) => W / 2 + x * D / R, Y: (y) => H / 2 - y * D / R };
   }
+  const hvNow = () => Math.min(state.hv, model.act.n);
   const hKey = () => critKey(cur()) + '|' + model.RH.toPrecision(9);
   function hStart() {
     const key = hKey();
     if (hData.key !== key) {
-      const R = model.RH, rhos = Array.from({ length: H_NR }, (_, r) => R * (r + 1) / H_NR);
+      const R = model.RH, lr0 = Math.log(R / (40 * HZ_MAX)), lq = (Math.log(R) - lr0) / (H_NR - 1);
+      const rhos = Array.from({ length: H_NR }, (_, r) => Math.exp(lr0 + lq * r));
       hData = {
-        key, R, rhos, tgs: {}, rows: new Array(H_NA), next: 0,
+        key, R, rhos, lr0, lq, tgs: {}, rows: new Array(H_NA), next: 0,
         phi0: state.phi, dirs0: model.dirs.map((d) => d.slice()), sing: model.rays.map((l) => l.map((r) => r.theta)),
         cache: new Map(), ncache: new Map(), gkey: '', img: null,
       };
@@ -610,6 +708,7 @@
     const t0 = performance.now();
     while (hData.next < H_NA && performance.now() - t0 < 10) hRow(hData.next++);
     drawH();
+    drawHCopies();
     if (hData.next < H_NA) hReq = soon(hStep);
   }
   function hRow(a) {
@@ -652,59 +751,104 @@
   const hOff = document.createElement('canvas'), hoctx = hOff.getContext('2d');
   // the colours: every pixel of the rows whose branch (or whose data) is new
   function paintH(V) {
-    if (!wheel) makeWheel();
-    const w = Math.round(V.W), h = Math.round(V.H), gk = cur().gamma.join(',');
+    const dpr = MM.pixelRatio(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr), gk = cur().gamma.join(','), hv = hvNow();
     let img = hData.img;
-    const fresh = !img || img.w !== w || img.h !== h || hData.gkey !== gk;
+    const fresh = !img || img.w !== w || img.h !== h || hData.gkey !== gk || img.hv !== hv || img.R !== V.R;
     if (hData.gkey !== gk) { hData.ncache = new Map(); hData.gkey = gk; }
     if (fresh) {
-      img = hData.img = { w, h, data: new ImageData(w, h), ks: new Array(H_NA).fill(null), row: new Int16Array(w * h), rho: new Float32Array(w * h), th: new Float32Array(w * h) };
+      img = hData.img = { w, h, hv, R: V.R, data: new ImageData(w, h), ks: new Array(H_NA).fill(null), row: new Int16Array(w * h), rho: new Float32Array(w * h), th: new Float32Array(w * h), side: new Float32Array(w * h), ph: new Float32Array(w * h), lm: new Float32Array(w * h), sh: new Float32Array(w * h), kind: new Uint8Array(w * h) };
       for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
-        const q = py * w + px, x = (px + 0.5 - V.cx) / V.k, y = -(py + 0.5 - V.cy) / V.k, r = Math.hypot(x, y), t = Math.atan2(y, x);
+        const q = py * w + px, x = ((px + 0.5) / dpr - V.cx) / V.k, y = -((py + 0.5) / dpr - V.cy) / V.k, r = Math.hypot(x, y), t = Math.atan2(y, x);
         img.rho[q] = r; img.th[q] = t;
         // (outside the disc, and ħ = 0 itself, where I has its essential singularity, are left white)
-        img.row[q] = r > V.R || r < 1e-9 * V.R ? -1 : Math.min(H_NA - 1, Math.floor((t + Math.PI) / TAU * H_NA));
+        const fa = (t + Math.PI) / TAU * H_NA, a = Math.min(H_NA - 1, Math.floor(fa));
+        img.row[q] = r > V.R || r < 1e-9 * V.R ? -1 : a;
+        // where the pixel lies between its row's direction and the next row's (signed, < ½)
+        img.side[q] = fa - a - 0.5;
       }
     }
-    // the rows to paint: the branch each takes now
-    const todo = new Uint8Array(H_NA);
+    // the rows to paint: the branch each takes now (and their neighbours, which they are blended with)
+    const changed = new Uint8Array(H_NA), todo = new Uint8Array(H_NA);
     let any = false;
     for (let a = 0; a < H_NA; a++) {
       const row = hData.rows[a];
       const k = row ? Math.round((St.liftNear(row.th, state.phi) - row.th) / TAU) : null;
-      if (k !== img.ks[a] || fresh) { todo[a] = 1; img.ks[a] = k; any = true; }
+      if (k !== img.ks[a] || fresh) { changed[a] = 1; img.ks[a] = k; any = true; }
     }
     if (!any) return img;
-    const d = img.data.data, S = rgbOf('surface'), G = rgbOf('sunken'), vals = model.act.values, nT = model.act.n;
-    const re = new Float64Array(nT), im = new Float64Array(nT);
+    for (let a = 0; a < H_NA; a++) todo[a] = changed[a] | changed[(a + 1) % H_NA] | changed[(a + H_NA - 1) % H_NA];
+    // the row next to a towards the pixel, when it continues a's branch
+    const lifted = (a) => hData.rows[a].th + TAU * img.ks[a];
+    const nextRow = (a, sd) => {
+      const b = (a + (sd < 0 ? H_NA - 1 : 1)) % H_NA;
+      return hData.rows[b] && Math.abs(Math.abs(lifted(b) - lifted(a)) - TAU / H_NA) < 1e-6 ? b : -1;
+    };
+    const d = img.data.data, S = rgbOf('surface'), vals = model.act.values, nT = model.act.n;
+    const re = new Float64Array(nT), im = new Float64Array(nT), Tr = new Float64Array(nT), Ti = new Float64Array(nT), Ur = new Float64Array(nT), Ui = new Float64Array(nT);
+    // the size of each term to leading order, |e^{-S(p_i)/ħ}| √(2π|ħ|/|S''(p_i)|), without the exponential
+    const lead = model.act.second.map((s2) => Math.sqrt(TAU / St.abs(s2)));
+    // first the values: for each pixel the phase ph and the log of the modulus L of the integral, how
+    // dark it is (near the zeros of I, where the terms cancel), and whether it is pale (kind 2: J_i
+    // where J_i is not in Γ); kind 0 has no value
+    const PH = img.ph, LM = img.lm, SH = img.sh, KIND = img.kind;
     for (let q = 0; q < w * h; q++) {
-      const a = img.row[q], o = 4 * q;
-      if (a < 0) { if (fresh) { d[o] = S[0]; d[o + 1] = S[1]; d[o + 2] = S[2]; d[o + 3] = 255; } continue; }
+      const a = img.row[q];
+      if (a < 0) { if (fresh) { const o = 4 * q; d[o] = S[0]; d[o + 1] = S[1]; d[o + 2] = S[2]; d[o + 3] = 255; } continue; }
       if (!todo[a]) continue;
+      KIND[q] = 0;
       const row = hData.rows[a];
       const n = row ? hCoef(a, img.ks[a]) : null;
-      if (!n) { d[o] = G[0]; d[o + 1] = G[1]; d[o + 2] = G[2]; d[o + 3] = 255; continue; }
+      if (!n) continue;
       const rho = img.rho[q], t = img.th[q], ct = Math.cos(t), st = Math.sin(t);
-      const fr = rho / hData.R * H_NR - 1, r0 = Math.max(0, Math.min(H_NR - 2, Math.floor(fr))), u = Math.max(0, Math.min(1, fr - r0));
-      // the exponents −S(p_i)/ħ, and the largest real part among the terms of Γ
-      let emax = -Infinity;
+      // (between moduli in log |ħ|; inside the first, the integrals over √|ħ| hardly change)
+      const fr = (Math.log(rho) - hData.lr0) / hData.lq, r0 = Math.max(0, Math.min(H_NR - 2, Math.floor(fr))), u = Math.max(0, Math.min(1, fr - r0));
+      // the thimble integrals, from the row's moduli on either side, and from the next row's (U)
+      const sd = img.side[q], b0 = nextRow(a, sd), nb = b0 < 0 ? null : hCoef(b0, img.ks[b0]), b = nb ? b0 : -1;
+      const wb = b < 0 ? 0 : Math.abs(sd), wa = 1 - wb;
       for (let i = 0; i < nT; i++) {
         re[i] = -(vals[i][0] * ct + vals[i][1] * st) / rho;
         im[i] = -(vals[i][1] * ct - vals[i][0] * st) / rho;
-        if (n[i] && re[i] > emax) emax = re[i];
+        const T = row.T[i];
+        Tr[i] = T[2 * r0] + u * (T[2 * r0 + 2] - T[2 * r0]); Ti[i] = T[2 * r0 + 1] + u * (T[2 * r0 + 3] - T[2 * r0 + 1]);
+        if (wb) {
+          const U = hData.rows[b].T[i];
+          Ur[i] = U[2 * r0] + u * (U[2 * r0 + 2] - U[2 * r0]); Ui[i] = U[2 * r0 + 1] + u * (U[2 * r0 + 3] - U[2 * r0 + 1]);
+        }
       }
-      let sr = 0, si = 0, mag = 0;
-      for (let i = 0; i < nT; i++) {
-        if (!n[i]) continue;
-        const T = row.T[i], tr = T[2 * r0] + u * (T[2 * r0 + 2] - T[2 * r0]), ti = T[2 * r0 + 1] + u * (T[2 * r0 + 3] - T[2 * r0 + 1]);
-        const f = n[i] * Math.exp(re[i] - emax), c = Math.cos(im[i]), s2 = Math.sin(im[i]);
-        const ar = f * (tr * c - ti * s2), ai = f * (tr * s2 + ti * c);
-        sr += ar; si += ai; mag += Math.hypot(ar, ai);
+      // (the rows hold the integrals over √|ħ|)
+      let ph, L, sh = 1;
+      if (hv) {
+        // the integral over J_i, oriented as the page orients it: carried round from ħ the short way,
+        // its direction at p_i turns by half the angle, so a row taken k turns on changes sign
+        const i = hv - 1, tr = wa * Tr[i] + wb * Ur[i], ti = wa * Ti[i] + wb * Ui[i];
+        ph = Math.atan2(ti, tr) + im[i] + (img.ks[a] & 1 ? Math.PI : 0);
+        L = Math.log(Math.hypot(tr, ti)) + re[i] + 0.5 * Math.log(rho);
+      } else {
+        // I, from each row with its own coefficients, the two blended (across a Stokes ray the
+        // coefficients and the thimble integrals jump, I does not), scaled by the largest term
+        let emax = -Infinity;
+        for (let i = 0; i < nT; i++) if ((n[i] || (wb && nb[i])) && re[i] > emax) emax = re[i];
+        let sr = 0, si = 0, big = 0;
+        for (let i = 0; i < nT; i++) {
+          const ka = wa * n[i], kb = wb ? wb * nb[i] : 0;
+          if (!ka && !kb) continue;
+          const f = Math.exp(re[i] - emax), c = Math.cos(im[i]), s2 = Math.sin(im[i]);
+          const xr = ka * Tr[i] + kb * Ur[i], xi = ka * Ti[i] + kb * Ui[i];
+          sr += f * (xr * c - xi * s2); si += f * (xr * s2 + xi * c);
+          // darker near the zeros of I: |I| against the largest of its terms to leading order, which
+          // does not jump (on a Stokes ray only a smaller term enters or leaves)
+          big = Math.max(big, Math.max(Math.abs(n[i]), wb ? Math.abs(nb[i]) : 0) * f * lead[i]);
+        }
+        ph = Math.atan2(si, sr);
+        L = Math.log(Math.hypot(sr, si)) + emax + 0.5 * Math.log(rho);
+        sh = 0.4 + 0.6 * Math.pow(big > 0 ? Math.min(1, Math.hypot(sr, si) / (0.8 * big)) : 1, 0.5);
       }
-      if (!(Number.isFinite(sr) && Number.isFinite(si))) { d[o] = G[0]; d[o + 1] = G[1]; d[o + 2] = G[2]; d[o + 3] = 255; continue; }
-      const col = wheelAt(Math.atan2(si, sr)), qz = mag > 0 ? Math.hypot(sr, si) / mag : 1, sh = 0.4 + 0.6 * Math.pow(qz, 0.45);
-      d[o] = col[0] * sh; d[o + 1] = col[1] * sh; d[o + 2] = col[2] * sh; d[o + 3] = 255;
+      if (!Number.isFinite(ph)) continue;
+      PH[q] = ph; LM[q] = L; SH[q] = sh; KIND[q] = hv && !n[hv - 1] ? 2 : 1;
     }
+    // then the colours (MM.phase.paint), with thin lines of constant phase and of constant modulus,
+    // which break across a jump; pale where J_i is not in Γ
+    MM.phase.paint(img.data, { w, h, dpr, ph: PH, lm: LM, kind: KIND, shade: SH, only: (q) => img.row[q] >= 0 && todo[img.row[q]] === 1 });
     if (hOff.width !== w || hOff.height !== h) { hOff.width = w; hOff.height = h; }
     hoctx.putImageData(img.data, 0, 0);
     return img;
@@ -722,44 +866,110 @@
     hctx.globalAlpha = stale ? 0.35 : 1;
     if (hOff.width) hctx.drawImage(hOff, 0, 0, V.W, V.H);
     hctx.globalAlpha = 1;
+    // opposite ħ the picture fades to white: the continuations round either side meet there and
+    // do not agree, which is no jump of I but the end of the branch drawn
+    const fade = MM.phase.cut(hctx, V.cx, V.cy, state.phi + Math.PI, Math.PI / 4), seen = fade.seen;
+    fade.veil(V.D + 1);
     drawAxes(hctx, { W: V.W, H: V.H, X: V.X, Y: V.Y }, ['$\\mathrm{Re}\\,\\hbar$', '$\\mathrm{Im}\\,\\hbar$'], false);
-    // the rim, named by its |ħ|
+    // the rim
     hctx.strokeStyle = MM.color('rule');
     hctx.lineWidth = 1;
     hctx.beginPath(); hctx.arc(V.cx, V.cy, V.D, 0, TAU); hctx.stroke();
-    const la = -Math.PI / 4;
-    MM.canvasLabel(hctx, '$|\\hbar|=' + rTex(V.R) + '$', V.cx - V.D * Math.cos(la) - 6, V.cy - V.D * Math.sin(la) + 14, { size: 12, align: 'right', baseline: 'middle', color: MM.color('ink-3') });
-    // the Stokes rays where the coefficients of Γ jump, and the ray opposite ħ where the picture is cut
     if (stokesData.key !== stokesKey()) computeStokes();
-    const runs = stokesData.runs;
-    hctx.lineWidth = 1.2;
-    hctx.strokeStyle = MM.rgba('ink', 0.6);
-    hctx.setLineDash([5, 4]);
-    for (let q = 1; q < runs.length; q++) {
-      const a = runs[q - 1].n, b = runs[q].n;
-      if (!a || !b || a.every((x, i) => x === b[i])) continue;
-      const t = runs[q].a;
-      hctx.beginPath(); hctx.moveTo(V.cx, V.cy); hctx.lineTo(V.cx + V.D * Math.cos(t), V.cy - V.D * Math.sin(t)); hctx.stroke();
+    const runs = stokesData.runs, hv = hvNow();
+    // a ray from r0 to r1
+    const ray = (t, dash, color, r0, r1, w) => {
+      const c = Math.cos(t), sn = Math.sin(t);
+      const line = () => { hctx.beginPath(); hctx.moveTo(V.cx + r0 * c, V.cy - r0 * sn); hctx.lineTo(V.cx + r1 * c, V.cy - r1 * sn); hctx.stroke(); };
+      hctx.setLineDash(dash);
+      hctx.strokeStyle = color;
+      hctx.lineWidth = w;
+      line();
+      hctx.setLineDash([]);
+    };
+    // red, over J_i: the Stokes rays of J_i, where it jumps (faded with the picture, opposite ħ);
+    // red, as the thimbles that run into a point are in the plane of x, so that they read over the
+    // axes and apart from the lines of the grid. I itself does not jump: none
+    const stokesRay = (t) => { const a = seen(t); if (a > 0.02) ray(t, [], MM.rgba('highlight', 0.9 * a), 0, V.D, 1.4); };
+    if (hv) for (const rr of model.rays[hv - 1] || []) stokesRay(St.liftNear(rr.theta, state.phi));
+    // on the rim, over Γ, a red mark on each Stokes ray (of any thimble), pointing in (over J_i its
+    // own Stokes rays are drawn across the disc)
+    const marks = [];
+    if (!hv) for (const list of model.rays) for (const rr of list) {
+      const t = St.liftNear(rr.theta, state.phi);
+      if (!marks.some((u) => Math.abs(Math.sin((u - t) / 2)) < 1e-6)) marks.push(t);
     }
-    hctx.setLineDash([1.5, 3.5]);
-    hctx.strokeStyle = MM.color('ink');
-    const tc = state.phi + Math.PI;
-    hctx.beginPath(); hctx.moveTo(V.cx, V.cy); hctx.lineTo(V.cx + V.D * Math.cos(tc), V.cy - V.D * Math.sin(tc)); hctx.stroke();
-    hctx.setLineDash([]);
+    for (const t of marks) { const a = seen(t); if (a >= 0.02) MM.phase.mark(hctx, V.cx, V.cy, V.D, t, a); }
+    // around the rim, an arc for each thimble where it is in Γ: they begin and end on the Stokes rays
+    hctx.lineCap = 'butt';
+    hctx.lineWidth = 0.62 * V.sp;
+    for (let i = 0; i < model.act.n; i++) {
+      const rr = V.D + V.gap + V.sp * (i + 0.5), k = !hv || hv === i + 1 ? 1 : 0.3;
+      hctx.strokeStyle = fade.style((a) => MM.rgba('th-' + (i + 1), k * a));
+      for (const run of runs) {
+        if (!run.n || !run.n[i]) continue;
+        hctx.beginPath(); hctx.arc(V.cx, V.cy, rr, -run.b, -run.a); hctx.stroke();
+      }
+    }
+    // arg ħ, out from the handle across the arcs, to read off which thimbles are in Γ there (the
+    // handle stays on the rim when |ħ| is beyond the disc drawn)
+    const rOut = V.D + V.gap + V.sp * model.act.n, ct = Math.cos(state.phi), st = Math.sin(state.phi), rk = Math.min(cur().r, V.R) * V.k;
+    // ending in a knob that turns ħ round and keeps |ħ| (a press anywhere outside the disc does)
+    MM.phase.knob(hctx, V.cx, V.cy, rk + 9, rOut + 8, state.phi);
     // 0, where I has its essential singularity: the colours turn ever faster there
     hctx.fillStyle = MM.color('surface');
     hctx.beginPath(); hctx.arc(V.cx, V.cy, 5, 0, TAU); hctx.fill();
     hctx.fillStyle = MM.color('ink-2');
     hctx.beginPath(); hctx.arc(V.cx, V.cy, 2, 0, TAU); hctx.fill();
     const kr = Math.max(13, Math.min(18, 0.045 * Math.min(V.W, V.H)));
-    drawPhaseKey(hctx, V.W - kr - 16, V.H - kr - 16, kr);
-    // ħ: the handle (an element over the canvas, which centres itself on the point)
-    const r = cur().r, hp = [V.cx + Math.cos(state.phi) * r * V.k, V.cy - Math.sin(state.phi) * r * V.k];
+    MM.phase.key(hctx, V.W - kr - 16, V.H - kr - 16, kr);
+    // ħ: the handle (an element over the canvas, which centres itself on the point), named beside it
+    const r = cur().r, hp = [V.cx + ct * rk, V.cy - st * rk], lp = [hp[0] + 19 * st, hp[1] + 19 * ct];
+    hctx.fillStyle = MM.rgba('surface', 0.8);
+    hctx.beginPath(); hctx.arc(lp[0], lp[1], 9, 0, TAU); hctx.fill();
+    MM.canvasLabel(hctx, '$\\hbar$', lp[0], lp[1], { size: 16, align: 'center', baseline: 'middle', color: MM.color('ink') });
     hbarEl.style.transform = 'translate(' + hp[0].toFixed(1) + 'px,' + hp[1].toFixed(1) + 'px)';
-    const dg = degOf(state.phi);
+    // (arg ħ as it is, not mod 360°: after a whole turn I(ħ) is on another branch)
+    const dg = Math.round(state.phi * 180 / Math.PI);
     hbarEl.setAttribute('aria-valuetext', 'arg ħ = ' + dg + '°, |ħ| = ' + rTex(r) + (state.snap ? ', on a Stokes ray' : ''));
     MM.setHTML($('hval'), '$|\\hbar|=' + rTex(r) + ',\\quad\\arg\\hbar=' + dg + '^\\circ$');
+    syncHpick();
+    const capKey = hv + '|' + model.act.n;
+    if (hcap.dataset.k !== capKey) {
+      hcap.dataset.k = capKey;
+      if (!hv) hcap.innerHTML = HCAP0;
+      else MM.setHTML(hcap, '$\\int_{J_{' + hv + '}}\\mathrm{e}^{-S/\\hbar}\\,dx$ coloured by its phase, with lines of constant phase and modulus. It jumps across the Stokes rays of $J_{' + hv + '}$ (red), more visibly when zoomed out, and is pale where $J_{' + hv + '}$ is not in $\\Gamma$, off its arc.');
+    }
   }
+  // the menu of the integral the picture shows: over Γ, or over one thimble
+  const hpick = $('hpick'), hcap = $('hcap'), HCAP0 = hcap.innerHTML;
+  hcap.dataset.k = '0|2';
+  function syncHpick() {
+    const n = model.act.n, on = hvNow();
+    if (hpick.querySelectorAll('button').length !== n + 1) {
+      hpick.querySelectorAll('button').forEach((q) => q.remove());
+      for (let v = 0; v <= n; v++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.dataset.v = v;
+        MM.setHTML(b, v ? '$J_{' + v + '}$' : '$\\Gamma$');
+        hpick.appendChild(b);
+      }
+    }
+    hpick.querySelectorAll('button').forEach((b) => {
+      const v = String(+b.dataset.v === on);
+      if (b.getAttribute('aria-checked') !== v) b.setAttribute('aria-checked', v);
+    });
+  }
+  hpick.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-v]');
+    if (!b) return;
+    state.hv = +b.dataset.v;
+    drawH();
+    drawCopies();
+    if (example) example.changed();
+  });
 
   /* ---------- readouts ---------- */
 
@@ -780,7 +990,7 @@
     return item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--line-width:2.3"><path d="M1 5H21"/></svg>', 'the path $\\Gamma$')
       + (state.flow > 0 ? item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--ink-3)"><path d="M1 5H21" stroke-dasharray="5 4"/></svg>', '$\\Gamma$ before the flow') : '')
       + item('<svg class="sp-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="7.5" class="handle-ring"/><circle r="6.2" class="handle-gap"/><circle r="4.9" class="handle-dot"/></svg>', 'its ends, in two valleys')
-      + item('<svg class="sp-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle class="handle-point" r="6.5" style="stroke:var(--th-1);stroke-width:1.8"/></svg>', 'critical points $p_i$')
+      + item('<svg class="sp-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--th-1);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points ' + (model.act.n > 2 ? '$p_1,\\dots,p_{' + model.act.n + '}$' : '$p_1,p_2$'))
       + item(two(1.7), 'thimbles $J_i$')
       + item(two(4), 'those in $\\Gamma$')
       + item(two(1.2, true), 'ascending paths $K_i$')
@@ -814,7 +1024,6 @@
     MM.setHTML($('title'), NAMES[state.deg]);
     MM.setHTML($('sub'), '$\\displaystyle\\int_\\Gamma\\mathrm{e}^{-S(x)/\\hbar}\\,dx$, &ensp;$' + actionTex() + '$');
     MM.setHTML($('legend'), legendHTML());
-    MM.setHTML($('dec'), '$\\Gamma={}$' + (model.n ? sumHTML(model.n) : '…'));
     let jump = '';
     if (state.snap && model.before && model.after) {
       const t = model.th[state.snap.i], r = model.rays[state.snap.i].find((q) => Math.abs(St.liftNear(q.theta, state.phi) - state.snap.theta) < 1e-9);
@@ -1001,20 +1210,73 @@
 
   // ħ: a press on the picture of I(ħ) puts it there, a drag moves it (held on the Stokes rays)
   hplane.classList.add('draggable');
+  // Two fingers zoom it instead (ħ goes back to where the first one found it), as do a pinch on a
+  // trackpad, the zoom by its menu and the keys + and −; it zooms about 0, its middle.
+  const hzoomEl = $('hzoom'), fingers = new Map();
+  let pinch = null, hzReq = 0, hzEnd = 0, gest = 1;
+  function zoomH(f) {
+    const z = clamp(state.hz * f, 1, HZ_MAX);
+    if (Math.abs(z - state.hz) < 1e-9) return;
+    state.hz = z;
+    hzoomEl.value = z;
+    if (!hzReq) hzReq = soon(() => { hzReq = 0; drawH(); drawHCopies(); if (example) example.changed(); });
+  }
+  const zoomedH = () => { clearTimeout(hzEnd); hzEnd = setTimeout(() => MM.moved(), 250); };
+  const spread = () => { const [a, b] = [...fingers.values()]; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+  hzoomEl.addEventListener('input', () => zoomH(hzoomEl.value / state.hz));
   hplane.addEventListener('pointerdown', (e) => {
     if (e.button) return;
     e.preventDefault();
+    if (e.pointerType === 'touch') {
+      fingers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (fingers.size >= 2) {
+        hplane.setPointerCapture(e.pointerId);
+        if (drag && drag.kind === 'hbar') { cur().r = drag.r0; setPhi(drag.phi0, 1e-7); drag = null; later(); }
+        if (fingers.size === 2) pinch = { d: spread() };
+        return;
+      }
+    }
     stopTurn();
-    drag = { kind: 'hbar' };
+    drag = { kind: 'hbar', r0: cur().r, phi0: state.phi, arg: onRing(e) };
     hplane.setPointerCapture(e.pointerId);
     hbarEl.focus({ preventScroll: true });
     moveHbar(e);
   });
+  // outside the disc, round the arcs and the knob of arg ħ: there a drag turns ħ only (with a hand
+  // over the knob)
+  function onRing(e) {
+    const [px, py] = localXY(e, hcv), V = hview();
+    return Math.hypot(px - V.cx, py - V.cy) > V.D + 3;
+  }
+  function onKnob(e) {
+    const [px, py] = localXY(e, hcv), V = hview(), kn = V.D + V.gap + V.sp * model.act.n + 8;
+    return Math.hypot(px - V.cx - kn * Math.cos(state.phi), py - V.cy + kn * Math.sin(state.phi)) < 11;
+  }
+  hplane.addEventListener('pointermove', (e) => { if (!drag && e.pointerType !== 'touch') hplane.classList.toggle('on-knob', onKnob(e)); });
+  hplane.addEventListener('pointerleave', () => hplane.classList.remove('on-knob'));
+  hplane.addEventListener('pointermove', (e) => {
+    if (fingers.has(e.pointerId)) fingers.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && fingers.size === 2) { const d = spread(); if (pinch.d > 0) zoomH(d / pinch.d); pinch.d = d; }
+  });
+  ['pointerup', 'pointercancel'].forEach((t) => hplane.addEventListener(t, (e) => {
+    fingers.delete(e.pointerId);
+    if (pinch && fingers.size < 2) { pinch = null; MM.moved(); }
+  }));
+  hplane.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    zoomH(Math.exp(-e.deltaY * 0.01));
+    zoomedH();
+  }, { passive: false });
+  hplane.addEventListener('gesturestart', (e) => { e.preventDefault(); gest = 1; });
+  hplane.addEventListener('gesturechange', (e) => { e.preventDefault(); if (e.scale > 0) { zoomH(e.scale / gest); gest = e.scale; } zoomedH(); });
   function moveHbar(e) {
     if (!drag || drag.kind !== 'hbar') return;
-    const [px, py] = localXY(e, hcv), V = hview(), x = (px - V.cx) / V.k, y = (V.cy - py) / V.k, r = Math.hypot(x, y);
-    setR(r);
-    setPhi(St.liftNear(Math.atan2(y, x), state.phi), Math.min(0.15, 6 / Math.max(cur().r * V.k, 1)));
+    // (on the picture, or on one of its copies beside the figures in the text)
+    const cv = drag.cv || hcv, [px, py] = localXY(e, cv), V = hview(cv.clientWidth, cv.clientHeight), x = (px - V.cx) / V.k, y = (V.cy - py) / V.k, r = Math.hypot(x, y);
+    // (on the ring round the disc only the angle; held on a Stokes ray within a few pixels)
+    if (!drag.arg) setR(r);
+    setPhi(St.liftNear(Math.atan2(y, x), state.phi), Math.min(0.15, 6 / Math.max((drag.arg ? r : cur().r) * V.k, 1)));
     later();
   }
   hplane.addEventListener('pointermove', moveHbar);
@@ -1023,6 +1285,7 @@
   }));
   hbarEl.addEventListener('keydown', (e) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_') { e.preventDefault(); zoomH(e.key === '+' || e.key === '=' ? 1.25 : 0.8); MM.moved(); return; }
     const turn = { ArrowLeft: 1, ArrowRight: -1 }[e.key], grow = { ArrowUp: 1, ArrowDown: -1 }[e.key];
     if (!turn && !grow) return;
     e.preventDefault();
@@ -1081,10 +1344,10 @@
   $('flow').addEventListener('input', (e) => { state.flow = +e.target.value / 1000; later(); });
 
   // the sum: a thimble pointed at, or focused, shows in both pictures
-  $('dec').addEventListener('pointerover', (e) => { const t = e.target.closest('.sp-term'); setLit(t ? +t.dataset.i : -1); });
-  $('dec').addEventListener('pointerleave', () => setLit(-1));
-  $('dec').addEventListener('focusin', (e) => { const t = e.target.closest('.sp-term'); if (t) setLit(+t.dataset.i); });
-  $('dec').addEventListener('focusout', () => setLit(-1));
+  $('jump').addEventListener('pointerover', (e) => { const t = e.target.closest('.sp-term'); setLit(t ? +t.dataset.i : -1); });
+  $('jump').addEventListener('pointerleave', () => setLit(-1));
+  $('jump').addEventListener('focusin', (e) => { const t = e.target.closest('.sp-term'); if (t) setLit(+t.dataset.i); });
+  $('jump').addEventListener('focusout', () => setLit(-1));
   function setLit(i) { if (state.lit !== i) { state.lit = i; later(); } }
 
   /* ---------- Turn ---------- */
@@ -1280,13 +1543,33 @@
         ctx.stroke();
       });
     }
+    drawHCopies();
+  }
+  // the copies take a drag as the picture does: inside the disc ħ, outside it only arg ħ
+  hCopies.forEach((cv) => {
+    cv.classList.add('draggable');
+    cv.addEventListener('pointerdown', (e) => {
+      if (e.button) return;
+      e.preventDefault();
+      stopTurn();
+      const [px, py] = localXY(e, cv), V = hview(cv.clientWidth, cv.clientHeight);
+      drag = { kind: 'hbar', cv, r0: cur().r, phi0: state.phi, arg: Math.hypot(px - V.cx, py - V.cy) > V.D + 3 };
+      cv.setPointerCapture(e.pointerId);
+      moveHbar(e);
+    });
+    cv.addEventListener('pointermove', moveHbar);
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => cv.addEventListener(t, () => {
+      if (drag && drag.kind === 'hbar' && drag.cv === cv) { drag = null; commit(); draw(); }
+    }));
+  });
+  function drawHCopies() {
     for (const cv of hCopies) {
       if (!cv.clientWidth || !hcv.width) continue;
       const { w, h, ctx } = MM.fitCanvas(cv);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(hcv, 0, 0, w, h);
-      const V = hview(w, h), r = cur().r;
+      const V = hview(w, h), r = Math.min(cur().r, V.R);
       ctx.beginPath(); ctx.arc(V.cx + Math.cos(state.phi) * r * V.k, V.cy - Math.sin(state.phi) * r * V.k, 4.5, 0, TAU);
       ctx.fillStyle = MM.color('handle'); ctx.fill();
       ctx.lineWidth = 1.4; ctx.strokeStyle = MM.color('accent'); ctx.stroke();
@@ -1444,13 +1727,14 @@
 
   const borelCv = $('borel-cv'), borelBox = $('borel-box'), borelH = $('borel-h');
   let borelData = { key: '' };
-  const NA = 540, NR = 150;
+  const NA = 540, NR = 240;
   function borelKey() { return critKey(cur()) + '|' + focusI(); }
   function computeBorel() {
     const act = model.act, i = focusI();
     let R = 0;
     act.values.forEach((v, j) => { if (j !== i) R = Math.max(R, St.abs(St.sub(v, act.values[i]))); });
-    R = Math.max(R, 1e-6) * 1.3;
+    // (out to twice the farthest, so that the cuts are seen running out from the singularities)
+    R = Math.max(R, 1e-6) * 2.2;
     const inv = St.localInverse(act, i, 24);
     const grid = new Float64Array(NA * 2 * (NR + 1)), buf = new Float64Array(2 * (NR + 1));
     for (let a = 0; a < NA; a++) {
@@ -1460,19 +1744,7 @@
     borelData = { key: borelKey(), R, grid, i, img: null };
   }
   // the colour of a phase: round the data colours, lightened
-  let wheel = null;
-  function makeWheel() {
-    const names = ['c1', 'c6', 'c3', 'c7', 'c2', 'c5', 'c4'];
-    const cols = names.map(rgbOf), W = rgbOf('surface');
-    wheel = [];
-    for (let q = 0; q < 360; q++) {
-      const t = q / 360 * cols.length, k = Math.floor(t), f = t - k, a = cols[k % cols.length], b = cols[(k + 1) % cols.length];
-      wheel.push([0, 1, 2].map((c) => a[c] + (b[c] - a[c]) * f).map((v, c) => v + (W[c] - v) * 0.62));
-    }
-  }
-  const wheelAt = (ph) => wheel[Math.floor(((ph / TAU + 1) % 1) * 360) % 360];
   function paintBorel(V) {
-    if (!wheel) makeWheel();
     const dpr = MM.pixelRatio(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr);
     const img = new ImageData(w, h), d = img.data, G = borelData.grid, R = borelData.R, W = rgbOf('surface');
     const stride = 2 * (NR + 1);
@@ -1494,35 +1766,27 @@
         // darker where |β| is large, with a level line at each power of √2
         const x = 2 * mag, dl = Math.abs(x - Math.round(x));
         const shade = (1 - 0.62 * Math.tanh(Math.max(0, mag) / 2.2)) * (1 - 0.16 * Math.exp(-(dl * dl) / 0.0015));
-        const c = wheelAt(Math.atan2(im, re));
+        const c = MM.phase.color(Math.atan2(im, re));
         d[o] = c[0] * shade; d[o + 1] = c[1] * shade; d[o + 2] = c[2] * shade; d[o + 3] = 255;
       }
     }
     return img;
   }
+  // the area two discs of radii a and b, d apart, have in common
+  function lens(d, a, b) {
+    if (d >= a + b) return 0;
+    if (d <= Math.abs(a - b)) return Math.PI * Math.min(a, b) ** 2;
+    const x = (d * d + a * a - b * b) / (2 * d), y = d - x;
+    return a * a * Math.acos(x / a) - x * Math.sqrt(a * a - x * x) + b * b * Math.acos(y / b) - y * Math.sqrt(b * b - y * y);
+  }
   function borelView() {
     const W = borelCv.clientWidth || 400, H = borelCv.clientHeight || 400, R = borelData.R || 1;
-    const k = Math.min(W, H) / (2 * R * 1.12);
+    // (room round the disc for the knob of arg ħ)
+    const k = Math.min(W, H) / (2 * R * 1.2);
     return { W, H, k, cx: W / 2, cy: H / 2, X: (x) => W / 2 + x * k, Y: (y) => H / 2 - y * k };
   }
   // the key of the colours: a ring of phases, named at 1, i, −1, −i
-  function drawPhaseKey(ctx, cx, cy, r) {
-    if (!wheel) makeWheel();
-    for (let q = 0; q < 72; q++) {
-      const a0 = q / 72 * TAU, a1 = (q + 1.2) / 72 * TAU, c = wheelAt(a0);
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, -a0, -a1, true);
-      ctx.arc(cx, cy, r * 0.55, -a1, -a0, false);
-      ctx.closePath();
-      ctx.fillStyle = 'rgb(' + c.map(Math.round).join(',') + ')';
-      ctx.fill();
-    }
-    const o = { size: 11.5, align: 'center', baseline: 'middle', color: MM.color('ink-2') }, d = r + 9;
-    MM.canvasLabel(ctx, '$1$', cx + d, cy, o);
-    MM.canvasLabel(ctx, '$\\mathrm{i}$', cx, cy - d, o);
-    MM.canvasLabel(ctx, '$-1$', cx - d - 3, cy, o);
-    MM.canvasLabel(ctx, '$-\\mathrm{i}$', cx, cy + d, o);
-  }
+
   function drawBorel() {
     if (!borelCv.clientWidth || !model) return;
     if (borelData.key !== borelKey()) computeBorel();
@@ -1531,23 +1795,29 @@
     if (!borelData.img || borelData.imgKey !== sizeKey) { borelData.img = paintBorel(V); borelData.imgKey = sizeKey; }
     ctx.putImageData(borelData.img, 0, 0);
     drawAxes(ctx, { W: V.W, H: V.H, X: V.X, Y: V.Y }, ['$\\mathrm{Re}\\,\\zeta$', '$\\mathrm{Im}\\,\\zeta$'], false);
+    // its rim, as the other discs have, over the edge of the pixels
+    ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(V.cx, V.cy, borelData.R * V.k, 0, TAU); ctx.stroke();
     // the singularities on this sheet: the critical values J_i runs into
     const sing = new Set();
     for (const r of model.rays[i] || []) for (const j of r.js) sing.add(j);
-    // the cuts: from each singularity straight out
-    ctx.strokeStyle = MM.rgba('ink', 0.45);
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
+    // the cuts: from each singularity straight out, red as the Stokes rays in the picture of I(ħ)
+    // (the Laplace integral jumps where the ray of ħ crosses one)
+    ctx.strokeStyle = MM.rgba('highlight', 0.9);
+    ctx.lineWidth = 1.4;
     for (const j of sing) {
       const A = St.sub(act.values[j], act.values[i]), u = St.scl(A, 1 / St.abs(A));
-      ctx.beginPath(); ctx.moveTo(V.X(A[0]), V.Y(A[1])); ctx.lineTo(V.X(A[0] + u[0] * 3 * borelData.R), V.Y(A[1] + u[1] * 3 * borelData.R)); ctx.stroke();
+      // (out to the rim of the disc drawn, |ζ| = R)
+      if (St.abs(A) >= borelData.R) continue;
+      ctx.beginPath(); ctx.moveTo(V.X(A[0]), V.Y(A[1])); ctx.lineTo(V.X(u[0] * borelData.R), V.Y(u[1] * borelData.R)); ctx.stroke();
     }
-    ctx.setLineDash([]);
-    // the ray of ħ, and the point ħ on it where it lies within the picture
-    const e = [Math.cos(state.phi), Math.sin(state.phi)], len = 0.92 * Math.min(V.W, V.H) / 2;
+    // the ray of ħ to the rim, the point ħ on it (on the rim when |ħ| is beyond), and beyond the
+    // rim a knob that turns ħ and keeps |ħ|, as in the picture of I(ħ)
+    const e = [Math.cos(state.phi), Math.sin(state.phi)], len = borelData.R * V.k, kn = len + 12;
     ctx.strokeStyle = MM.color('ink');
     ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.moveTo(V.cx, V.cy); ctx.lineTo(V.cx + e[0] * len, V.cy - e[1] * len); ctx.stroke();
+    MM.phase.knob(ctx, V.cx, V.cy, len, kn, state.phi);
     if (state.snap && state.snap.i === i) {
       const t = model.th[i];
       if (t.hit >= 0) {
@@ -1557,7 +1827,7 @@
         ctx.beginPath(); ctx.moveTo(V.cx, V.cy); ctx.lineTo(V.X(A[0]), V.Y(A[1])); ctx.stroke();
       }
     }
-    const rk = Math.min(cur().r * V.k, len), hp = [V.cx + e[0] * rk, V.cy - e[1] * rk];
+    const rk = Math.min(cur().r, borelData.R) * V.k, hp = [V.cx + e[0] * rk, V.cy - e[1] * rk];
     ctx.fillStyle = MM.rgba('surface', 0.85);
     const lp = [hp[0] - e[1] * 22, hp[1] - e[0] * 22];
     ctx.beginPath(); ctx.arc(lp[0], lp[1], 9, 0, TAU); ctx.fill();
@@ -1582,30 +1852,59 @@
       ctx.fillStyle = own || s ? MM.color('surface') : MM.color('th-' + (j + 1) + '-text');
       ctx.font = MM.font('sans', 9.5, 600); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(String(j + 1), p.x, p.y + 0.5);
+      // a point more than half under the handle of ħ (its ring, 8.3 px): its number just beside
+      // the handle, on the side the point is (or away from the name ħ)
+      const d = Math.hypot(p.x - hp[0], p.y - hp[1]), RH = 8.3, rp = 7;
+      if (lens(d, RH, rp) > 0.5 * Math.PI * rp * rp) {
+        const u = d > 0.5 ? [(p.x - hp[0]) / d, (p.y - hp[1]) / d] : [e[1], e[0]];
+        const q = [hp[0] + u[0] * (RH + 9), hp[1] + u[1] * (RH + 9)];
+        ctx.fillStyle = MM.rgba('surface', 0.85);
+        ctx.beginPath(); ctx.arc(q[0], q[1], 8, 0, TAU); ctx.fill();
+        ctx.fillStyle = MM.color('th-' + (j + 1) + '-text');
+        ctx.font = MM.font('sans', 12, 700);
+        ctx.fillText(String(j + 1), q[0], q[1] + 0.5);
+      }
     }
     const kr = Math.max(14, Math.min(20, 0.045 * Math.min(V.W, V.H)));
-    drawPhaseKey(ctx, V.W - kr - 16, V.H - kr - 16, kr);
+    MM.phase.key(ctx, V.W - kr - 16, V.H - kr - 16, kr);
     borelH.style.transform = 'translate(' + hp[0].toFixed(1) + 'px,' + hp[1].toFixed(1) + 'px)';
     borelH.setAttribute('aria-valuetext', 'arg ħ = ' + degOf(state.phi) + '°, |ħ| = ' + rTex(cur().r));
     const names = [...sing].sort((a, b) => a - b).map((j) => '$A_{' + (i + 1) + (j + 1) + '}$');
-    MM.setHTML($('borel-cap'), 'The Borel transform $\\beta_{' + (i + 1) + '}$, coloured by its phase as in the key and darker where it is large, with the ray of $\\hbar$ and the point $\\hbar$ on it. Its singularities, ' + names.join(' and ') + ', are ringed; the dashed lines are its cuts.');
+    MM.setHTML($('borel-cap'), 'The Borel transform $\\beta_{' + (i + 1) + '}$ of the series of $J_{' + (i + 1) + '}$, as in <a href="#eq-3">$(3)$</a>, coloured by its phase as in the key and darker where it is large. In <a href="#eq-4">$(4)$</a> it is integrated along the black ray, the ray of $\\hbar$. Its singularities, ' + listTex(names) + ', are marked; the red lines are its cuts.');
   }
   // ħ is a point of the Borel plane (both measure differences of values of S): a press puts it
   // there, a drag moves it, held on the directions of the singularities
   let borelDrag = false;
+  // outside the disc only the angle (the knob); inside, the point ħ
+  const borelAt = (e) => { const rc = borelCv.getBoundingClientRect(), V = borelView(); return { V, x: (e.clientX - rc.left - V.cx) / V.k, y: (V.cy - (e.clientY - rc.top)) / V.k }; };
   function borelPhi(e) {
-    const rc = borelCv.getBoundingClientRect(), V = borelView();
-    const x = (e.clientX - rc.left - V.cx) / V.k, y = (V.cy - (e.clientY - rc.top)) / V.k;
-    setR(Math.hypot(x, y));
-    const i = focusI(), px = Math.max(cur().r * V.k, 1);
+    const { V, x, y } = borelAt(e);
+    if (!borelDrag.arg) setR(Math.hypot(x, y));
+    const i = focusI(), px = Math.max((borelDrag.arg ? Math.hypot(x, y) : cur().r) * V.k, 1);
     let to = St.liftNear(Math.atan2(y, x), state.phi), snapTo = null, best = Math.min(0.15, 6 / px);
     for (const rr of model.rays[i] || []) { const t = St.liftNear(rr.theta, to); if (Math.abs(t - to) < best) { best = Math.abs(t - to); snapTo = t; } }
     if (snapTo !== null) setPhi(snapTo, 1e-9); else setPhi(to, 0);
     draw();
   }
   borelBox.classList.add('draggable');
-  borelBox.addEventListener('pointerdown', (e) => { if (e.button) return; e.preventDefault(); stopTurn(); borelDrag = true; borelBox.setPointerCapture(e.pointerId); borelH.focus({ preventScroll: true }); borelPhi(e); });
-  borelBox.addEventListener('pointermove', (e) => { if (borelDrag) borelPhi(e); });
+  borelBox.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    e.preventDefault();
+    stopTurn();
+    const { x, y } = borelAt(e);
+    borelDrag = { arg: Math.hypot(x, y) > borelData.R * 1.02 };
+    borelBox.setPointerCapture(e.pointerId);
+    borelH.focus({ preventScroll: true });
+    borelPhi(e);
+  });
+  borelBox.addEventListener('pointermove', (e) => {
+    if (borelDrag) { borelPhi(e); return; }
+    if (e.pointerType === 'touch') return;
+    // a hand over the knob
+    const { V, x, y } = borelAt(e), kn = borelData.R + 12 / V.k;
+    borelBox.classList.toggle('on-knob', Math.hypot(x - kn * Math.cos(state.phi), y - kn * Math.sin(state.phi)) * V.k < 11);
+  });
+  borelBox.addEventListener('pointerleave', () => borelBox.classList.remove('on-knob'));
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => borelBox.addEventListener(t, () => { if (borelDrag) { borelDrag = false; commit(); } }));
   borelH.addEventListener('keydown', (e) => {
     const turn = { ArrowLeft: 1, ArrowRight: -1 }[e.key], grow = { ArrowUp: 1, ArrowDown: -1 }[e.key];
@@ -1627,111 +1926,144 @@
     syncSliders();
     const B = chartBox(truncSvg, 250, [14, 16, 34, 46]);
     if (!best) return;
-    const r = cur().r, F = best.a / r, K = Math.min(60, Math.max(16, Math.round(2.2 * F) + 6));
+    // as far as about twice the least error, so that the error is seen to turn and grow (at most
+    // 150 terms, and not past a coefficient too large for a double)
+    const r = cur().r, F = best.a / r;
+    let K = Math.min(150, Math.max(16, Math.round(2.2 * F) + 6));
     const a = seriesOf(i, K);
+    for (let k = 1; k <= K; k++) if (!(Number.isFinite(a[k][0]) && Number.isFinite(a[k][1]))) { K = k - 1; break; }
     // ħ in its direction now (just off a Stokes ray of J_i, where the thimble is not defined)
     let phi = state.phi;
     if (state.snap && state.snap.i === i) phi += 1e-4;
     const hb = St.scl(St.cis(phi), r);
     const I = St.integral(act, i, hb, St.turnDirs(model.dirs, state.phi, phi)[i]);
-    const exact = St.div(I.v, St.scl(I.v0, Math.sqrt(Math.PI)));
-    const rays = model.rays[i] || [], pred = St.predict(rays, K, PRED_L, (j) => seriesOf(j, K));
-    const terms = [], errs = [], preds = [];
-    let sum = St.C(0), hk = St.C(1);
-    for (let k = 0; k <= K; k++) {
-      const t = St.mul(a[k], hk);
-      terms.push(St.abs(t));
-      preds.push(St.abs(pred[k]) * Math.pow(r, k));
-      sum = St.add(sum, t);
-      errs.push(St.abs(St.sub(exact, sum)) / St.abs(exact));
+    const exact = St.div(I.v, St.scl(I.v0, Math.sqrt(Math.PI))), ex = St.abs(exact);
+    // the error of the sum of the first k terms, relative to the integral: computed directly where
+    // doubles resolve it well, and below that from the series of the points J_i runs into
+    // (stokes.js, remainders; the two agree to a fraction of a percent where both are known)
+    const rays = model.rays[i] || [], rem = St.remainders(rays, hb, K, PRED_L, (j) => seriesOf(j, K));
+    const errs = [NaN];
+    let sum = St.C(0), hk = St.C(1), big = 1;
+    const direct = [NaN];
+    for (let k = 1; k <= K; k++) {
+      sum = St.add(sum, St.mul(a[k - 1], hk));
       hk = St.mul(hk, hb);
+      big = Math.max(big, St.abs(sum) / ex);
+      direct.push(St.abs(St.sub(exact, sum)) / ex);
     }
-    // the logarithmic scale: from the precision of doubles to the largest term
-    const lg = (v) => Math.log10(Math.max(v, 1e-17));
-    let top = 1;
-    for (const t of terms) top = Math.max(top, lg(t));
-    top = Math.min(4 * Math.ceil(top / 4), 8);
-    const bot = -16;
-    const X = (k) => B.x0 + 8 + k / K * (B.x1 - B.x0 - 8), Y = (v) => B.y0 + (top - Math.max(bot, Math.min(top, lg(v)))) / (top - bot) * (B.y1 - B.y0);
+    const prec = 1e-15 * big;
+    for (let k = 1; k <= K; k++) errs.push(direct[k] > 1e3 * prec ? direct[k] : St.abs(rem[k]) / ex);
+    let hi = -Infinity, lo = Infinity;
+    for (let k = 1; k <= K; k++) if (errs[k] > 0 && Number.isFinite(errs[k])) { hi = Math.max(hi, Math.log10(errs[k])); lo = Math.min(lo, Math.log10(errs[k])); }
+    hi = Math.min(Math.max(hi, -1), 2);
+    lo = Math.max(Math.min(lo, hi - 4), hi - 160);
+    const span = hi - lo, step = span <= 26 ? 4 : span <= 52 ? 8 : span <= 104 ? 16 : 32;
+    const top = step * Math.ceil(hi / step), bot = step * Math.floor(lo / step);
+    const X = (k) => B.x0 + 8 + k / K * (B.x1 - B.x0 - 8);
+    const Y = (v) => B.y0 + (top - Math.log10(v)) / (top - bot) * (B.y1 - B.y0);
+    const shown = (v) => v > 0 && Math.log10(v) >= bot - 1e-9 && Math.log10(v) <= top + 1e-9;
+    // a line through the points that are shown, broken where one is not
+    const runs = (pts, cls, extra) => {
+      let run = [];
+      for (const q of pts.concat([null])) {
+        if (q) { run.push(q); continue; }
+        poly(truncSvg, run, cls, extra);
+        run = [];
+      }
+    };
     el('line', { x1: B.x0, x2: B.x1, y1: B.y1, y2: B.y1, class: 'sp-axis' }, truncSvg);
-    for (let d = top; d >= bot; d -= 4) {
+    for (let d = top; d >= bot; d -= step) {
       const y = B.y0 + (top - d) / (top - bot) * (B.y1 - B.y0);
       el('line', { x1: B.x0, x2: B.x1, y1: y, y2: y, class: 'sp-grid' }, truncSvg);
       label(truncSvg, d === 0 ? '$1$' : '$10^{' + d + '}$', B.x0 - 6, y + 4, 'sp-num', 'end');
     }
-    const stepK = K > 40 ? 10 : 5;
+    const stepK = K > 100 ? 25 : K > 40 ? 10 : 5;
     for (let k = 0; k <= K; k += stepK) label(truncSvg, '$' + k + '$', X(k), B.y1 + 17);
     label(truncSvg, '$k$', B.x1, B.y1 + 30, 'sp-num', 'end');
-    // the band below which doubles cannot tell
-    el('rect', { x: B.x0, y: Y(1e-15), width: B.x1 - B.x0, height: Math.max(0, B.y1 - Y(1e-15)), class: 'sp-floor' }, truncSvg);
-    // the prediction from the neighbours, in the colour of the one (or ink, for several)
-    const js = [];
-    rays.forEach((q) => q.js.forEach((j) => { if (!js.includes(j)) js.push(j); }));
-    // the errors, and their least
-    let kmin = 0;
-    errs.forEach((e, k) => { if (e < errs[kmin]) kmin = k; });
-    poly(truncSvg, errs.map((e, k) => [X(k + 1), Y(e)]).filter((p, k) => k + 1 <= K), 'sp-errline');
-    errs.forEach((e, k) => { if (k + 1 <= K) el('circle', { cx: X(k + 1), cy: Y(e), r: 3, class: 'sp-err' }, truncSvg); });
-    terms.forEach((t, k) => el('circle', { cx: X(k), cy: Y(t), r: 3.2, class: 'sp-term-dot', style: 'fill:' + thColor(i) }, truncSvg));
-    poly(truncSvg, preds.map((p, k) => [X(k), Y(p)]).slice(1), 'sp-pred', { style: 'stroke:' + (js.length === 1 ? thColor(js[0]) : MM.color('ink-2')) });
-    el('circle', { cx: X(kmin + 1), cy: Y(errs[kmin]), r: 7, class: 'sp-mark' }, truncSvg);
-    label(truncSvg, '$N=' + (kmin + 1) + '$', X(kmin + 1), Y(errs[kmin]) - 12);
-    MM.setHTML($('trunc-cap'), 'The terms $|a_k\\hbar^k|$ of the series of $J_{' + (i + 1) + '}$ (dots), the error of the sum of the terms before $a_k\\hbar^k$ relative to the integral over $J_{' + (i + 1) + '}$ (rings), and the terms predicted from the series of ' + js.map((j) => '$p_{' + (j + 1) + '}$').join(' and ') + ' (line), for $|A/\\hbar|=' + texNum(F, 1) + '$.');
+    // the error as a curve from k = 1, with a dot at each k when there are few
+    runs(errs.map((v, k) => (k >= 1 && shown(v) ? [X(k), Y(v)] : null)), 'sp-curve', { style: 'stroke-width:2;stroke:' + thColor(i) });
+    if (K <= 30) errs.forEach((v, k) => { if (k >= 1 && shown(v)) el('circle', { cx: X(k), cy: Y(v), r: 3.2, class: 'sp-term-dot', style: 'fill:' + thColor(i) }, truncSvg); });
+    // N, the number of terms where the error is least (the optimal cutoff)
+    let N = 1;
+    for (let k = 1; k <= K; k++) if (errs[k] < errs[N]) N = k;
+    if (N < K && shown(errs[N])) {
+      el('circle', { cx: X(N), cy: Y(errs[N]), r: 7, class: 'sp-mark' }, truncSvg);
+      label(truncSvg, '$N=' + N + '$', X(N), Y(errs[N]) - 12, 'sp-num halo');
+    }
+    const ij = (i + 1) + '' + (best.j + 1);
+    MM.setHTML($('trunc-cap'), 'The error of the series of $J_{' + (i + 1) + '}$ summed to $k$ terms, relative to the integral over $J_{' + (i + 1) + '}$; $N$ marks where it is least. Here $|A_{' + ij + '}/\\hbar|=' + texNum(F, 1) + '$' + (N >= K ? ', and the least error comes after $k=' + K + '$.' : '.'));
+    MM.setHTML($('trunc-series'), seriesTex(i, a));
   }
+  // a number to three significant digits, in TeX
+  function sig(x) {
+    if (!x) return '0';
+    const e = Math.floor(Math.log10(Math.abs(x)) + 1e-12);
+    if (e >= -3 && e <= 3) return String(Number(x.toPrecision(3)));
+    return String(Number((x / Math.pow(10, e)).toPrecision(3))) + '\\cdot10^{' + e + '}';
+  }
+  // a coefficient as a term of a sum: its sign, then its body (bracketed when complex)
+  function coefTex(c) {
+    const m = St.abs(c), re = Math.abs(c[0]) < 1e-9 * m ? 0 : c[0], im = Math.abs(c[1]) < 1e-9 * m ? 0 : c[1];
+    if (!im) return { neg: re < 0, body: sig(Math.abs(re)) };
+    if (!re) return { neg: im < 0, body: sig(Math.abs(im)) + '\\,\\mathrm{i}' };
+    return { neg: false, body: '(' + sig(re) + (im < 0 ? '-' : '+') + sig(Math.abs(im)) + '\\,\\mathrm{i})' };
+  }
+  // the series of J_i written out, with its first coefficients: on one line, and on two with
+  // fewer coefficients for a narrow screen
+  function seriesTex(i, a) {
+    const n = i + 1, terms = (K) => {
+      let s = '1';
+      for (let k = 1; k <= K; k++) {
+        const c = coefTex(a[k]);
+        s += (c.neg ? '-' : '+') + c.body + '\\,\\hbar' + (k > 1 ? '^{' + k + '}' : '');
+      }
+      return '\\bigl(' + s + '+\\cdots\\bigr)';
+    };
+    const lhs = '\\int_{J_{' + n + '}}\\mathrm{e}^{-S/\\hbar}\\,dx', pre = '\\mathrm{e}^{-S(p_{' + n + '})/\\hbar}\\sqrt{\\frac{2\\pi\\hbar}{S\'\'(p_{' + n + '})}}';
+    return '<div class="sp-wide">$$' + lhs + '\\;\\sim\\;' + pre + '\\,' + terms(3) + '$$</div>'
+      + '<div class="sp-narrow">$$\\begin{aligned}&' + lhs + '\\;\\sim\\;' + pre + '\\\\&\\qquad\\times' + terms(2) + '\\end{aligned}$$</div>';
+  }
+
 
   /* ---------- Smoothing the jump ---------- */
 
   const smoothSvg = $('smooth-chart');
-  const SM_T = 3.2, SM_N = 33, SM_RANGE = 60 * Math.PI / 180;   // samples in units of the width; the chart's half-range
-  const F_LO = 2, F_HI = 22;         // |A/ħ| where optimal truncation means something, and doubles resolve the rest
-  let smooth = { key: '', pts: [], next: 0 }, smoothReq = 0;
+  const SM_N = 240, SM_RANGE = 60 * Math.PI / 180;   // samples, and the chart's half-range
+  const F_LO = 2.5;                  // |A/ħ| from which optimal truncation means something
+  let smooth = { key: '', pts: [] };
   function smoothKey() { return [critKey(cur()), focusI(), cur().r.toFixed(6), dirsSig()].join('|'); }
-  // the multiplier at θ + t·w, from the integral over the thimble just before the ray
-  function smoothSample(t) {
-    const act = model.act, i = focusI(), best = nearest(i), ray = best.ray, th = St.liftNear(ray.theta, state.phi);
-    const A = ray.A[best.j], r = cur().r, F = St.abs(A) / r, w = Math.sqrt(2 * r / St.abs(A));
-    const ph = th + t * w, hb = St.scl(St.cis(ph), r), dirs = St.turnDirs(model.dirs, state.phi, ph);
-    const Ii = St.integral(act, i, hb, dirs[i]);
-    let v = Ii.v;
-    if (ph > th) for (const j of ray.js) {
-      const Ij = St.integral(act, j, hb, dirs[j]);
-      v = St.sub(v, St.scl(St.mul(St.cexp(St.sub(Ij.e, Ii.e)), Ij.v), ray.mu[j]));
-    }
-    const exact = St.div(v, St.scl(Ii.v0, Math.sqrt(Math.PI)));
-    const N = Math.round(F), a = seriesOf(i, N + 2);
-    let FN = St.C(0), hk = St.C(1);
-    for (let k = 0; k < N; k++) { FN = St.add(FN, St.mul(a[k], hk)); hk = St.mul(hk, hb); }
-    let sub = St.C(0);
-    for (const j of ray.js) {
-      const aj = seriesOf(j, N + 2);
-      let Pj = St.C(0), hj = St.C(1);
-      for (let k = 0; k < N; k++) { Pj = St.add(Pj, St.mul(aj[k], hj)); hj = St.mul(hj, hb); }
-      sub = St.add(sub, St.mul(St.scl(ray.kappa[j], -1), St.mul(St.cexp(St.scl(St.div(ray.A[j], hb), -1)), Pj)));
-    }
-    return { t, x: t * w, m: St.div(St.sub(exact, FN), sub) };
-  }
-  function smoothValid() { const b = nearest(focusI()); if (!b) return false; const F = b.a / cur().r; return F >= F_LO && F <= F_HI; }
-  function smoothStart() {
-    if (!model || !nearest(focusI())) return;
+  function smoothValid() { const b = nearest(focusI()); if (!b) return false; return b.a / cur().r >= F_LO; }
+  // The coefficient of the jumping term in the remainder of the series of J_i, truncated after
+  // N ≈ |A/ħ| terms, across its nearest Stokes ray: from the series of the points it runs into
+  // (stokes.js, remainders, with β_j itself on the cut: exact but for the quadrature), which gives
+  // the remainder of the thimble at ħ, with the jump added past the ray, for the path J_i was
+  // before it. The jumping term is κ e^{−A/ħ} times the integral over J_j over its own factor:
+  // the series of J_j summed as far, plus its remainder, from the same.
+  function computeSmooth() {
     const key = smoothKey();
-    if (smooth.key !== key) smooth = { key, pts: [], next: 0 };
-    drawSmooth();
-    if (smoothValid() && smooth.next < SM_N && !smoothReq) smoothReq = soon(smoothStep);
-  }
-  function smoothStep() {
-    smoothReq = 0;
-    if (smooth.key !== smoothKey()) { smoothStart(); return; }
-    const t0 = performance.now();
-    while (smooth.next < SM_N && performance.now() - t0 < 12) {
-      // samples evenly in t, clear of the ray itself
-      let t = -SM_T + 2 * SM_T * smooth.next / (SM_N - 1);
-      if (Math.abs(t) < 0.004) t = 0.004;
-      smooth.pts.push(smoothSample(t));
-      smooth.next++;
+    if (smooth.key === key) return;
+    smooth = { key, pts: [] };
+    if (!smoothValid()) return;
+    const act = model.act, best = nearest(focusI()), ray = best.ray, r = cur().r, N = Math.max(1, Math.round(best.a / r));
+    const ser = (j) => seriesOf(j, Math.min(N, 100) + 2), nP = Math.min(N, 100), cache = new Map();
+    smooth.N = N;
+    for (let q = 0; q < SM_N; q++) {
+      const x = -SM_RANGE + 2 * SM_RANGE * (q + 0.5) / SM_N, hb = St.scl(St.cis(ray.theta + x), r);
+      const R = St.remainders([ray], hb, N, PRED_L, ser, N, act, cache)[N];
+      let jt = St.C(0);
+      for (const j of ray.js) {
+        const aj = ser(j);
+        let P = St.C(0), hk = St.C(1);
+        for (let k = 0; k < nP && Number.isFinite(aj[k][0]); k++) { P = St.add(P, St.mul(aj[k], hk)); hk = St.mul(hk, hb); }
+        const Rj = (model.rays[j] || []).length ? St.remainders(model.rays[j], hb, nP, PRED_L, ser, nP, act, cache)[nP] : St.C(0);
+        jt = St.add(jt, St.mul(ray.kappa[j], St.mul(St.cexp(St.scl(St.div(ray.A[j], hb), -1)), St.add(P, Rj))));
+      }
+      // (past the ray, as remainders decides it: arg(A/ħ) < 0)
+      const m = St.sub(C0, St.div(R, jt)), past = St.arg(St.div(ray.A[best.j], hb)) < 0;
+      smooth.pts.push({ x, m: past ? St.add(m, St.C(1)) : m });
     }
-    drawSmooth();
-    if (smooth.next < SM_N) smoothReq = soon(smoothStep);
   }
+  const C0 = [0, 0];
   function drawSmooth() {
     if (!model || (!smoothSvg.clientWidth && !smoothSvg.parentNode.clientWidth)) return;
     syncSliders();
@@ -1745,35 +2077,269 @@
       label(smoothSvg, '$' + (m === 0.5 ? '\\tfrac12' : m) + '$', B.x0 - 6, Y(m) + 4, 'sp-num', 'end');
     }
     for (const dgr of [-60, -30, 0, 30, 60]) label(smoothSvg, '$' + (dgr < 0 ? '-' : '') + Math.abs(dgr) + '^\\circ$', X(dgr * Math.PI / 180), B.y1 + 17);
-    label(smoothSvg, '$\\arg\\hbar-\\arg A$', B.x1, B.y1 + 30, 'sp-num', 'end');
-    // the thimble's jump, and Berry's error function
-    poly(smoothSvg, [[B.x0, Y(0)], [X(0), Y(0)], [X(0), Y(1)], [B.x1, Y(1)]], 'sp-step');
-    const curve = [];
-    for (let q = 0; q <= 200; q++) {
-      const x = -SM_RANGE + 2 * SM_RANGE * q / 200;
-      const Ah = St.div(A, St.scl(St.cis(St.arg(A) + x), r)), sigma = -Ah[1] / Math.sqrt(2 * Math.max(Ah[0], 1e-12));
-      curve.push([X(x), Y(0.5 * (1 + St.erf(sigma)))]);
-    }
-    poly(smoothSvg, curve, 'sp-berry');
-    if (ok) for (const p of smooth.pts) {
-      if (Math.abs(p.x) > SM_RANGE || !Number.isFinite(p.m[0])) continue;
-      el('circle', { cx: X(p.x), cy: Y(Math.max(-0.15, Math.min(1.15, p.m[0]))), r: 3.3, class: 'sp-term-dot', style: 'fill:' + thColor(i) }, smoothSvg);
-    }
     const j = best.j, ij = (i + 1) + '' + (j + 1);
-    const why = ok ? '' : F < F_LO
-      ? ' Here $|A_{' + ij + '}/\\hbar|=' + texNum(F, 1) + '$: the smallest term is among the first, and the remainder is not small, so there are no dots.'
-      : ' Here $|A_{' + ij + '}/\\hbar|=' + texNum(F, 1) + '$: the remainder, about $\\mathrm{e}^{-' + Math.round(F) + '}$ of the integral, is below what double precision resolves, so there are no dots.';
-    MM.setHTML($('smooth-cap'), 'What is left when the series of $J_{' + (i + 1) + '}$ is summed to its smallest term, as a multiple of the jumping term $\\kappa_{' + ij + '}\\,\\mathrm{e}^{-A_{' + ij + '}/\\hbar}\\sum_l a^{(' + (j + 1) + ')}_l\\hbar^l$, across the Stokes ray of $J_{' + (i + 1) + '}$ (dots, the real part); the error function (curve) and the jump of the thimble (dashed).' + why);
+    label(smoothSvg, '$\\arg\\hbar-\\arg A_{' + ij + '}$', B.x1, B.y1 + 30, 'sp-num', 'end');
+    // the thimbles: the term jumps in at once (dotted); the coefficient in the remainder of the
+    // series (coloured, the real part), and over it Berry's error function (dashed), as thick
+    const erfAt = (x) => { const Ah = St.div(A, St.scl(St.cis(St.arg(A) + x), r)); return 0.5 * (1 + St.erf(-Ah[1] / Math.sqrt(2 * Math.max(Ah[0], 1e-12)))); };
+    poly(smoothSvg, [[B.x0, Y(0)], [X(0), Y(0)], [X(0), Y(1)], [B.x1, Y(1)]], 'sp-step');
+    computeSmooth();
+    const pts = smooth.pts.filter((p) => Number.isFinite(p.m[0]));
+    if (pts.length > 1) poly(smoothSvg, pts.map((p) => [X(p.x), Y(Math.max(-0.15, Math.min(1.15, p.m[0])))]), 'sp-erf', { style: 'stroke:' + thColor(i) });
+    const curve = [];
+    for (let q = 0; q <= 240; q++) { const x = -SM_RANGE + 2 * SM_RANGE * q / 240; curve.push([X(x), Y(erfAt(x))]); }
+    poly(smoothSvg, curve, 'sp-erf sp-dash');
+    // the number of terms the series is truncated after, in the corner
+    if (ok) label(smoothSvg, '$N=' + smooth.N + '$', B.x0 + 10, B.y0 + 10, 'sp-num sp-nlab', 'start');
+    const line = (style) => '<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="' + style + '"><path d="M1 5H21"/></svg>';
+    MM.setHTML($('smooth-legend'), (ok ? '<span class="legend-item">' + line('--c:' + thColor(i) + ';--line-width:2') + 'in the remainder $R_N$</span>' : '')
+      + '<span class="legend-item">' + line('--line-width:2;stroke-dasharray:6 5') + 'error function</span>'
+      + '<span class="legend-item"><svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--ink-2);--line-width:1.6"><path d="M2 5H21" style="stroke-dasharray:0.1 4;stroke-linecap:round"/></svg>in the expansion by thimbles</span>');
+    const why = ok ? '' : ' Here $|A_{' + ij + '}/\\hbar|=' + texNum(F, 1) + '$: the smallest term is among the first, and the remainder is not small, so the series is not shown.';
+    MM.setHTML($('smooth-cap'), 'The coefficient of the jumping term of <a href="#eq-5">$(5)$</a> as $\\arg\\hbar$ crosses the Stokes ray of $J_{' + (i + 1) + '}$ into $p_{' + (j + 1) + '}$: it jumps from $0$ to $1$ in the expansion by thimbles, and rises smoothly in the remainder $R_N$ of the series of $J_{' + (i + 1) + '}$ (its real part), close to the error function of <a href="#eq-7">$(7)$</a>.' + why);
   }
 
   /* ---------- when the figures in the text are drawn ---------- */
 
+  /* ---------- Differential equations: Airy's function on the real line ---------- */
+
+  // Ai from its power series, which converges everywhere (to about 10⁻⁷ for z ≥ −10, where
+  // its terms reach 10⁹); and the leading terms of its expansion: w₁ for z > 0, w₁ ± i w₂ for z < 0
+  const airySvg = $('airy-chart');
+  function airyAi(z) {
+    const c1 = 0.355028053887817239, c2 = 0.258819403792806798, z3 = z * z * z;
+    let f = 1, g = z, tf = 1, tg = z;
+    for (let k = 1; k < 120; k++) {
+      tf *= z3 / ((3 * k - 1) * (3 * k)); tg *= z3 / ((3 * k) * (3 * k + 1));
+      f += tf; g += tg;
+      if (Math.abs(tf) + Math.abs(tg) < 1e-18 * (Math.abs(f) + Math.abs(g))) break;
+    }
+    return c1 * f - c2 * g;
+  }
+  function airyLead(z) {
+    const x = Math.abs(z), xi = (2 / 3) * Math.pow(x, 1.5), q = Math.sqrt(Math.PI) * Math.pow(x, 0.25);
+    return z > 0 ? Math.exp(-xi) / (2 * q) : Math.sin(xi + Math.PI / 4) / q;
+  }
+  function drawAiry() {
+    if (!airySvg.clientWidth && !airySvg.parentNode.clientWidth) return;
+    const B = chartBox(airySvg, 230, [14, 16, 34, 40]);
+    const zl = -10, zr = 4, yl = -0.5, yh = 0.6;
+    const X = (z) => B.x0 + (z - zl) / (zr - zl) * (B.x1 - B.x0), Y = (v) => B.y1 - (v - yl) / (yh - yl) * (B.y1 - B.y0);
+    for (const v of [-0.4, 0, 0.4]) {
+      el('line', { x1: B.x0, x2: B.x1, y1: Y(v), y2: Y(v), class: v ? 'sp-grid' : 'sp-axis' }, airySvg);
+      label(airySvg, '$' + (v < 0 ? '-' : '') + Math.abs(v) + '$', B.x0 - 6, Y(v) + 4, 'sp-num', 'end');
+    }
+    el('line', { x1: X(0), x2: X(0), y1: B.y0, y2: B.y1, class: 'sp-grid' }, airySvg);
+    for (let z = zl; z <= zr; z += 2) label(airySvg, '$' + (z < 0 ? '-' : '') + Math.abs(z) + '$', X(z), B.y1 + 17);
+    label(airySvg, '$z$', B.x1, B.y1 + 30, 'sp-num', 'end');
+    // Ai, and over it the leading terms (dashed), where they lie in the chart
+    const ai = [];
+    for (let q = 0; q <= 700; q++) { const z = zl + (zr - zl) * q / 700; ai.push([X(z), Y(airyAi(z))]); }
+    poly(airySvg, ai, 'sp-erf', { style: 'stroke:' + MM.color('c1') });
+    // (out to the edge of the chart near 0, with points dense there: they grow like |z|^{−1/4})
+    for (const [a, b] of [[zl, -1e-4], [1e-4, zr]]) {
+      let run = [], prev = null;
+      for (let q = 0; q <= 1400; q++) {
+        const f = q / 1400, z = a + (b - a) * (a < 0 ? 1 - (1 - f) * (1 - f) : f * f), v = airyLead(z), inside = v <= yh && v >= yl;
+        // where the curve crosses the edge, a point on it
+        if (prev && inside !== prev.inside) {
+          const e = v > yh || prev.v > yh ? yh : yl, u = (e - prev.v) / (v - prev.v);
+          run.push([X(prev.z + u * (z - prev.z)), Y(e)]);
+          if (!inside) { if (run.length > 1) poly(airySvg, run, 'sp-erf sp-dash'); run = []; }
+        }
+        if (inside) run.push([X(z), Y(v)]);
+        prev = { z, v, inside };
+      }
+      if (run.length > 1) poly(airySvg, run, 'sp-erf sp-dash');
+    }
+    const line = (style) => '<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="' + style + '"><path d="M1 5H21"/></svg>';
+    MM.setHTML($('airy-legend'), '<span class="legend-item">' + line('--c:var(--c1);--line-width:2') + '$\\mathrm{Ai}(z)$</span>'
+      + '<span class="legend-item">' + line('--line-width:2;stroke-dasharray:6 5') + 'leading terms of its expansion</span>');
+  }
+
+  /* ---------- The Airy equation: Ai, w₁ and w₂ in the plane of z ---------- */
+
+  // As the picture of I(ħ) shows Γ = n₁J₁ + n₂J₂, this shows Ai ∼ c₁w₁ + c₂w₂ as z → ∞: Ai itself
+  // (from its power series, good to 10⁻⁹ for |z| ≤ 5), or the leading term of w₁ or of w₂, coloured
+  // by phase with lines of constant phase and modulus as there, arcs where each term is in the
+  // expansion, and the Stokes rays. The w's are continued the short way round from a knob at
+  // arg z = θ₀ (a real number), fading out opposite it, as I is from ħ; over Ai, which is entire,
+  // only the arcs and the marks, which depend on the branches, follow the knob.
+  const zpCv = $('zplane-cv'), zpick = $('zpick'), zpCap = $('zplane-cap'), ZCAP0 = zpCap.innerHTML, ZR = 5, ZS = 2 * Math.PI / 3;
+  const zpOff = document.createElement('canvas'), zpoctx = zpOff.getContext('2d'), L2P = Math.log(2 * Math.sqrt(Math.PI));
+  let zpView = 0, zpTheta = 0, zpData = { key: '' }, zpDrag = false;
+  function zpLayout(w, h) {
+    const W = w || zpCv.clientWidth, H = h || zpCv.clientHeight, M = Math.min(W, H);
+    const gap = 0.016 * M, sp = 0.018 * M, D = 0.5 * M - gap - sp * 2 - 0.065 * M;
+    return { W, H, D, gap, sp, k: D / ZR, cx: W / 2, cy: H / 2, rOut: D + gap + sp * 2, X: (x) => W / 2 + x * D / ZR, Y: (y) => H / 2 - y * D / ZR };
+  }
+  // the coefficients (c₁, c₂) at arg z = φ (lifted): (1, 0) for |φ| < 2π/3 and (1, i) for
+  // 2π/3 < φ < 4π/3, and since w₁(ze^{2πi}) = −i w₂(z), w₂(ze^{2πi}) = −i w₁(z) and Ai is single
+  // valued, c(φ + 2π) = i (c₂, c₁)(φ)
+  function zpCoef(phi) {
+    const m = Math.floor((phi + ZS) / TAU), psi = phi - TAU * m;
+    let c = psi < ZS ? [[1, 0], [0, 0]] : [[1, 0], [0, 1]];
+    const times = (u, v) => [u[0] * v[0] - u[1] * v[1], u[0] * v[1] + u[1] * v[0]];
+    for (let q = 0; q < Math.abs(m); q++) c = m > 0 ? [times([0, 1], c[1]), times([0, 1], c[0])] : [times([0, -1], c[1]), times([0, -1], c[0])];
+    return c;
+  }
+  const zpNonzero = (u) => Math.abs(u[0]) + Math.abs(u[1]) > 1e-9;
+  // the values at each pixel that do not depend on the branch: Ai, and the logs of r and r^{3/2}
+  function zpValues(V, w, h, dpr) {
+    const n = w * h, out = { w, h, in: new Uint8Array(n), th: new Float32Array(n), r: new Float32Array(n), lr: new Float32Array(n), r15: new Float32Array(n), aph: new Float32Array(n), alm: new Float32Array(n), wph: new Float32Array(n), wlm: new Float32Array(n) };
+    const c1 = 0.355028053887817239, c2 = 0.258819403792806798;
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) {
+      const q = py * w + px, x = ((px + 0.5) / dpr - V.cx) / V.k, y = -((py + 0.5) / dpr - V.cy) / V.k, r = Math.hypot(x, y);
+      if (r > ZR || r < 1e-9) continue;
+      out.in[q] = 1;
+      out.th[q] = Math.atan2(y, x); out.r[q] = r; out.lr[q] = Math.log(r); out.r15[q] = Math.pow(r, 1.5);
+      // Ai: Σ z^{3k}/… in two series
+      const zr2 = x * x - y * y, zi2 = 2 * x * y, z3r = zr2 * x - zi2 * y, z3i = zr2 * y + zi2 * x;
+      let fr = 1, fi = 0, gr = x, gi = y, tfr = 1, tfi = 0, tgr = x, tgi = y;
+      for (let kk = 1; kk < 90; kk++) {
+        const a = 1 / ((3 * kk - 1) * (3 * kk)), b = 1 / ((3 * kk) * (3 * kk + 1));
+        let t = (tfr * z3r - tfi * z3i) * a; tfi = (tfr * z3i + tfi * z3r) * a; tfr = t;
+        t = (tgr * z3r - tgi * z3i) * b; tgi = (tgr * z3i + tgi * z3r) * b; tgr = t;
+        fr += tfr; fi += tfi; gr += tgr; gi += tgi;
+        if (kk > 4 && Math.abs(tfr) + Math.abs(tfi) + Math.abs(tgr) + Math.abs(tgi) < 1e-17 * (Math.abs(fr) + Math.abs(fi) + Math.abs(gr) + Math.abs(gi))) break;
+      }
+      const ar = c1 * fr - c2 * gr, ai = c1 * fi - c2 * gi;
+      out.aph[q] = Math.atan2(ai, ar); out.alm[q] = Math.log(Math.hypot(ar, ai));
+    }
+    return out;
+  }
+  // log w₁, log w₂ = ∓ξ − ¼ log z − log 2√π, ξ = ⅔ z^{3/2}, at r, arg z = φ
+  const zpW = (i, D, q, phi) => {
+    const m = (2 / 3) * D.r15[q], xr = m * Math.cos(1.5 * phi), xi = m * Math.sin(1.5 * phi), sg = i === 1 ? -1 : 1;
+    return [sg * xi - phi / 4, sg * xr - D.lr[q] / 4 - L2P];
+  };
+  // the colours of one view, with the lines of constant phase and modulus as in the picture of I(ħ)
+  function zpPaint(D, view, dpr) {
+    const { w, h } = D, n = w * h, kind = new Uint8Array(n);
+    let PH = D.aph, LM = D.alm, shade = null;
+    if (view) {
+      // the branch continued from θ₀ the short way round, pale where w_i is not in the expansion
+      PH = D.wph; LM = D.wlm;
+      for (let q = 0; q < n; q++) {
+        if (!D.in[q]) continue;
+        const phi = D.th[q] + TAU * Math.round((zpTheta - D.th[q]) / TAU), v = zpW(view, D, q, phi);
+        PH[q] = v[0]; LM[q] = v[1];
+        kind[q] = zpNonzero(zpCoef(phi)[view - 1]) ? 1 : 2;
+      }
+    } else {
+      // darker near the zeros of Ai: |Ai| against the larger term of its expansion (which does not
+      // jump), away from 0, where the terms are no guide
+      shade = new Float32Array(n);
+      for (let q = 0; q < n; q++) {
+        if (!D.in[q]) continue;
+        kind[q] = 1;
+        const th = D.th[q], big = Math.abs(th) > ZS ? Math.max(zpW(1, D, q, th)[1], zpW(2, D, q, th)[1]) : zpW(1, D, q, th)[1];
+        const t = Math.max(0, Math.min(1, (D.r[q] - 0.8) / 0.8));
+        shade[q] = 1 - t * (0.6 - 0.6 * Math.pow(Math.min(1, Math.exp(LM[q] - big) / 0.8), 0.5));
+      }
+    }
+    // (lines every 30°: the phase turns faster here than in the picture of I(ħ))
+    return MM.phase.paint(new ImageData(w, h), { w, h, dpr, ph: PH, lm: LM, kind, shade, step: Math.PI / 6, none: rgbOf('surface') });
+  }
+  function drawZPlane() {
+    if (!zpCv.clientWidth) return;
+    const { ctx } = MM.fitCanvas(zpCv), V = zpLayout(), dpr = MM.pixelRatio(), w = Math.round(V.W * dpr), h = Math.round(V.H * dpr);
+    const key = w + 'x' + h;
+    if (zpData.key !== key) zpData = { key, vals: zpValues(V, w, h, dpr), imgs: {} };
+    const ik = zpView ? zpView + ':' + zpTheta.toFixed(5) : '0';
+    if (!zpData.imgs[ik]) { if (zpView) for (const k2 of Object.keys(zpData.imgs)) if (k2 !== '0') delete zpData.imgs[k2]; zpData.imgs[ik] = zpPaint(zpData.vals, zpView, dpr); }
+    if (zpOff.width !== w || zpOff.height !== h) { zpOff.width = w; zpOff.height = h; }
+    zpoctx.putImageData(zpData.imgs[ik], 0, 0);
+    MM.clearCanvas(ctx, MM.color('surface'));
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(zpOff, 0, 0, V.W, V.H);
+    // towards the ray opposite the knob, where the two ways round meet, the arcs fade out, and over
+    // w₁ or w₂ the picture too (Ai, which is entire, does not)
+    const th0 = zpTheta, fade = MM.phase.cut(ctx, V.cx, V.cy, th0 + Math.PI, Math.PI / 6), seen = fade.seen;
+    if (zpView) fade.veil(V.D + 1);
+    drawAxes(ctx, { W: V.W, H: V.H, X: V.X, Y: V.Y }, ['$\\mathrm{Re}\\,z$', '$\\mathrm{Im}\\,z$'], false);
+    ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(V.cx, V.cy, V.D, 0, TAU); ctx.stroke();
+    // the Stokes rays (arg z = 2πk/3) in the turn shown where a coefficient changes: red marks on the
+    // rim over Ai, red rays over w_i where its own coefficient changes
+    const bounds = [th0 - Math.PI];
+    for (let k = Math.ceil((th0 - Math.PI) / (TAU / 3)); k * TAU / 3 < th0 + Math.PI; k++) if (k * TAU / 3 > th0 - Math.PI) bounds.push(k * TAU / 3);
+    bounds.push(th0 + Math.PI);
+    const same = (u, v) => Math.abs(u[0] - v[0]) + Math.abs(u[1] - v[1]) < 1e-9;
+    // (over Ai a coefficient jumps across arg z = ±2π/3 on every sheet and nowhere else, so its marks
+    // stay there, unfaded, as the knob turns)
+    if (!zpView) for (const t of [ZS, -ZS]) MM.phase.mark(ctx, V.cx, V.cy, V.D, t);
+    else for (let q = 1; q + 1 < bounds.length; q++) {
+      const t = bounds[q], a = seen(t);
+      if (same(zpCoef(t - 1e-6)[zpView - 1], zpCoef(t + 1e-6)[zpView - 1]) || a < 0.02) continue;
+      ctx.strokeStyle = MM.rgba('highlight', 0.9 * a); ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(V.cx, V.cy); ctx.lineTo(V.cx + V.D * Math.cos(t), V.cy - V.D * Math.sin(t)); ctx.stroke();
+    }
+    // the arcs: where each term is in the expansion, between the Stokes rays
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 0.62 * V.sp;
+    for (let i = 0; i < 2; i++) {
+      const k = !zpView || zpView === i + 1 ? 1 : 0.3;
+      ctx.strokeStyle = fade.style((x) => MM.rgba('th-' + (i + 1), k * x));
+      for (let q = 0; q + 1 < bounds.length; q++) {
+        const a = bounds[q], b = bounds[q + 1];
+        if (!zpNonzero(zpCoef((a + b) / 2)[i])) continue;
+        ctx.beginPath(); ctx.arc(V.cx, V.cy, V.D + V.gap + V.sp * (i + 0.5), -b, -a); ctx.stroke();
+      }
+    }
+    // the knob of arg z the branches are continued from, out across the arcs
+    MM.phase.knob(ctx, V.cx, V.cy, V.D, V.rOut + 8, zpTheta);
+    const kr = Math.max(13, Math.min(18, 0.045 * Math.min(V.W, V.H)));
+    MM.phase.key(ctx, V.W - kr - 16, V.H - kr - 16, kr);
+    zpick.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(+b.dataset.v === zpView)));
+    zpCv.setAttribute('aria-label', (zpView
+      ? 'The leading term of w' + zpView + ' in a disc of the plane of z, coloured by its phase'
+      : 'Airy’s function in a disc of the plane of z, coloured by its phase, with the Stokes rays, and arcs showing which of w1 and w2 are in its expansion') + ', continued from arg z = ' + Math.round(zpTheta * 180 / Math.PI) + '°; the arrow keys turn it');
+    if (zpCap.dataset.v !== String(zpView)) {
+      zpCap.dataset.v = String(zpView);
+      if (!zpView) zpCap.innerHTML = ZCAP0;
+      else MM.setHTML(zpCap, 'The leading term of $w_' + zpView + '(z)$, coloured by its phase, with lines of constant phase and modulus, continued the short way round from the knob of $\\arg z$; opposite the knob the picture fades out.');
+    }
+  }
+  zpCap.dataset.v = '0';
+  zpick.addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (!b) return; zpView = +b.dataset.v; drawZPlane(); });
+  // the knob: a drag outside the disc turns it, as do the arrow keys on the picture
+  const zpAt = (e) => { const r = zpCv.getBoundingClientRect(), V = zpLayout(); return { V, x: e.clientX - r.left - V.cx, y: V.cy - (e.clientY - r.top) }; };
+  zpCv.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    const { V, x, y } = zpAt(e);
+    if (Math.hypot(x, y) < V.D + 3) return;
+    e.preventDefault();
+    zpDrag = true;
+    zpCv.setPointerCapture(e.pointerId);
+    zpTheta = St.liftNear(Math.atan2(y, x), zpTheta);
+    drawZPlane();
+  });
+  zpCv.addEventListener('pointermove', (e) => {
+    const { V, x, y } = zpAt(e);
+    if (zpDrag) { zpTheta = St.liftNear(Math.atan2(y, x), zpTheta); drawZPlane(); return; }
+    if (e.pointerType === 'touch') return;
+    const kn = V.rOut + 8;
+    zpCv.classList.toggle('on-knob', Math.hypot(x - kn * Math.cos(zpTheta), y - kn * Math.sin(zpTheta)) < 11);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => zpCv.addEventListener(t, () => { zpDrag = false; }));
+  zpCv.addEventListener('pointerleave', () => zpCv.classList.remove('on-knob'));
+  zpCv.addEventListener('keydown', (e) => {
+    const turn = { ArrowLeft: 1, ArrowUp: 1, ArrowRight: -1, ArrowDown: -1 }[e.key];
+    if (!turn || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    zpTheta += turn * (e.shiftKey ? 1 : 5) * Math.PI / 180;
+    drawZPlane();
+  });
+
   // each is drawn while it is in view (or Save image is open), after the picture at the top
   const textFigs = [
     { el: $('stokes-fig'), draw: drawStokes },
+    { el: $('zplane-fig'), draw: drawZPlane },
+    { el: $('airy-fig'), draw: drawAiry },
     { el: $('borel-fig'), draw: drawBorel },
     { el: $('trunc-fig'), draw: drawTrunc },
-    { el: $('smooth-fig'), draw: () => smoothStart() },
+    { el: $('smooth-fig'), draw: () => drawSmooth() },
   ];
   const visible = new Set();
   const io = new IntersectionObserver((entries) => {
@@ -1789,7 +2355,7 @@
     drawCopies();
     textLater();
   });
-  [stokesSvg, borelCv, truncSvg, smoothSvg, ...planeCopies, ...hCopies].forEach((x) => sized.observe(x));
+  [stokesSvg, borelCv, truncSvg, smoothSvg, zpCv, airySvg, ...planeCopies, ...hCopies].forEach((x) => sized.observe(x));
   let textReq = 0;
   function textDirty() { textFigs.forEach((f) => { f.dirty = true; }); textLater(); }
   function textLater() { if (!textReq) textReq = soon(drawText); }
@@ -1808,6 +2374,7 @@
   MM.handle(hbarEl);
   MM.handle(borelH);
   zoomEl.value = state.zoom;
+  hzoomEl.value = state.hz;
   fitFrame();
   buildOverlay();
   rebuild();
@@ -1830,9 +2397,10 @@
   const HOME = { p: flat(PRESETS[3].crit), g: PRESETS[3].gamma.slice(), r: PRESETS[3].r };
   example = MM.example({
     // the case (d, p, g), ħ (h its argument, r its modulus), Turn (t), the zoom (z), Flow (w),
-    // and the critical point the figures in the text are about (f)
-    fields: { d: 'int', p: 'numbers', g: 'numbers', h: 'number', r: 'number', t: 'flag', z: 'number', w: 'number', f: 'int' },
-    view: ['z'],
+    // the critical point the figures in the text are about (f), and the integral the picture of ħ
+    // shows (v: 0 over Γ, i over J_i) and its zoom (y)
+    fields: { d: 'int', p: 'numbers', g: 'numbers', h: 'number', r: 'number', t: 'flag', z: 'number', w: 'number', f: 'int', v: 'int', y: 'number' },
+    view: ['z', 'v', 'y'],
     get: () => {
       const c = cur(), pre = PRESETS[state.deg], p = flat(c.crit), m = state.deg;
       const g = [St.mod(c.gamma[0], m), St.mod(c.gamma[1], m)], r = Math.round(c.r * 1e4) / 1e4;
@@ -1842,7 +2410,7 @@
         g: sameArr(g, pre.gamma) ? HOME.g : g,
         h: Math.round(state.phi * 1e4) / 1e4,
         r: Math.abs(r - pre.r) < 1e-9 ? HOME.r : r,
-        t: state.turn, z: Math.round(state.zoom * 1e3) / 1e3, w: Math.round(state.flow * 1e3) / 1e3, f: focusI(),
+        t: state.turn, z: Math.round(state.zoom * 1e3) / 1e3, w: Math.round(state.flow * 1e3) / 1e3, f: focusI(), v: hvNow(), y: Math.round(state.hz * 1e3) / 1e3,
       };
     },
     set(x, named) {
@@ -1855,7 +2423,7 @@
       if (p.length !== 2 * (d - 1) || !p.every(Number.isFinite) || p.some((v) => Math.abs(v) > 50)) return false;
       if (g.length !== 2 || !g.every((k) => Number.isInteger(k) && k >= 0 && k < d) || g[0] === g[1]) return false;
       if (!Number.isFinite(x.h) || Math.abs(x.h) > 1000 || !(x.z >= 0.5 && x.z <= 6) || !(r > 0 && r < 100)) return false;
-      if (!(Number.isInteger(x.f) && x.f >= 0 && x.f < d - 1) || !(x.w >= 0 && x.w <= 1)) return false;
+      if (!(Number.isInteger(x.f) && x.f >= 0 && x.f < d - 1) || !(x.w >= 0 && x.w <= 1) || !(Number.isInteger(x.v) && x.v >= 0 && x.v < d) || !(x.y >= 1 && x.y <= HZ_MAX)) return false;
       const crit = [];
       for (let k = 0; k < p.length; k += 2) crit.push([p[k], p[k + 1]]);
       // distinct critical points
@@ -1866,9 +2434,10 @@
       state.snap = null;
       for (const e of DEGREES) state.cases[e] = freshCase(e);
       Object.assign(state.cases[d], { crit, gamma: g, dirs: null, phiAt: x.h, r });
-      Object.assign(state, { zoom: x.z, focus: x.f, flow: x.w });
+      Object.assign(state, { zoom: x.z, focus: x.f, flow: x.w, hv: x.v, hz: x.y });
       $('degree').value = String(d);
       zoomEl.value = state.zoom;
+      hzoomEl.value = state.hz;
       $('flow').value = Math.round(state.flow * 1000);
       raysCache.key = '';
       quiet = true;
@@ -1890,6 +2459,8 @@
       { label: 'Borel plane', element: borelBox, selected: false },
       { label: 'Resurgence', element: truncSvg, selected: false },
       { label: 'Smoothing', element: smoothSvg, selected: false },
+      { label: 'Plane of z', element: zpCv, selected: false },
+      { label: 'Airy’s function', element: airySvg, selected: false },
     ],
     redraw: () => { resize(); textDirty(); },
     // what the link does not name: where the plane has been moved to, and which way each

@@ -1,9 +1,8 @@
 ---
 title: Stokes phenomenon and resurgence
-description: 'Exponential integrals as sums over Lefschetz thimbles, the Stokes jumps of their asymptotic expansions, and the divergent series that determine each other.'
-tags: [mathematical-physics]
-date: 2026-11-18
-draft: true
+description: 'Exponential integrals as sums over Lefschetz thimbles, and the Stokes jumps of their asymptotic expansions.'
+tags: [complex-analysis]
+date: 2026-11-19
 katex_runtime: true
 styles: [style.css]
 scripts: [stokes.js, main.js]
@@ -34,6 +33,10 @@ references:
     authors: J. Écalle
     title: Les fonctions résurgentes
     note: Publ. Math. Orsay 81-05, 81-06, 85-05 (1981–1985)
+  - key: dlmf
+    authors: F. W. J. Olver et al. (eds.)
+    title: NIST Digital Library of Mathematical Functions, chapter 9 (Airy functions)
+    url: https://dlmf.nist.gov/9
   - key: pham1983
     authors: F. Pham
     title: Vanishing homologies and the $n$ variable saddlepoint method
@@ -49,7 +52,7 @@ references:
     note: 'in Chern–Simons Gauge Theory: 20 Years After, AMS/IP Stud. Adv. Math. 50 (2011), 347–446'
 ---
 <div class="wrap">
-  <p class="lede">An integral $I(\hbar)=\int_\Gamma \mathrm{e}^{-S(x)/\hbar}\,dx$ of a polynomial $S$, along a path $\Gamma$ running to infinity where the integrand decays, is a sum of integrals over Lefschetz thimbles, the paths of steepest descent from the critical points of $S$. Each has a divergent asymptotic series in $\hbar$. As the phase of $\hbar$ turns, the thimbles jump, and the asymptotic expansion of $I(\hbar)$ with them: the Stokes phenomenon. The jumps and the series of the other critical points determine the large orders of each series: resurgence.</p>
+  <p class="lede">An integral $I(\hbar)=\int_\Gamma \mathrm{e}^{-S(x)/\hbar}\,dx$ for a polynomial $S$, along a path $\Gamma$ running to infinity where the integrand decays, is a sum of integrals over Lefschetz thimbles, the paths of steepest descent from the critical points of $S$. Each thimble integral has a divergent asymptotic series in $\hbar$. As the phase of $\hbar$ turns, we see the Stokes phenomenon: the thimbles jump, and so does the asymptotic expansion of $I(\hbar)$.</p>
 </div>
 
 <div class="control-bar"><div class="wrap">
@@ -74,6 +77,7 @@ references:
         <canvas id="xcv" tabindex="0" role="img" aria-label="The plane of x: the landscape of the integrand, the critical points of S, their thimbles, and the path Gamma as a sum of thimbles"></canvas>
         <svg id="xsvg" class="sp-over" aria-label="Critical points and the ends of the path"></svg>
       </div>
+      <p class="hint">Drag critical points to move them.</p>
     </div>
     <div class="split-side">
       <section class="side-block side-head" aria-labelledby="title">
@@ -82,19 +86,19 @@ references:
         <div class="legend" id="legend"></div>
       </section>
       <section class="side-block sp-hblock" aria-label="The integral as a function of hbar">
+        <div class="sp-hmenu"><div class="control"><span class="label" id="hpick-label">Integrate along</span><div class="seg sp-hpick" id="hpick" role="radiogroup" aria-labelledby="hpick-label"><button type="button" role="radio" aria-checked="true" data-v="0">$\Gamma$</button><button type="button" role="radio" aria-checked="false" data-v="1">$J_1$</button><button type="button" role="radio" aria-checked="false" data-v="2">$J_2$</button></div></div><mm-zoom id="hzoom" min="1" max="16" aria-label="Zoom the picture of I(hbar)"></mm-zoom></div>
         <div class="sp-hplane" id="hplane">
-          <canvas id="hcv" role="img" aria-label="The integral I as a function of hbar in a disc about 0, coloured by its phase and darker near its zeros, with the Stokes rays"></canvas>
-          <div class="handle draggable sp-hbar" id="hbar" role="slider" tabindex="0" aria-label="hbar: the arrow keys left and right turn it, up and down change its modulus"></div>
+          <canvas id="hcv" role="img" aria-label="The integral I as a function of hbar in a disc about 0, coloured by its phase, with lines of constant phase and modulus, darker near its zeros, and the Stokes rays"></canvas>
+          <div class="handle draggable sp-hbar" id="hbar" role="slider" tabindex="0" aria-label="hbar: the arrow keys left and right turn it, up and down change its modulus, plus and minus zoom the picture"></div>
         </div>
         <p class="sp-hval" id="hval"></p>
-        <p class="sp-cap">The integral $I(\hbar)$, coloured by its phase as in the key and darker near its zeros. Dashed, the Stokes rays, across which it is continuous; dotted, the ray where it comes back after a turn.</p>
+        <p class="sp-cap" id="hcap">$I(\hbar)=\int_\Gamma\mathrm{e}^{-S/\hbar}\,dx$ coloured by its phase, with lines of constant phase and modulus, darker near its zeros. The arcs around show which thimbles $J_i$ contribute to $I(\hbar)$, and the red marks on the rim are the Stokes rays: across one the contributions can jump (an arc begins or ends), but $I(\hbar)$ stays continuous.</p>
       </section>
       <section class="side-block sp-zblock" aria-label="The values of S">
         <canvas id="zcv" role="img" aria-label="The plane of values of S: the critical values, and the rays the thimbles map onto, in the direction of hbar"></canvas>
         <p class="sp-cap">The critical values $S(p_i)$, and the rays $S(J_i)=S(p_i)+\hbar\,[0,\infty)$.</p>
       </section>
-      <section class="side-block sp-decblock" aria-label="The path as a sum of thimbles">
-        <p class="sp-dec" id="dec" aria-live="polite"></p>
+      <section class="side-block sp-decblock" aria-label="On a Stokes ray">
         <p class="sp-jump" id="jump" aria-live="polite"></p>
       </section>
     </div>
@@ -105,12 +109,16 @@ references:
 <div class="prose">
 <section aria-labelledby="sec-thimbles">
   <h2 class="section-title" id="sec-thimbles">Thimbles</h2>
-  <p>Let $S$ be a polynomial of degree $n+1$, with critical points $p_1,\dots,p_n$, and let $\hbar\ne0$ be complex. The integrand $\mathrm{e}^{-S/\hbar}$ dies in the $n+1$ sectors at infinity where $\mathrm{Re}(S/\hbar)\to+\infty$, the <strong>valleys</strong>, marked on the rim of the <a href="#figure">picture at the top</a>. The integral converges along a path $\Gamma$ that comes in along one valley and goes out along another, and by Cauchy's theorem it depends only on the two valleys. The <strong>thimble</strong> $J_i$ of $p_i$ is the path through it on which $(S(x)-S(p_i))/\hbar$ is real and positive: along it the phase of the integrand is constant and its modulus falls as steeply as it can. The map $S$ takes it two to one onto the ray $S(p_i)+\hbar\,[0,\infty)$, drawn in the plane of values [@witten2011].</p>
+  <p>Let $S$ be a polynomial of degree $n+1$, with critical points $p_1,\dots,p_n$, drawn as numbered points <svg class="sp-inline-pt" viewBox="-10 -10 20 20" aria-hidden="true"><circle class="handle-point" r="8"/><text class="handle-num" y="3.9">1</text></svg> above, and let $\hbar\ne0$ be a complex number. The integrand $\mathrm{e}^{-S/\hbar}$ dies in the $n+1$ sectors at infinity where $\mathrm{Re}(S/\hbar)\to+\infty$, the <strong>valleys</strong>: the white regions of the picture. The integral</p>
+  $$I(\hbar)=\int_\Gamma\mathrm{e}^{-S(x)/\hbar}\,dx$$
+  <p>converges for a path $\Gamma$ that comes in along one valley and goes out along another, and by Cauchy’s theorem it depends only on the two valleys. The <strong>thimble</strong> $J_i$ of $p_i$ is the path through $p_i$ whose points $x$ have</p>
+  $$S(x)=S(p_i)+a\hbar\quad\text{for some }a\ge0.$$
+  <p>Along it the phase of the integrand is constant and its modulus falls as steeply as it can, and $S$ maps it two to one onto the ray $S(p_i)+\hbar\,[0,\infty)$ [@witten2011].</p>
   <p>The upward flow of $\mathrm{Re}(S/\hbar)$,</p>
   $$\frac{dx}{dt}=\overline{S'(x)/\hbar},$$
-  <p>keeps $\mathrm{Im}(S/\hbar)$ constant, and <em>Flow</em> moves $\Gamma$ along it. It carries every point of $\Gamma$ out to a valley, except the points on the <strong>ascending paths</strong> $K_i$, on which $(S(x)-S(p_i))/\hbar$ is real and negative; these run into the critical points. So the flow presses $\Gamma$ onto the thimbles,</p>
-  $$\Gamma=\sum_i n_i J_i,$$
-  <p>where $n_i$ is the number of times $\Gamma$ crosses $K_i$, counted with signs [@witten2011]. The same flow deforms the domains of lattice path integrals towards thimbles, to tame their oscillation [@alexandru2022].</p>
+  <p>keeps $\mathrm{Im}(S/\hbar)$ constant, and the <em>Flow</em> slider moves $\Gamma$ along it. It carries every point of $\Gamma$ out to a valley, except the points on the <strong>ascending paths</strong> $K_i$, the paths through $p_i$ whose points $x$ have $S(x)=S(p_i)-a\hbar$ for some $a\ge0$; these run into the critical points. The flow presses $\Gamma$ onto the thimbles,</p>
+  <div class="sp-eq" id="eq-1">$$\Gamma=n_1J_1+n_2J_2+\cdots+n_nJ_n,\tag{1}$$</div>
+  <p>where $n_i$ is the number of times $\Gamma$ crosses $K_i$, counted with signs [@witten2011]. So $I(\hbar)$ is the sum of the integrals over the thimbles, $n_i$ times each. The same flow deforms the domains of lattice path integrals towards thimbles, to tame their oscillation [@alexandru2022].</p>
 </section>
 
 <section aria-labelledby="sec-stokes">
@@ -120,14 +128,46 @@ references:
       <div><svg id="stokes-chart" class="pannable" role="group" aria-label="The size of each exponential and the coefficients of Gamma, as arg hbar turns"></svg></div>
       <div class="fig-copy"><canvas id="copy-stokes" role="img" aria-label="The plane of x, as in the figure at the top"></canvas></div>
     </div>
-    <figcaption class="caption" id="stokes-cap">The size $-\mathrm{Re}\,S(p_i)/\hbar$ of each exponential for $|\hbar|=1$, solid where $J_i$ is in $\Gamma$, and under it the coefficients $n_i$, as $\arg\hbar$ turns under the line in the middle.</figcaption>
+    <figcaption class="caption" id="stokes-cap">The real part $-\mathrm{Re}\,S(p_i)/\hbar$ of the exponent of each $\mathrm{e}^{-S(p_i)/\hbar}$, for $|\hbar|=1$, solid where $J_i$ is in $\Gamma$, and under it the coefficients $n_i$ of <a href="#eq-1">$(1)$</a>, as $\arg\hbar$ turns under the line in the middle.</figcaption>
   </figure>
-  <p>Each thimble integral has an asymptotic expansion as $\hbar\to0$ in a fixed direction, found by expanding $S$ about $p_i$:</p>
-  $$\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx\;\sim\;\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2\pi\hbar}{S''(p_i)}}\;\sum_{k\ge0}a^{(i)}_k\hbar^k,\qquad a^{(i)}_0=1.$$
-  <p>So $I(\hbar)$ is a sum of exponentials, one for each critical point with $n_i\ne0$, each with its series.</p>
-  <p>The thimble $J_i$ jumps when its ray runs into another critical value $S(p_j)$, at $\arg\hbar=\arg\bigl(S(p_j)-S(p_i)\bigr)$. There $J_i$ runs into $p_j$, and as $\arg\hbar$ grows, $J_i\mapsto J_i\pm J_j$: the Picard–Lefschetz formula [@pham1983]. The integral does not jump, so the coefficients do: $n_j$ changes by $\mp n_i$, and a term $\mathrm{e}^{-S(p_j)/\hbar}$ enters the expansion of $I(\hbar)$ or leaves it. This is the <strong>Stokes phenomenon</strong>, which Stokes found in Airy's integral [@stokes1864]. On the Stokes ray the term that jumps is as small as it can be beside $\mathrm{e}^{-S(p_i)/\hbar}$, about the size of the smallest term of its series, which cannot resolve it. It becomes visible where the two exponentials have the same size, on the anti-Stokes lines, where their curves in the chart cross.</p>
-  <p>The picture of $I(\hbar)$ beside the plane of $x$ shows both sides of this. The integral is analytic in $\hbar\ne0$, and its colours run on across the Stokes rays where its expansion jumps. Past a Stokes ray, where the term that has jumped in grows to the size of the other, the two cancel at points without end, accumulating at $\hbar=0$: the zeros of $I$, dark in the picture, like the zeros of Airy's function on the negative axis.</p>
-  <p>After a whole turn of $\hbar$ the valleys have each moved on by one, and $\Gamma$ with them: $I(\hbar)$ is not a single-valued function of $\hbar$, and the coefficients after a turn are those of another path. The picture of $I(\hbar)$ takes it from $\hbar$ the short way round, so it is cut along the ray opposite $\hbar$.</p>
+  <p>The integral over each thimble has an asymptotic expansion as $\hbar\to0$ in a fixed direction. Near $p_i$, $S(x)=S(p_i)+\frac12S''(p_i)(x-p_i)^2+\cdots$. The quadratic part, integrated along the line $L_i$ that touches $J_i$ at $p_i$ (where $S''(p_i)(x-p_i)^2/\hbar$ is real and positive), gives the Gaussian integral</p>
+  $$\int_{L_i}\mathrm{e}^{-S''(p_i)(x-p_i)^2/2\hbar}\,dx=\sqrt{\frac{2\pi\hbar}{S''(p_i)}},$$
+  <p>and the higher terms of $S$ give corrections in powers of $\hbar$:</p>
+  <div class="sp-eq" id="eq-2"><div class="sp-wide">$$\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx\;\sim\;\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2\pi\hbar}{S''(p_i)}}\;\bigl(1+a^{(i)}_1\hbar+a^{(i)}_2\hbar^2+\cdots\bigr).\tag{2}$$</div><div class="sp-narrow">$$\begin{aligned}\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx\;&\sim\;\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2\pi\hbar}{S''(p_i)}}\\&\quad\times\bigl(1+a^{(i)}_1\hbar+a^{(i)}_2\hbar^2+\cdots\bigr).\end{aligned}\tag{2}$$</div></div>
+  <p>The series in brackets, the <strong>series of $J_i$</strong>, diverges for every $\hbar\ne0$, so it describes the integral only as $\hbar\to0$. By <a href="#eq-1">$(1)$</a>, $I(\hbar)$ is a sum of integrals over the thimbles $J_i$, each described by its divergent series.</p>
+  <p>The thimble $J_i$ jumps when the ray $S(p_i)+\hbar\,[0,\infty)$ runs into another critical value $S(p_j)$, that is, when $\arg\hbar=\arg\bigl(S(p_j)-S(p_i)\bigr)$: this ray in the plane of $\hbar$ is a <strong>Stokes ray</strong> of $J_i$. There $J_i$ runs into $p_j$, and as $\arg\hbar$ grows, $J_i$ becomes $J_i\pm J_j$: the Picard–Lefschetz formula [@pham1983]. The integral $I(\hbar)$ over the fixed path $\Gamma$ does not jump, but the coefficients in <a href="#eq-1">$(1)$</a> do: $n_j$ changes by $\mp n_i$, and a term $\mathrm{e}^{-S(p_j)/\hbar}$ enters the expansion of $I(\hbar)$ or leaves it. This is the <strong>Stokes phenomenon</strong>, which Stokes found in Airy’s integral [@stokes1864].</p>
+  <p>Turning $\hbar$ once round $0$ moves each valley on to the next, and $\Gamma$ moves with the valleys: $I(\hbar)$ is not a single-valued function of $\hbar$, and after a turn the coefficients $n_i$ in <a href="#eq-1">$(1)$</a> have changed. After $n+1$ turns each valley is back in its place, and so is $I(\hbar)$.</p>
+</section>
+
+<section aria-labelledby="sec-ode">
+  <h2 class="section-title" id="sec-ode">The Airy equation</h2>
+  <p>The integrals $I(\hbar)$, one for each path $\Gamma$, are the solutions of a linear differential equation, and the Stokes phenomenon is a property of its solutions. This holds for every $S$, but for simplicity we treat Airy’s integral.</p>
+  <p>Airy’s integral has $S(x)=\frac13x^3-x$. Change the variables to</p>
+  $$t=-\hbar^{-1/3}\,x,\qquad z=\hbar^{-2/3}:$$
+  <p>the exponent becomes $-S(x)/\hbar=\frac13t^3-zt$, and</p>
+  <div class="sp-eq"><div class="sp-wide">$$\begin{aligned}I(\hbar)=\int_\Gamma\mathrm{e}^{-S(x)/\hbar}\,dx&=-\hbar^{1/3}\,u(z),&u(z)&=\int_C\mathrm{e}^{t^3/3-zt}\,dt,\end{aligned}$$</div><div class="sp-narrow">$$\begin{aligned}I(\hbar)=\int_\Gamma\mathrm{e}^{-S(x)/\hbar}\,dx&=-\hbar^{1/3}\,u(z),\\u(z)&=\int_C\mathrm{e}^{t^3/3-zt}\,dt,\end{aligned}$$</div></div>
+  <p>where $C$ is the image of $\Gamma$ under this change of variable: a path that comes in along one valley of $\mathrm{e}^{t^3/3}$ and goes out along another. Every such $u$ solves the <strong>Airy equation</strong> $u''=zu$, since</p>
+  <div class="sp-eq"><div class="sp-wide">$$u''(z)-z\,u(z)=\int_C\bigl(t^2-z\bigr)\,\mathrm{e}^{t^3/3-zt}\,dt=\int_C\frac{d}{dt}\,\mathrm{e}^{t^3/3-zt}\,dt=0,$$</div><div class="sp-narrow">$$\begin{aligned}u''(z)-z\,u(z)&=\int_C\bigl(t^2-z\bigr)\,\mathrm{e}^{t^3/3-zt}\,dt\\&=\int_C\frac{d}{dt}\,\mathrm{e}^{t^3/3-zt}\,dt=0,\end{aligned}$$</div></div>
+  <p>the integrand vanishing at both ends of $C$. The three paths between the three valleys add up to $0$, and any two of them give two independent solutions, so every solution of the Airy equation is such an integral. For $\hbar&gt;0$ and the path $\Gamma$ the page opens with, from the valley at angle $\frac{2\pi}3$ down to the one at $\frac{4\pi}3$, the path $C$ runs from $\infty\,\mathrm{e}^{-\pi\mathrm{i}/3}$ to $\infty\,\mathrm{e}^{\pi\mathrm{i}/3}$, and $u=2\pi\mathrm{i}\,\mathrm{Ai}$, where</p>
+  $$\mathrm{Ai}(z)=\frac1{2\pi\mathrm{i}}\int_{\infty\mathrm{e}^{-\pi\mathrm{i}/3}}^{\infty\mathrm{e}^{\pi\mathrm{i}/3}}\mathrm{e}^{t^3/3-zt}\,dt$$
+  <p>is Airy’s function [@dlmf]; so $I(\hbar)=-2\pi\mathrm{i}\,\hbar^{1/3}\,\mathrm{Ai}\bigl(\hbar^{-2/3}\bigr)$.</p>
+  <p>With $\xi=\frac23z^{3/2}=\frac2{3\hbar}$, the exponentials $\mathrm{e}^{-S(p_i)/\hbar}$ of the two thimbles are $\mathrm{e}^{\mp\xi}$, since $S(\mp1)=\pm\frac23$, so by <a href="#eq-2">$(2)$</a> the integrals over $J_1$ and $J_2$ have the expansions</p>
+  <div class="sp-eq"><div class="sp-wide">$$\begin{aligned}\int_{J_1}\mathrm{e}^{-S/\hbar}\,dx&\sim\pm2\pi\mathrm{i}\,\hbar^{1/3}\,w_1(z),&w_1(z)&=\frac{\mathrm{e}^{-\xi}}{2\sqrt\pi\,z^{1/4}}\Bigl(1-\frac{5}{72\,\xi}+\cdots\Bigr),\\\int_{J_2}\mathrm{e}^{-S/\hbar}\,dx&\sim\pm2\pi\,\hbar^{1/3}\,w_2(z),&w_2(z)&=\frac{\mathrm{e}^{\xi}}{2\sqrt\pi\,z^{1/4}}\Bigl(1+\frac{5}{72\,\xi}+\cdots\Bigr),\end{aligned}$$</div><div class="sp-narrow">$$\begin{aligned}\int_{J_1}\mathrm{e}^{-S/\hbar}\,dx&\sim\pm2\pi\mathrm{i}\,\hbar^{1/3}\,w_1(z),\\w_1(z)&=\frac{\mathrm{e}^{-\xi}}{2\sqrt\pi\,z^{1/4}}\Bigl(1-\frac{5}{72\,\xi}+\cdots\Bigr),\\\int_{J_2}\mathrm{e}^{-S/\hbar}\,dx&\sim\pm2\pi\,\hbar^{1/3}\,w_2(z),\\w_2(z)&=\frac{\mathrm{e}^{\xi}}{2\sqrt\pi\,z^{1/4}}\Bigl(1+\frac{5}{72\,\xi}+\cdots\Bigr),\end{aligned}$$</div></div>
+  <p>the signs depending on the orientations of the thimbles. The functions $w_1$ and $w_2$ are the two formal solutions of the Airy equation that the WKB method gives as $z\to\infty$: each an exponential times a divergent series.</p>
+  <p>A solution is an integral over a fixed path, and an entire function of $z$; what changes is how it is expanded in $w_1$ and $w_2$. As $z\to\infty$,</p>
+  <div class="sp-eq"><div class="sp-wide">$$\begin{aligned}\mathrm{Ai}(z)&\sim w_1(z)&&\text{for }{-\tfrac{2\pi}3}<\arg z<\tfrac{2\pi}3,\\\mathrm{Ai}(z)&\sim w_1(z)\pm\mathrm{i}\,w_2(z)&&\text{for }\tfrac{2\pi}3<\pm\arg z\le\pi.\end{aligned}$$</div><div class="sp-narrow">$$\begin{aligned}&\mathrm{Ai}(z)\sim w_1(z)\\&\qquad\text{for }{-\tfrac{2\pi}3}<\arg z<\tfrac{2\pi}3,\\&\mathrm{Ai}(z)\sim w_1(z)\pm\mathrm{i}\,w_2(z)\\&\qquad\text{for }\tfrac{2\pi}3<\pm\arg z\le\pi.\end{aligned}$$</div></div>
+  <p>The rays $\arg z=\pm\frac{2\pi}3$ are the Stokes rays $\arg\hbar=\mp\pi$ of $J_1$, since $\arg z=-\frac23\arg\hbar$.</p>
+  <figure id="zplane-fig">
+    <div class="fig-bar"><div class="seg sp-zpick" id="zpick" role="radiogroup" aria-label="The function in the picture of the plane of z"><button type="button" role="radio" aria-checked="true" data-v="0">$\mathrm{Ai}$</button><button type="button" role="radio" aria-checked="false" data-v="1">$w_1$</button><button type="button" role="radio" aria-checked="false" data-v="2">$w_2$</button></div></div>
+    <div class="sp-zplane"><canvas id="zplane-cv" tabindex="0" role="img" aria-label="Airy’s function in a disc of the plane of z, coloured by its phase, with lines of constant phase and modulus, the Stokes rays, and arcs showing which of w1 and w2 are in its expansion"></canvas></div>
+    <figcaption class="caption" id="zplane-cap">$\mathrm{Ai}(z)$ for $|z|\le5$, coloured by its phase, with lines of constant phase and modulus, darker near its zeros. The arcs around show which of $w_1$ and $w_2$ are in its expansion, in their branches continued the short way round from the knob of $\arg z$, and the red marks on the rim are the Stokes rays: across one a coefficient jumps, but $\mathrm{Ai}$ stays continuous.</figcaption>
+  </figure>
+  <p>On the real line the result is the chart below: $\mathrm{Ai}(z)$ is one decaying exponential, $w_1$, for $z&gt;0$, and two oscillating ones, $w_1\pm\mathrm{i}\,w_2$, for $z&lt;0$. This change of form is what Stokes found in Airy’s integral [@stokes1864].</p>
+  <figure id="airy-fig">
+    <div><svg id="airy-chart" role="img" aria-label="Airy’s function on the real line, with the leading terms of its expansion: one exponential for positive z, two for negative z"></svg></div>
+    <div class="legend sp-figlegend" id="airy-legend"></div>
+    <figcaption class="caption">Airy’s function $\mathrm{Ai}(z)$ on the real line, and the leading terms of its expansion: $w_1$ for $z&gt;0$, and $w_1\pm\mathrm{i}\,w_2$ for $z&lt;0$.</figcaption>
+  </figure>
 </section>
 
 <section aria-labelledby="sec-borel">
@@ -138,52 +178,68 @@ references:
       <div class="sp-borel" id="borel-box"><canvas id="borel-cv" role="img" aria-label="The Borel transform of the series, coloured by its phase, with the ray of hbar"></canvas><div class="handle draggable sp-lray" id="borel-h" role="slider" tabindex="0" aria-label="The phase of hbar"></div></div>
       <div class="fig-copy"><canvas id="copy-borel" role="img" aria-label="The plane of x, as in the figure at the top"></canvas></div>
     </div>
-    <figcaption class="caption" id="borel-cap">The Borel transform $\beta_1$, coloured by its phase as in the key and darker where it is large, with the point $\hbar$ and its ray. Its singularities are ringed; the dashed lines are its cuts.</figcaption>
+    <figcaption class="caption" id="borel-cap">The Borel transform $\beta_1$ of the series of $J_1$, as in <a href="#eq-3">$(3)$</a>, coloured by its phase as in the key and darker where it is large. In <a href="#eq-4">$(4)$</a> it is integrated along the black ray, the ray of $\hbar$. Its singularities are marked; the red lines are its cuts.</figcaption>
   </figure>
-  <p>The <strong>Borel transform</strong> of the series of $J_i$,</p>
-  $$\beta_i(\zeta)=\sum_{k\ge0}\frac{a^{(i)}_k}{(\frac12)_k}\,\zeta^k,\qquad(\tfrac12)_k=\tfrac12\cdot\tfrac32\cdots\bigl(k-\tfrac12\bigr),$$
-  <p>converges near $0$, and substituting $\zeta=S(x)-S(p_i)$ in the integral over the thimble gives it back as a Laplace integral along the ray of $\hbar$:</p>
-  $$\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx=\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2}{S''(p_i)}}\int_0^{\infty\cdot\hbar}\mathrm{e}^{-\zeta/\hbar}\,\beta_i(\zeta)\,\frac{d\zeta}{\sqrt\zeta}.$$
-  <p>The Borel plane is the plane of values of $S$ with $S(p_i)$ moved to $0$, and the integrand decays along the ray over the length $|\hbar|$. Along each ray from $0$, $\beta_i$ continues analytically until the ray meets one of the points $A_{ij}=S(p_j)-S(p_i)$ for which $J_i$ runs into $p_j$ at $\arg\hbar=\arg A_{ij}$. There it has a singularity like $(\zeta-A_{ij})^{-1/2}$, and beyond it the values on the two sides of the ray differ. So the Laplace integral jumps when the ray of $\hbar$ crosses a singularity, exactly as the thimble does [@ecalle1981; @aniceto2019]. The other critical values are singularities only on other sheets.</p>
+  <p>The <strong>Borel transform</strong> turns the divergent series of $J_i$ in <a href="#eq-2">$(2)$</a> into a convergent one that describes it. It divides the coefficients by $(\frac12)_k=\frac12\cdot\frac32\cdots\bigl(k-\frac12\bigr)=\Gamma(k+\frac12)/\sqrt\pi$, which grow factorially, as fast as $k!$ up to a power of $k$ (about $(k-1)!\sqrt{k/\pi}$):</p>
+  <div class="sp-eq" id="eq-3">$$\beta_i(\zeta)=1+\frac{a^{(i)}_1}{(\frac12)_1}\,\zeta+\frac{a^{(i)}_2}{(\frac12)_2}\,\zeta^2+\cdots.\tag{3}$$</div>
+  <p>Note that many texts divide by $k!$ instead, which works in the same way; we use $(\frac12)_k$ so that the transform will come straight out of the integral below.</p>
+  <p>Unlike the series of $J_i$, the series <a href="#eq-3">$(3)$</a> converges near $\zeta=0$, and substituting $\zeta=S(x)-S(p_i)$ in $\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx$ gives that integral as a Laplace integral of $\beta_i$ along the ray of $\hbar$:</p>
+  <div class="sp-eq" id="eq-4"><div class="sp-wide">$$\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx=\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2}{S''(p_i)}}\int_0^{\infty\cdot\hbar}\mathrm{e}^{-\zeta/\hbar}\,\beta_i(\zeta)\,\frac{d\zeta}{\sqrt\zeta}.\tag{4}$$</div><div class="sp-narrow">$$\begin{aligned}\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx&=\mathrm{e}^{-S(p_i)/\hbar}\sqrt{\frac{2}{S''(p_i)}}\\&\quad\times\int_0^{\infty\cdot\hbar}\mathrm{e}^{-\zeta/\hbar}\,\beta_i(\zeta)\,\frac{d\zeta}{\sqrt\zeta}.\end{aligned}\tag{4}$$</div></div>
+  <p>Integrated term by term, with</p>
+  $$\int_0^\infty\mathrm{e}^{-\zeta/\hbar}\,\zeta^{k-1/2}\,d\zeta=\sqrt\pi\,(\tfrac12)_k\,\hbar^{k+1/2},$$
+  <p>the Laplace integral gives back the series <a href="#eq-2">$(2)$</a>: the factors $(\frac12)_k$ come back.</p>
+  <p>The <strong>Borel plane</strong>, the plane of $\zeta=S(x)-S(p_i)$, is the plane of values of $S$ with $S(p_i)$ moved to $0$, and the integrand of <a href="#eq-4">$(4)$</a> decays along the ray over the length $|\hbar|$. Along each ray from $0$, $\beta_i$ continues analytically until the ray meets one of the points $A_{ij}=S(p_j)-S(p_i)$ for which $J_i$ runs into $p_j$ at $\arg\hbar=\arg A_{ij}$. There it has a singularity like $(\zeta-A_{ij})^{-1/2}$, and beyond it the values on the two sides of the ray differ (the red rays in the picture). So the Laplace integral <a href="#eq-4">$(4)$</a> jumps when the ray of $\hbar$ crosses a singularity, exactly as the thimble does [@ecalle1981; @aniceto2019].</p>
 </section>
 
 <section aria-labelledby="sec-resurgence">
   <h2 class="section-title" id="sec-resurgence">Resurgence</h2>
+  <p>The series of $J_i$ in <a href="#eq-2">$(2)$</a> diverges for every $\hbar\ne0$, but as an asymptotic expansion it is accurate as $\hbar\to0$ for each fixed number of terms. Its terms first fall and then grow rapidly, and so does the error of the sum of its first $k$ terms.</p>
   <figure id="trunc-fig">
     <div class="fig-bar">
       <div class="seg sp-pick" role="radiogroup" aria-label="The critical point whose series is shown" data-pick="trunc"></div>
       <div class="sp-param"><span class="sp-pv" id="trunc-val">$|\hbar|=0.13$</span><input type="range" class="sp-r" min="0" max="1000" aria-label="The modulus of hbar"></div>
     </div>
+    <div class="sp-series" id="trunc-series"><div class="sp-wide">$$\int_{J_{1}}\mathrm{e}^{-S/\hbar}\,dx\;\sim\;\mathrm{e}^{-S(p_{1})/\hbar}\sqrt{\frac{2\pi\hbar}{S''(p_{1})}}\,\bigl(1-0.104\,\hbar+0.0836\,\hbar^{2}-0.128\,\hbar^{3}+\cdots\bigr)$$</div><div class="sp-narrow">$$\begin{aligned}&\int_{J_{1}}\mathrm{e}^{-S/\hbar}\,dx\;\sim\;\mathrm{e}^{-S(p_{1})/\hbar}\sqrt{\frac{2\pi\hbar}{S''(p_{1})}}\\&\qquad\times\bigl(1-0.104\,\hbar+0.0836\,\hbar^{2}+\cdots\bigr)\end{aligned}$$</div></div>
     <div class="fig-pair">
-      <div><svg id="trunc-chart" role="group" aria-label="The terms of the series, the errors of its partial sums, and the terms the other series predict"></svg></div>
-      <div class="fig-copy sp-zcopy"><canvas id="copy-trunc" role="img" aria-label="The integral as a function of hbar, as in the figure at the top"></canvas></div>
+      <div><svg id="trunc-chart" role="group" aria-label="The error of the series summed to k terms"></svg></div>
+      <div class="fig-copy sp-zcopy"><canvas id="copy-trunc" role="img" aria-label="The integral as a function of hbar, as in the figure at the top; a press or drag on it moves hbar"></canvas></div>
     </div>
-    <figcaption class="caption" id="trunc-cap">The terms $|a_k\hbar^k|$ of the series of $J_1$ (dots), the error of the sum of the terms before $a_k\hbar^k$ relative to the integral over $J_1$ (rings), and the terms predicted from the series of $p_2$ (line).</figcaption>
+    <figcaption class="caption" id="trunc-cap">The error of the series of $J_1$ summed to $k$ terms, relative to the integral over $J_1$; $N$ marks where it is least.</figcaption>
   </figure>
-  <p>With $S(p_i+y)-S(p_i)=s_2y^2\bigl(1+T(y)\bigr)$, substituting $w^2=S(x)-S(p_i)$ in the integral and inverting the series gives</p>
-  $$a^{(i)}_k=\frac{(2k-1)!!}{(2s_2)^k}\,[y^{2k}]\,\bigl(1+T(y)\bigr)^{-(2k+1)/2}.$$
-  <p>These are, up to $(\frac12)_k$, the Taylor coefficients of $\beta_i$, so they grow like $(k-1)!/|A|^k$ with $A$ the nearest singularity: the series diverges for every $\hbar\ne0$. Its terms first fall and then grow; summed up to the smallest, near $k\approx|A/\hbar|$, it comes as close to the integral as it can, within about $\mathrm{e}^{-|A/\hbar|}$, which is the size of the jumping exponential on the Stokes ray [@boyd1999].</p>
-  <p>Across a Stokes ray of $J_i$ the Laplace integrals of $\beta_i$ on its two sides differ by the jump of the thimble: the sum of the series of $p_j$ times $\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}$, where the <strong>Stokes constant</strong> $\kappa_{ij}=\pm\sqrt{S''(p_i)/S''(p_j)}$ carries the sign of the jump and the orientations of the thimbles. Cauchy's formula turns this into the large orders of the series:</p>
-  $$a^{(i)}_k\;\approx\;\sum_j\frac{\kappa_{ij}}{2\pi\mathrm{i}}\sum_{l\ge0}a^{(j)}_l\,\frac{\Gamma(k-l)}{A_{ij}^{\,k-l}},$$
-  <p>the sum over the critical points that $J_i$ runs into. The late terms of each series are determined by the early terms of the series of its neighbours, and the singularities of the Borel plane are where they show: this is <strong>resurgence</strong> [@ecalle1981; @berry1991]. The line in the chart is this formula with the first three coefficients of each neighbour's series.</p>
+  <p>The coefficients $a^{(i)}_k$ of the series of $J_i$ come from Laplace’s method. Consider the Taylor expansion of $S$ about $p_i$, written as</p>
+  <div class="sp-eq"><div class="sp-wide">$$S(p_i+y)=S(p_i)+s_2y^2\bigl(1+T(y)\bigr),\qquad s_2=\tfrac12S''(p_i),$$</div><div class="sp-narrow">$$\begin{aligned}S(p_i+y)&=S(p_i)+s_2y^2\bigl(1+T(y)\bigr),\\s_2&=\tfrac12S''(p_i),\end{aligned}$$</div></div>
+  <p>where the power series $T(y)=t_1y+t_2y^2+\cdots$ holds the terms of $S$ of degree three and more. Then</p>
+  $$a^{(i)}_k=\frac{(2k-1)!!}{(2s_2)^k}\,[y^{2k}]\,\bigl(1+T(y)\bigr)^{-(2k+1)/2},$$
+  <p>where $[y^{2k}]$ takes the coefficient of $y^{2k}$ in the power series after it. To see this, change the variable in $\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx$ from $x=p_i+y$ to $w$, with $w^2=(S(x)-S(p_i))/\hbar$, which is real and positive on $J_i$: the integrand becomes $\mathrm{e}^{-S(p_i)/\hbar}\,\mathrm{e}^{-w^2}\,dx/dw$, and $w$ runs over the real line. Expand $dx/dw$ in powers of $w$ (Lagrange’s inversion formula gives its coefficients from those of $(1+T)^{-1/2}$), and integrate term by term against $\mathrm{e}^{-w^2}$: the odd powers give $0$, and the power $w^{2k}$ gives the term $a^{(i)}_k\hbar^k$ of <a href="#eq-2">$(2)$</a>.</p>
+  <p>Divided by $(\frac12)_k$, the $a^{(i)}_k$ are the Taylor coefficients of $\beta_i$ in <a href="#eq-3">$(3)$</a>, and the series <a href="#eq-3">$(3)$</a> converges only out to the singularity $A$ of $\beta_i$ nearest to $0$. So the $a^{(i)}_k$ grow like $(k-1)!/|A|^k$, and the terms $a^{(i)}_k\hbar^k$ are smallest at about $k=|A/\hbar|$. The <strong>optimal truncation</strong> is the sum of the terms before the smallest, the first $N\approx|A/\hbar|$ of them: it comes as close as the series can to $\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx$ divided by the factor in front of the series in <a href="#eq-2">$(2)$</a>, within about $\mathrm{e}^{-|A/\hbar|}$ [@boyd1999].</p>
+  <p>Across a Stokes ray of $J_i$, where $J_i$ runs into $p_j$, $J_i$ becomes $J_i\pm J_j$, so $\int_{J_i}\mathrm{e}^{-S/\hbar}\,dx$ jumps by $\pm\int_{J_j}\mathrm{e}^{-S/\hbar}\,dx$. Divided by the factor in front of the series of $J_i$ in <a href="#eq-2">$(2)$</a>, and expanded by <a href="#eq-2">$(2)$</a> for $J_j$, the jump is</p>
+  <div class="sp-eq" id="eq-5"><div class="sp-wide">$$\frac{\pm\int_{J_j}\mathrm{e}^{-S/\hbar}\,dx}{\mathrm{e}^{-S(p_i)/\hbar}\sqrt{2\pi\hbar/S''(p_i)}}\;\sim\;\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}\bigl(1+a^{(j)}_1\hbar+a^{(j)}_2\hbar^2+\cdots\bigr),\tag{5}$$</div><div class="sp-narrow">$$\begin{aligned}&\frac{\pm\int_{J_j}\mathrm{e}^{-S/\hbar}\,dx}{\mathrm{e}^{-S(p_i)/\hbar}\sqrt{2\pi\hbar/S''(p_i)}}\\&\quad\sim\;\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}\bigl(1+a^{(j)}_1\hbar+\cdots\bigr),\end{aligned}\tag{5}$$</div></div>
+  <p>where $A_{ij}=S(p_j)-S(p_i)$, and the <strong>Stokes constant</strong> $\kappa_{ij}=\pm\sqrt{S''(p_i)/S''(p_j)}$ carries the sign of the jump and the orientations of the thimbles. Cauchy’s formula for the Taylor coefficients of $\beta_i$, with its contour moved out onto the cuts of $\beta_i$, where $\beta_i$ jumps in this way, turns this into the large orders of the series of $J_i$:</p>
+  <div class="sp-eq" id="eq-6"><div class="sp-wide">$$a^{(i)}_k\;\approx\;\sum_j\frac{\kappa_{ij}}{2\pi\mathrm{i}}\Bigl(\frac{\Gamma(k)}{A_{ij}^{\,k}}+a^{(j)}_1\frac{\Gamma(k-1)}{A_{ij}^{\,k-1}}+a^{(j)}_2\frac{\Gamma(k-2)}{A_{ij}^{\,k-2}}+\cdots\Bigr),\tag{6}$$</div><div class="sp-narrow">$$\begin{aligned}a^{(i)}_k\approx\sum_j\frac{\kappa_{ij}}{2\pi\mathrm{i}}\Bigl(&\frac{\Gamma(k)}{A_{ij}^{\,k}}+a^{(j)}_1\frac{\Gamma(k-1)}{A_{ij}^{\,k-1}}\\&+a^{(j)}_2\frac{\Gamma(k-2)}{A_{ij}^{\,k-2}}+\cdots\Bigr),\end{aligned}\tag{6}$$</div></div>
+  <p>the sum over the critical points $p_j$ that $J_i$ runs into, and in the brackets over $l=0,1,\dots,k-1$. For large $k$ the term with $a^{(j)}_l$ is about $|A_{ij}/k|^l\,|a^{(j)}_l|$ times the first, so the coefficients up to $a^{(j)}_L$ of each of these series give $a^{(i)}_k$ to a relative accuracy of about $k^{-L-1}$, better the larger $k$.</p>
+  <p>So the late coefficients of the series of $J_i$ are determined by the early coefficients of the series of the thimbles $J_j$ that $J_i$ runs into: this is <strong>resurgence</strong> [@ecalle1981; @berry1991].</p>
 </section>
 
 <section aria-labelledby="sec-smooth">
   <h2 class="section-title" id="sec-smooth">Smoothing the jump</h2>
+  <p>Seen from the optimal truncation of the series of $J_i$, the Stokes phenomenon is not a jump but a smooth, rapid change across the Stokes ray, the narrower the smaller $\hbar$ [@berry1989].</p>
   <figure id="smooth-fig">
     <div class="fig-bar">
       <div class="seg sp-pick" role="radiogroup" aria-label="The critical point whose series is truncated" data-pick="smooth"></div>
       <div class="sp-param"><span class="sp-pv" id="smooth-val">$|\hbar|=0.13$</span><input type="range" class="sp-r" min="0" max="1000" aria-label="The modulus of hbar"></div>
     </div>
     <div class="fig-pair">
-      <div><svg id="smooth-chart" role="group" aria-label="The multiplier of the jumping exponential as arg hbar crosses a Stokes ray"></svg></div>
-      <div class="fig-copy sp-zcopy"><canvas id="copy-smooth" role="img" aria-label="The integral as a function of hbar, as in the figure at the top"></canvas></div>
+      <div><svg id="smooth-chart" role="group" aria-label="The coefficient of the jumping exponential as arg hbar crosses a Stokes ray: a step for the thimbles, a smooth rise for the truncated series"></svg></div>
+      <div class="fig-copy sp-zcopy"><canvas id="copy-smooth" role="img" aria-label="The integral as a function of hbar, as in the figure at the top; a press or drag on it moves hbar"></canvas></div>
     </div>
-    <figcaption class="caption" id="smooth-cap">What is left when the series of $J_1$ is summed to its smallest term, as a multiple of the jumping term $\kappa_{12}\,\mathrm{e}^{-A_{12}/\hbar}\sum_l a^{(2)}_l\hbar^l$, across the Stokes ray of $J_1$ (dots, the real part); the error function (curve) and the jump of the thimble (dashed).</figcaption>
+    <div class="legend sp-figlegend" id="smooth-legend"></div>
+    <figcaption class="caption" id="smooth-cap">The coefficient of the jumping term of <a href="#eq-5">$(5)$</a> as $\arg\hbar$ crosses the Stokes ray of $J_1$ into $p_2$: it jumps from $0$ to $1$ in the expansion by thimbles, and rises smoothly in the remainder $R_N$ of the series of $J_1$ (its real part), close to the error function of <a href="#eq-7">$(7)$</a>.</figcaption>
   </figure>
-  <p>The integral over a fixed path does not jump; only its expansion does. Summed to its smallest term, the series of $J_i$ leaves a remainder of the size of $\mathrm{e}^{-A_{ij}/\hbar}$. Across the Stokes ray this remainder is the jumping term times a factor that rises smoothly from $0$ to $1$,</p>
-  $$\tfrac12\bigl(1+\operatorname{erf}\sigma\bigr),\qquad\sigma=-\frac{\mathrm{Im}\,(A_{ij}/\hbar)}{\sqrt{2\,\mathrm{Re}\,(A_{ij}/\hbar)}},$$
-  <p>over an angle of about $\sqrt{2|\hbar/A_{ij}|}$, as Berry found [@berry1989]. Seen from the series, the Stokes phenomenon is a smooth, rapid change, which is the narrower the smaller $\hbar$.</p>
+  <p>Let $\hbar$ cross a Stokes ray of $J_i$, where $J_i$ runs into $p_j$, and let $J_i^-$ be the thimble $J_i$ as it is just before the ray, kept fixed as $\hbar$ crosses it; the integral over $J_i^-$ does not jump. Divide it by the factor in front of the series of $J_i$ in <a href="#eq-2">$(2)$</a>, and take away the series of $J_i$ truncated optimally, after $N\approx|A_{ij}/\hbar|$ terms. What is left is the <strong>remainder</strong></p>
+  <div class="sp-eq"><div class="sp-wide">$$R_N(\hbar)=\frac{\int_{J_i^-}\mathrm{e}^{-S/\hbar}\,dx}{\mathrm{e}^{-S(p_i)/\hbar}\sqrt{2\pi\hbar/S''(p_i)}}-\bigl(1+a^{(i)}_1\hbar+\cdots+a^{(i)}_{N-1}\hbar^{N-1}\bigr).$$</div><div class="sp-narrow">$$\begin{aligned}R_N(\hbar)={}&\frac{\int_{J_i^-}\mathrm{e}^{-S/\hbar}\,dx}{\mathrm{e}^{-S(p_i)/\hbar}\sqrt{2\pi\hbar/S''(p_i)}}\\&-\bigl(1+a^{(i)}_1\hbar+\cdots+a^{(i)}_{N-1}\hbar^{N-1}\bigr).\end{aligned}$$</div></div>
+  <p>In the expansion by thimbles the jumping term $\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}\bigl(1+a^{(j)}_1\hbar+\cdots\bigr)$ of <a href="#eq-5">$(5)$</a> enters all at once: before the ray $J_i^-$ is the thimble $J_i$, and after it $J_i^-$ is the new thimble $J_i$ less the jump, so $R_N$ goes from about $0$ to minus that term as soon as $\hbar$ crosses the ray. But $R_N$ itself changes smoothly. Berry found [@berry1989]</p>
+  <div class="sp-eq" id="eq-7"><div class="sp-wide">$$R_N(\hbar)\;\approx\;-\tfrac12\bigl(1+\operatorname{erf}\sigma\bigr)\,\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}\bigl(1+a^{(j)}_1\hbar+a^{(j)}_2\hbar^2+\cdots\bigr),\tag{7}$$</div><div class="sp-narrow">$$\begin{aligned}R_N(\hbar)\approx{}&-\tfrac12\bigl(1+\operatorname{erf}\sigma\bigr)\\&\times\kappa_{ij}\,\mathrm{e}^{-A_{ij}/\hbar}\bigl(1+a^{(j)}_1\hbar+\cdots\bigr),\end{aligned}\tag{7}$$</div></div>
+  <p>where $\sigma=-\mathrm{Im}(A_{ij}/\hbar)\big/\sqrt{2\,\mathrm{Re}(A_{ij}/\hbar)}$, which is about $(\arg\hbar-\arg A_{ij})\sqrt{|A_{ij}/\hbar|/2}$. So in the remainder the coefficient of the jumping term rises from $0$, through $\frac12$ on the ray, to $1$, over an angle of about $\sqrt{2|\hbar/A_{ij}|}$ on either side of the ray. That is the difference the chart shows: the thimbles switch the exponential $\mathrm{e}^{-A_{ij}/\hbar}$ on at once, while the optimally truncated series switches it on smoothly, the more abruptly the smaller $\hbar$.</p>
 </section>
 </div>
 </div>

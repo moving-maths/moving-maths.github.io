@@ -20,7 +20,7 @@ body {
   --gamma: var(--ink);
 }
 
-.sp { --split-main: 1.4fr; --split-below: 24px; }
+.sp { --split-main: 1.4fr; --split-below: 52px; }
 @media (max-width: 899.98px) {
   .sp > .split-main, .sp > .split-side { display: contents; }
   .sp .sp-main { order: 0; }
@@ -46,15 +46,17 @@ body {
 
 /* ---------- the integral as a function of ħ, with the handle of ħ; the plane of values ---------- */
 .sp-hplane { position: relative; }
-#hcv { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); cursor: crosshair; }
+#hcv { display: block; width: 100%; aspect-ratio: 5 / 4; border-radius: var(--radius-sm); cursor: crosshair; }
 .sp-hbar { --handle-size: 40px; cursor: grab; }
+/* the knob of arg ħ beyond the rim, which turns ħ and keeps |ħ| */
+.sp-hplane.on-knob #hcv { cursor: grab; }
+.sp-hplane.on-knob #hcv:active { cursor: grabbing; }
 .sp-hbar:active { cursor: grabbing; }
 .sp-hval { margin: 6px 0 0; font-size: 15px; color: var(--ink-2); text-align: center; }
 .sp-cap { margin: 4px 0 0; font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); text-align: center; text-wrap: pretty; }
 #zcv { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: var(--radius-sm); }
 
 /* ---------- the path as a sum of thimbles ---------- */
-.sp-dec { margin: 0; font-size: 18px; line-height: 1.7; }
 .sp-term { border-bottom: 1px dotted transparent; cursor: default; border-radius: 3px; }
 .sp-term.is-lit { border-bottom-color: var(--highlight); }
 .sp-term:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -62,35 +64,47 @@ body {
 .sp-term.is-new { animation: sp-new 1.6s ease-out; }
 @keyframes sp-new { from { background: var(--red-soft); box-shadow: 0 0 0 3px var(--red-soft); } to { background: transparent; box-shadow: 0 0 0 3px transparent; } }
 @media (prefers-reduced-motion: reduce) { .sp-term.is-new { animation: none; } }
-.sp-jump { margin: 6px 0 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); min-height: 1.55em; }
+.sp-jump { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.sp-decblock:has(.sp-jump:empty) { display: none; }
 
 /* legend marks drawn as the figure draws them */
 .sp-shade { display: inline-block; width: 13px; height: 13px; border-radius: 3px; flex: none; background: color-mix(in srgb, var(--land) 22%, var(--surface)); }
 .legend-line.th { overflow: visible; }
 .sp-key { display: inline-block; width: 22px; height: 18px; flex: none; overflow: visible; }
+/* a critical point as the figure draws it, in the text where the points are named */
+.sp-inline-pt { display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -0.28em; overflow: visible; }
+.sp-inline-pt .handle-point { stroke: var(--th-1); stroke-width: 2.2; }
 
 /* ---------- the figures in the text ---------- */
 /* a number of the figure and its slider, on one line (the value keeps its width) */
 .sp-param { display: flex; align-items: center; gap: 10px; font-size: 15.5px; }
 .sp-pv { flex: none; min-width: 5.6em; white-space: nowrap; }
 .sp-param input[type="range"] { width: 170px; max-width: 42vw; }
-.sp-pick { --seg-font-size: 14px; }
-/* a copy of the plane of values has its shape */
-.sp-zcopy { --fig-copy-ratio: 4 / 3; }
+.sp-pick, .sp-zpick { --seg-font-size: 14px; }
+/* a copy of the picture of ħ has its shape */
+.sp-zcopy { --fig-copy-ratio: 5 / 4; }
+
+/* the plane of z of Airy's function */
+.sp-zplane { max-width: 460px; margin: 0 auto; }
+#zplane-cv { display: block; width: 100%; aspect-ratio: 5 / 4; }
+#zplane-cv.on-knob { cursor: grab; }
+#zplane-cv.on-knob:active { cursor: grabbing; }
 
 /* the Borel plane, with the handle of the ray of ħ */
 .sp-borel { position: relative; max-width: 440px; margin: 0 auto; }
 #borel-cv { display: block; width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); }
 .sp-lray { --handle-size: 34px; cursor: grab; }
 #borel-cv { cursor: crosshair; }
+.sp-borel.on-knob #borel-cv { cursor: grab; }
+.sp-borel.on-knob #borel-cv:active { cursor: grabbing; }
 .sp-lray:active { cursor: grabbing; }
 
 /* the charts, drawn one unit to a pixel, their heights fixed here so that nothing moves when
    they are first drawn (main.js draws them at these heights) */
-#stokes-chart, #trunc-chart, #smooth-chart { display: block; width: 100%; overflow: visible; }
+#stokes-chart, #trunc-chart, #smooth-chart, #airy-chart { display: block; width: 100%; overflow: visible; }
 #stokes-chart { height: 300px; touch-action: pan-y; }
 #trunc-chart { height: 250px; }
-#smooth-chart { height: 230px; }
+#smooth-chart, #airy-chart { height: 230px; }
 .sp-axis { stroke: var(--rule); stroke-width: 1; }
 .sp-grid { stroke: var(--rule-2); stroke-width: 1; }
 .sp-num { font-size: 12.5px; fill: var(--ink-3); }
@@ -112,5 +126,20 @@ body {
 .sp-term-dot { stroke: none; }
 .sp-mark { fill: none; stroke: var(--highlight); stroke-width: 1.8; }
 .sp-pred { fill: none; stroke-width: 1.4; }
-.sp-step { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-dasharray: 4 3; }
-.sp-berry { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+/* the smoothing chart: the thimbles' jump (a dotted step), the coefficient in the remainder of
+   the series (solid, in its colour), and over it Berry's error function (dashed, as thick) */
+.sp-step { fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-dasharray: 0.1 4; stroke-linecap: round; }
+.sp-erf { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sp-erf.sp-dash { stroke-dasharray: 6 5; stroke-linecap: butt; }
+.sp-nlab { font-size: 14px; fill: var(--ink-2); }
+/* the legend of a figure in the text, under it */
+.sp-figlegend { justify-content: center; margin: 6px 0 2px; }
+.sp-figlegend .legend-line path { stroke-linecap: butt; }
+/* the series of the chart's thimble, written out */
+.sp-series { margin: 4px 0 10px; overflow-x: auto; overflow-y: hidden; }
+/* a display too wide for a phone, and the same broken over lines, shown instead below 640 px */
+.sp-narrow { display: none; }
+@media (max-width: 639.98px) { .sp-wide { display: none; } .sp-narrow { display: block; } .sp-series .sp-narrow { font-size: 0.92em; } }
+/* the menu of the picture of ħ: the integral over Γ or over one thimble */
+.sp-hmenu { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 14px; margin: 0 0 8px; }
+.sp-hpick { --seg-font-size: 14px; }
