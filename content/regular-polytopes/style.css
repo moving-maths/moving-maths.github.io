@@ -69,7 +69,8 @@ body {
 .rp-ch-label { font-size: 12.5px; text-anchor: middle; fill: var(--ink-2); }
 .rp-chamber-handle { cursor: grab; outline: none; }
 .rp-chamber-handle:active { cursor: grabbing; }
-.rp-sliders { margin-top: 10px; max-width: 320px; }
+.rp-sliders { margin-top: 6px; max-width: 320px; }
+.rp-sch { margin: 14px 0 0; }
 
 /* a legend mark of several dots: the dual's vertices, in the colours of the faces they stand for */
 .rp-dots { display: inline-flex; gap: 2px; margin-right: 6px; }
@@ -85,3 +86,4 @@ body {
 .cx-ring { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .cx-node:hover .cx-dot:not(.hollow), .cx-node:hover .cx-ring { fill-opacity: .7; stroke-opacity: .7; }
 .cx-node .focus-ring { fill: none; }
+.rp-ch-ring { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }

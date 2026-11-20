@@ -264,3 +264,41 @@ test('Penrose tilings: halves of tiles meet across their cuts, φ times as many 
     assert.ok(crossings > 100);
   }
 });
+
+test('Penrose tilings: the larger tiles as patches of whole tiles, each the size of a larger tile', () => {
+  const area = (t) => Math.abs((t[2][0] - t[1][0]) * (t[3][1] - t[1][1]) - (t[2][1] - t[1][1]) * (t[3][0] - t[1][0])) / 2;
+  for (const kind of ['p3', 'p2']) {
+    const L = 11, levels = PEN.cover(kind, PEN.sun(kind, Math.pow(PHI, L)), [-26, 26, -26, 26], L);
+    for (const up of [1, 2, 4]) {
+      const list = levels[L], ids = PEN.patches(kind, levels, L, up), whole = PEN.tiles(kind, list);
+      // both halves of a tile in one patch
+      list.forEach((_, i) => assert.equal(ids[i], ids[whole[i]]));
+      // the larger tiles' areas, and the patches' near the middle
+      const big = levels[L - up], bw = PEN.tiles(kind, big), sizes = new Map(), patch = new Map();
+      big.forEach((t, i) => sizes.set(bw[i], (sizes.get(bw[i]) || 0) + area(t)));
+      const both = [...new Set([...sizes.values()].map((a) => +a.toFixed(6)))].sort((a, b) => b - a).slice(0, 2);
+      list.forEach((t, i) => { const e = patch.get(ids[i]) || { a: 0, r: 0 }; e.a += area(t); e.r = Math.max(e.r, ...[1, 2, 3].map((k) => Math.hypot(...t[k]))); patch.set(ids[i], e); });
+      let inner = 0;
+      for (const e of patch.values()) if (e.r < 22) { inner++; assert.ok(both.some((a) => Math.abs(a - e.a) < 1e-6 * a), kind + ' up ' + up + ': a patch of area ' + e.a); }
+      assert.ok(inner >= 3, kind + ' up ' + up + ': ' + inner + ' patches in the middle');
+      // the outline: edges of the small tiles only
+      const seg = PEN.outline(kind, levels, L, up);
+      assert.ok(seg.length > 0);
+    }
+  }
+});
+
+test('a snub shown across a wall: its faces’ middles reflected with it (the Cairo pentagonal tiling)', () => {
+  const M = P.model([4, 4]), T = P.chambers(M, 8), W = P.snub(T, P.snubPoint(M));
+  const S = M.S[1];
+  for (let v = 0; v < W.V; v++) W.pos.set(P.apply(S, Array.from(W.pos.subarray(3 * v, 3 * v + 3)), 3), 3 * v);
+  W.flip = S;
+  // every face of the snub square tiling is regular: its middle is as far from all its vertices
+  for (const f of W.faces) {
+    const m = P.faceMiddle(W, f), d = f.v.map((v) => Math.hypot(W.pos[3 * v] / W.pos[3 * v + 2] - m[0] / m[2], W.pos[3 * v + 1] / W.pos[3 * v + 2] - m[1] / m[2]));
+    assert.ok(Math.max(...d) - Math.min(...d) < 1e-9, 'face of ' + f.v.length);
+  }
+  // the dual: pentagons round the vertices near the middle, each through the middles of its five faces
+  const D = P.laves(W), near = D.faces.filter((f) => Math.hypot(W.pos[3 * f.at], W.pos[3 * f.at + 1]) < 3);
+  assert.ok(near.length > 10 && near.every((f) => f.v.length === 5));
+});

@@ -57,14 +57,61 @@
     return Math.max(...xs) >= b[0] && Math.min(...xs) <= b[1] && Math.max(...ys) >= b[2] && Math.min(...ys) <= b[3];
   }
   // The half-tiles of each level from `start` down `levels` deflations that meet the box: a list
-  // per level, the last the finest.
+  // per level, the last the finest; `up[l][i]` is the index of the parent of levels[l][i].
   function cover(kind, start, box, levels) {
     const out = [start.filter((t) => meets(t, box))];
+    out.up = [null];
     for (let l = 0; l < levels; l++) {
-      const next = [];
-      for (const t of out[l]) { const kids = cut(kind, t, []); for (const s of kids) if (meets(s, box)) next.push(s); }
+      const next = [], up = [];
+      out[l].forEach((t, i) => { for (const s of cut(kind, t, [])) if (meets(s, box)) { next.push(s); up.push(i); } });
       out.push(next);
+      out.up.push(up);
     }
+    return out;
+  }
+  const key = (p) => Math.round(p[0] * 1e4) + ',' + Math.round(p[1] * 1e4);
+  // The whole tile of each half-tile of a list, as the index of its first half: the halves meet
+  // along apex–c (P2) or bc (P3). A half whose other half is not in the list is a tile alone.
+  function tiles(kind, list) {
+    const first = new Map(), id = new Int32Array(list.length);
+    list.forEach((t, i) => {
+      const k = t[0] + ':' + (kind === 'p3' ? [key(t[2]), key(t[3])].sort().join(';') : key(t[1]) + ';' + key(t[3]));
+      const j = first.get(k);
+      if (j === undefined) { first.set(k, i); id[i] = i; } else id[i] = j;
+    });
+    return id;
+  }
+  // The tiles `up` levels above `base`, each as a patch of whole tiles of `base`: for each
+  // half-tile of levels[base], the number of its patch. Going down one level at a time, every
+  // tile goes with its parent; a tile whose two halves lie in two tiles of the level above (a
+  // dart cut by the edge of a larger kite or dart) goes whole into the one holding its
+  // counterclockwise half (the same choice for every such tile, so that equal tiles above make
+  // equal patches).
+  function patches(kind, levels, base, up) {
+    let ids = tiles(kind, levels[base - up]);
+    for (let l = base - up + 1; l <= base; l++) {
+      const list = levels[l], parent = levels.up[l], whole = tiles(kind, list), pick = new Map(), out = new Int32Array(list.length);
+      list.forEach((t, i) => {
+        const ccw = (t[2][0] - t[1][0]) * (t[3][1] - t[1][1]) - (t[2][1] - t[1][1]) * (t[3][0] - t[1][0]) > 0;
+        if (ccw || !pick.has(whole[i])) pick.set(whole[i], ids[parent[i]]);
+      });
+      list.forEach((_, i) => { out[i] = pick.get(whole[i]); });
+      ids = out;
+    }
+    return ids;
+  }
+  // The outlines of those patches: the edges of the tiles of levels[base] (P2: apex–b and b–c;
+  // P3: apex–b and apex–c) between two patches, as [x0, y0, x1, y1] four numbers to a segment.
+  function outline(kind, levels, base, up) {
+    if (base - up < 0) return [];
+    const list = levels[base], ids = patches(kind, levels, base, up), seen = new Map(), out = [];
+    list.forEach((t, i) => {
+      for (const [a, b] of kind === 'p3' ? [[t[1], t[2]], [t[1], t[3]]] : [[t[1], t[2]], [t[2], t[3]]]) {
+        const ka = key(a), kb = key(b), k = ka < kb ? ka + ';' + kb : kb + ';' + ka, j = seen.get(k);
+        if (j === undefined) seen.set(k, ids[i]);
+        else if (j !== ids[i]) out.push(a[0], a[1], b[0], b[1]);
+      }
+    });
     return out;
   }
   // The arcs that mark the matching rules, two to a half-tile (the first colour, then the
@@ -85,5 +132,5 @@
     return kind === 'p2' && t[0] === 0 ? l / phi : l;
   }
 
-  root.Penrose = { phi, cut, sun, cover, meets, ARCS, unit };
+  root.Penrose = { phi, cut, sun, cover, meets, tiles, patches, outline, ARCS, unit };
 })(globalThis);
