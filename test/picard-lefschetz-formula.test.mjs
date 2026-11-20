@@ -426,12 +426,56 @@ test('three times round z_k: the arcs dragged and pulled tight are h_k³(Δ_j) (
     const S2 = W.S[2], H = L.monodromy(S2, 2, [[k, 1], [k, 1], [k, 1]]);
     const straight = W.cyc.map((c, i) => thinLoop(W.P, W.z0, c.flip ? { ...c.A, plus: c.A.minus, minus: c.A.plus } : c.A, 0.0031 * (1 + 0.21 * i), c.f2));
     const tight = L.tighten(arcs.map((A) => A.map((q) => q.slice())), ends, W.rts, 0.004, 3000);
-    for (const lines of [arcs, tight]) lines.forEach((line, j) => {
+    // (and with the wraps round the roots made circular arcs, as drawn)
+    const round = tight.map((A, j) => L.roundWraps(A, ends[j], W.rts, L.ropeMargin(W.rts, 0.004)));
+    for (const lines of [arcs, tight, round]) lines.forEach((line, j) => {
       const y0 = L.csqrt(W.z0[0] - pAt(W.P, line[1])[0], W.z0[1] - pAt(W.P, line[1])[1]);
       const loop = thinLoopArc(W.P, W.z0, polyArc(W.P, W.z0, line, y0), 0.0017);
       const got = straight.map((Lp) => meetLoops(loop, Lp)), want = S2.map((_, i) => H.reduce((t, row, l) => t + row[j] * S2[l][i], 0));
       const neg = want.map((x) => -x || 0);
-      assert.ok(JSON.stringify(got) === JSON.stringify(want) || JSON.stringify(got) === JSON.stringify(neg), `μ = ${mu}, three times round z${k + 1} (${lines === arcs ? 'dragged' : 'tight'}): Δ${j + 1} meets the basis ${got}, want ±${want}`);
+      assert.ok(JSON.stringify(got) === JSON.stringify(want) || JSON.stringify(got) === JSON.stringify(neg), `μ = ${mu}, three times round z${k + 1} (${lines === arcs ? 'dragged' : lines === tight ? 'tight' : 'rounded'}): Δ${j + 1} meets the basis ${got}, want ±${want}`);
     });
+  }
+});
+
+test('the monodromy builds up over the moves of z: round z_a, a nudge, round z_b gives h_b h_a (n = 1, 2, 3)', () => {
+  for (const mu of [3, 4]) for (const [a, b] of [[0, 1], [1, 0], [0, 0], [mu - 1, 1]]) {
+    const W = walker(mu), others = (k) => W.P.vals.filter((_, j) => j !== k);
+    const go = (pts) => { for (const p of pts) { const q = W.z.slice(); step(W, p); for (const [i] of L.sweep(W.z0, q, p, W.P.vals)) for (const n of [1, 3]) W.B[n].forEach((r) => { r[i] = -r[i] || 0; }); } };
+    go(L.teardrop(W.z, W.P.vals[a], others(a), 0.4, 0.02, 0.05).slice(1));
+    go([[W.z[0] + 0.03, W.z[1] + 0.01]]);
+    for (const n of [1, 2, 3]) assert.deepEqual(L.inverse(W.B[n]), L.monodromy(W.S[n], n, [[a, 1]]), `after the nudge, n = ${n}`);
+    go(L.teardrop(W.z, W.P.vals[b], others(b), 0.4, 0.02, 0.05).slice(1));
+    for (const n of [1, 2, 3]) assert.deepEqual(L.inverse(W.B[n]), L.monodromy(W.S[n], n, [[a, 1], [b, 1]]), `μ = ${mu}, n = ${n}, round z${a + 1} then z${b + 1}`);
+  }
+});
+
+test('odd n, k times round z_a: B⁻¹ = h_aᵏ = h_a^{k mod 2}, and the arcs carried end where the classes say (n = 1, 3)', () => {
+  for (const mu of [3, 4]) for (let a = 0; a < mu; a++) {
+    const W = walker(mu), others = W.P.vals.filter((_, j) => j !== a);
+    const arcs = W.cyc.map((c) => { const p = L.arcOf(c.A).pts, line = []; for (let i = 0; i < p.length; i += 2) line.push([p[i], p[i + 1]]); if (c.flip) line.reverse(); line[0] = W.rts[c.q].slice(); line[line.length - 1] = W.rts[c.p].slice(); return line; });
+    const ends = W.cyc.map((c) => [c.q, c.p]);
+    for (let k = 1; k <= 5; k++) {
+      for (const b of L.teardrop(W.z, W.P.vals[a], others, 0.4, 0.02, 0.05).slice(1)) {
+        const q = W.z.slice(), old = W.rts.map((r) => r.slice());
+        step(W, b);
+        for (const [i] of L.sweep(W.z0, q, b, W.P.vals)) for (const n of [1, 3]) W.B[n].forEach((r) => { r[i] = -r[i] || 0; });
+        L.dragArcs(arcs, ends, old, W.rts, 0.002);
+      }
+      for (const n of [1, 3]) {
+        const H = L.inverse(W.B[n]), word = Array.from({ length: k }, () => [a, 1]);
+        assert.deepEqual(H, L.monodromy(W.S[n], n, word), `μ = ${mu}, n = ${n}, ${k} times round z${a + 1}`);
+        assert.deepEqual(H, L.monodromy(W.S[n], n, k % 2 ? [[a, 1]] : []), `h² = 1 for odd n (μ = ${mu}, k = ${k})`);
+      }
+      // the class of each arc carried, [+ end] − [− end] in the roots followed, written in the basis
+      // at z by its ends (classEnds), is what B⁻¹ says
+      const H1 = L.inverse(W.B[1]);
+      W.cyc.forEach((_, j) => {
+        const want = new Map([[ends[j][1], 1], [ends[j][0], -1]]), got = new Map();
+        H1.forEach((row, l) => { const c = row[j]; if (!c) return; const e = classEnds(W, l); got.set(e.plus, (got.get(e.plus) || 0) + c); got.set(e.minus, (got.get(e.minus) || 0) - c); });
+        for (const [r, c] of got) if (!c) got.delete(r);
+        assert.deepEqual([...got].sort(), [...want].sort(), `μ = ${mu}, ${k} times round z${a + 1}: the ends of Δ${j + 1} carried`);
+      });
+    }
   }
 });

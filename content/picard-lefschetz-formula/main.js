@@ -24,7 +24,7 @@
   // shift: the mean of the critical values (it changes when one of them is dragged)
   // view: the plane of x shaded ('plane'), coloured by phase ('phase'), or in 3D ('3d', n ≥ 2);
   // carried: the picture shows the cycles carried along with z, h(Δ_i), rather than the basis at z
-  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), shift: [0, 0], z: null, view: 'plane', arcs: false, carried: true };
+  const state = { n: 2, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), shift: [0, 0], z: null, view: 'plane', arcs: false, carried: true };
   let shapeT = 1;   // the cycles drawn as their arcs (0) or as what they are (1), and in between
   let frame = null;   // the windows of the two planes
   let model = null;   // what follows from the critical points and z
@@ -90,13 +90,17 @@
     const seeds = raw.map((c, j) => {
       const o = prev && prev[j];
       if (!o || !((o.p === c.p && o.q === c.q) || (o.p === c.q && o.q === c.p))) return null;
-      return { f1: o.p === c.p ? 1 : -1, f2: o.f2 };
+      // (f2, the sheet a cycle leaves by, is kept only if known: a seed without it would spoil the
+      // signs of the form for n = 2)
+      return Math.abs(o.f2) === 1 ? { f1: o.p === c.p ? 1 : -1, f2: o.f2 } : null;
     });
     const f = PL.niceSigns(raw.map((c) => ({ p: c.p, q: c.q, e: c.A.e })), rts, seeds);
     const cyc = raw.map((c, j) => ({ p: f.f1[j] > 0 ? c.p : c.q, q: f.f1[j] > 0 ? c.q : c.p, e: [c.A.e[0] * f.f2[j], c.A.e[1] * f.f2[j]], f2: f.f2[j] }));
     return { cyc, S: { 1: PL.gram(1, cyc), 2: PL.gram(2, cyc), 3: PL.gram(3, cyc) }, pos: rts.map((q) => q.slice()) };
   }
-  // Everything from the critical points, with the cycles taken afresh at z (z0 = z). keep: the model
+  // Everything from the critical points, with the cycles taken afresh at z (z0 = z): the cycles
+  // carried, and so the monodromy, start again only here (when the page opens, when μ changes and
+  // when a critical point or value moves), and build up over every later move of z. keep: the model
   // before the critical points moved, to follow its roots and orientations.
   function build(keep) {
     const P = poly();
@@ -109,18 +113,6 @@
     ver++;
   }
 
-  // The cycles taken afresh where z is (z0), as they are now: the basis at z becomes the reference,
-  // and the cycles to carry are its cycles, over their arcs. Done when z is picked up, and when a
-  // loop from the bar starts.
-  function rebase() {
-    const mu = model.P.mu, S = {};
-    for (const n of [1, 2, 3]) S[n] = PL.matmul(PL.transpose(model.B[n]), PL.matmul(model.ref.S[n], model.B[n]));
-    const cyc = model.ref.cyc.map((c, j) => { const e = classEnds(j); return e ? { p: e.plus, q: e.minus } : c; });
-    model.ref = { cyc, S };
-    model.B = { 1: PL.eye(mu), 2: PL.eye(mu), 3: PL.eye(mu) };
-    model.z0 = model.zi.slice();
-    ver++;
-  }
   // The arcs of the cycles of the basis at zi (where the roots are model.rts), to carry along with
   // z: each from its − end to its + end. On a Stokes ray the arc that runs into a critical point is
   // the one, of those just either side of the ray, that ends where the basis says.
@@ -405,14 +397,62 @@
   function shownArcs(V) {
     const basis = cycleArcs(V);
     if (!state.carried) return basis;
-    const H = PL.inverse(model.B[state.n]), car = carriedArcs(V);
-    return car.map((a, j) => {
-      const col = H.map((r) => r[j]), s = col[j];
-      if (Math.abs(s) !== 1 || col.some((x, k) => k !== j && x)) return a;
-      const b = basis[j];
-      if (!b || s > 0) return b;
-      return Object.assign({}, b, { xs: b.xs.slice().reverse(), scr: b.scr.slice().reverse(), fib: b.fib.slice().reverse(), minus: b.plus, plus: b.minus });
+    // (while h is the identity, the cycles carried are the basis, drawn as it is; once not, all are
+    // drawn over their arcs carried, so that one that has come back does not cross those wound
+    // round it)
+    const H = PL.inverse(model.B[state.n]);
+    if (H.every((r, i) => r.every((x, j) => x === +(i === j)))) return basis.map((b) => (b ? Object.assign({}, b, { asBasis: true }) : b));
+    return state.n % 2 ? reducedArcs(V, basis) : carriedArcs(V);
+  }
+  // For odd n the class of a cycle over an arc depends only on the roots at its ends, ±([p] − [q])
+  // as for n = 1: going twice round z_i winds the spheres carried round once more, but h_i² = 1.
+  // So h(Δ_j) is drawn over the simplest arc between its ends (those of the arc carried): along the
+  // arcs of the basis that join them (a tree), round each root it passes on the side of the
+  // smaller turn, smoothed; over one basis arc, as that cycle itself.
+  let reducedKept = { key: '', arcs: null };
+  function reducedArcs(V, basis) {
+    const C = carry(), key = JSON.stringify([ver, state.z, state.crit, state.shift, model.atVal, model.onRay, model.B[1], V.W, V.H, frame.xv.R]);
+    if (reducedKept.key === key) return reducedKept.arcs;
+    const P = model.P, rts = model.atVal !== null ? follow(P, state.z, model.rts) : model.rts, unit = 1 / V.k, rho = 10 * unit;
+    const edges = new Map();
+    basis.forEach((b, k) => {
+      if (!b || b.vanish || b.minus === null || b.plus === null || b.cut) return;
+      [[b.minus, b.plus, false], [b.plus, b.minus, true]].forEach(([u, v, back]) => { if (!edges.has(u)) edges.set(u, []); edges.get(u).push({ v, k, back }); });
     });
+    const arcs = C.ends.map(([from, to], j) => {
+      // the path of basis arcs from the − end to the + end
+      const prev = new Map([[from, null]]), queue = [from];
+      while (queue.length && !prev.has(to)) { const u = queue.shift(); (edges.get(u) || []).forEach((e) => { if (!prev.has(e.v)) { prev.set(e.v, { u, e }); queue.push(e.v); } }); }
+      if (!prev.has(to)) return carriedArcs(V)[j];
+      const path = [];
+      for (let v = to; prev.get(v); v = prev.get(v).u) path.unshift(prev.get(v).e);
+      const piece = (e) => { const xs = basis[e.k].xs; return e.back ? xs.slice().reverse() : xs.slice(); };
+      if (path.length === 1) {
+        const b = basis[path[0].k];
+        return Object.assign({}, b, { asBasis: true }, path[0].back ? { xs: b.xs.slice().reverse(), scr: b.scr.slice().reverse(), fib: b.fib.slice().reverse(), minus: b.plus, plus: b.minus } : {});
+      }
+      // the pieces joined, each cut back to a circle round the root where they meet and joined round
+      // it the shorter way
+      let line = piece(path[0]);
+      for (let i = 1; i < path.length; i++) {
+        const next = piece(path[i]), c = line[line.length - 1];
+        const out = line.filter((q) => Math.hypot(q[0] - c[0], q[1] - c[1]) > rho), inn = next.filter((q) => Math.hypot(q[0] - c[0], q[1] - c[1]) > rho);
+        if (!out.length || !inn.length) { line = line.concat(next.slice(1)); continue; }
+        const a0 = Math.atan2(out[out.length - 1][1] - c[1], out[out.length - 1][0] - c[0]), a1 = Math.atan2(inn[0][1] - c[1], inn[0][0] - c[0]);
+        let d = a1 - a0;
+        d = ((d + Math.PI) % TAU + TAU) % TAU - Math.PI;
+        const turn = [];
+        for (let k = 1; k < 12; k++) turn.push([c[0] + 1.2 * rho * Math.cos(a0 + d * k / 12), c[1] + 1.2 * rho * Math.sin(a0 + d * k / 12)]);
+        line = out.concat(turn, inn);
+      }
+      line[0] = rts[from].slice(); line[line.length - 1] = rts[to].slice();
+      // (only smoothed, not pulled tight, so that it is seen to run along the arcs it is the sum of;
+      // round the roots it passes, an exact circular arc)
+      PL.tighten([line], [[from, to]], rts, unit, 6);
+      return Object.assign(onScreen(V, PL.roundWraps(line, [from, to], rts, PL.ropeMargin(rts, unit))), { minus: from, plus: to, cut: null });
+    });
+    reducedKept = { key, arcs };
+    return arcs;
   }
   // The arcs of the cycles carried along with z, as cycleArcs gives them. With z on a critical
   // value z_k they are carried on from where z arrived to a hair's breadth from z_k (as there the
@@ -420,7 +460,7 @@
   let carriedKept = { key: '', arcs: null };
   function carriedArcs(V) {
     // (the strands counted only once z rests)
-    const rest = !drag && !anim && !settleReq, key = JSON.stringify([ver, state.z, state.crit, state.shift, model.atVal, V.W, V.H, frame.xv.R, rest]);
+    const rest = !drag && !anim && !settleReq && !model.loose, key = JSON.stringify([ver, state.z, state.crit, state.shift, model.atVal, V.W, V.H, frame.xv.R, rest]);
     if (carriedKept.key === key) return carriedKept.arcs;
     const P = model.P, c = carry(), unit = 1 / V.k;
     let lines = c.arcs;
@@ -434,7 +474,10 @@
         r = nr; w = nw;
       }
     }
-    const arcs = lines.map((xs, j) => {
+    // (at rest, pulled tight: where they lie round a root, drawn as exact circular arcs)
+    const mg = PL.ropeMargin(model.rts, unit);
+    const arcs = lines.map((xs0, j) => {
+      const xs = rest && model.atVal === null ? PL.roundWraps(xs0, c.ends[j], model.rts, mg) : xs0;
       const a = Object.assign(onScreen(V, xs), { minus: c.ends[j][0], plus: c.ends[j][1], cut: null });
       if (model.atVal !== null && arcLength(a.scr) < 4) a.vanish = P.crit[model.atVal];
       else if (rest) a.mult = multiplicity(a.scr, model.rts.map((q) => [V.X(q[0]), V.Y(q[1])]));
@@ -451,30 +494,168 @@
     const n = scr.length;
     if (n < 4) return null;
     const tan = (k) => { const a = scr[Math.max(0, k - 1)], b = scr[Math.min(n - 1, k + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
-    let best = { m: 1 };
+    const acc = [0];
+    for (let k = 1; k < n; k++) acc.push(acc[k - 1] + Math.hypot(scr[k][0] - scr[k - 1][0], scr[k][1] - scr[k - 1][1]));
+    // (not along the last 18 px into either end root, where the strand that ends there may graze
+    // one that goes round it)
+    const E = 18, inner = (k) => acc[k] > E && acc[n - 1] - acc[k] > E;
+    const ms = new Array(n).fill(1);
     for (let i = 1; i < n - 1; i++) {
+      if (!inner(i)) continue;
       const p = scr[i], t = tan(i);
       let m = 1, run = false;
       for (let k = 0; k < n - 1; k++) {
-        if (Math.abs(k - i) <= 1 || Math.abs(k + 1 - i) <= 1) { run = true; continue; }
+        // (the point's own strand: the segments within 12 px of it along the arc, however finely
+        // the arc is cut there)
+        if (Math.abs(acc[k] - acc[i]) < 12 || Math.abs(acc[k + 1] - acc[i]) < 12 || (acc[k] < acc[i] && acc[k + 1] > acc[i])) { run = true; continue; }
+        if (!inner(k) || !inner(k + 1)) { run = false; continue; }
         const a = scr[k], b = scr[k + 1], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
         const u = clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2, 0, 1), d = Math.hypot(a[0] + u * dx - p[0], a[1] + u * dy - p[1]);
         const near = d < 3 && Math.abs((dx * t[0] + dy * t[1]) / Math.sqrt(L2)) > 0.9;
         if (near && !run) m++;
         run = near;
       }
-      if (m < best.m) continue;
-      let far = Infinity;
-      roots.forEach((r) => { far = Math.min(far, Math.hypot(r[0] - p[0], r[1] - p[1])); });
-      if (m > best.m || far > best.far) best = { m, i, far, nx: -t[1], ny: t[0] };
+      ms[i] = m;
     }
-    return best.m > 1 ? best : null;
+    // Strands count only where they run together for 15 px or more: the most strands over such a
+    // stretch, and the longest stretch where there are that many (its middle, or, if it is short,
+    // its point furthest from the roots).
+    const stretches = (m) => {
+      const out = [];
+      for (let i = 1; i < n - 1;) {
+        if (ms[i] < m) { i++; continue; }
+        let j = i;
+        while (j + 1 < n - 1 && ms[j + 1] >= m) j++;
+        out.push({ L: acc[j] - acc[i], i0: i, i1: j });
+        i = j + 1;
+      }
+      return out.filter((r) => r.L >= 15);
+    };
+    let top = 1, best = null;
+    for (let m = Math.max(...ms); m >= 2 && !best; m--) {
+      const st = stretches(m);
+      if (st.length) { top = m; best = st.reduce((u, v) => (v.L > u.L ? v : u)); }
+    }
+    if (!best) return null;
+    let i = (best.i0 + best.i1) >> 1, far = -1;
+    if (best.L < 20) for (let k = best.i0; k <= best.i1; k++) {
+      let f = Infinity;
+      roots.forEach((r) => { f = Math.min(f, Math.hypot(r[0] - scr[k][0], r[1] - scr[k][1])); });
+      if (f > far) { far = f; i = k; }
+    }
+    // (on the outside of the bundle: away from the nearest root, if one is near, else on the side
+    // with fewer strands)
+    const t = tan(i), p = scr[i];
+    let nx = -t[1], ny = t[0], near = null, nd = Infinity;
+    roots.forEach((r) => { const d = Math.hypot(r[0] - p[0], r[1] - p[1]); if (d < nd) { nd = d; near = r; } });
+    const crowd = (sx, sy) => { const qx = p[0] + sx * 14, qy = p[1] + sy * 14; let c = 0; scr.forEach((u) => { if (Math.hypot(u[0] - qx, u[1] - qy) < 12) c++; }); return c; };
+    if (near && nd < 40) { if ((p[0] - near[0]) * nx + (p[1] - near[1]) * ny < 0) { nx = -nx; ny = -ny; } }
+    else if (crowd(-nx, -ny) < crowd(nx, ny)) { nx = -nx; ny = -ny; }
+    return { m: top, i, nx, ny };
+  }
+  // which points of an arc to draw: not those within 2.5 px of an earlier stretch of it (more than
+  // 30 px back along it), where it runs over itself
+  function once(scr) {
+    const n = scr.length, keep = new Array(n).fill(true), C = 6, bins = new Map(), acc = new Float64Array(n);
+    for (let i = 1; i < n; i++) acc[i] = acc[i - 1] + Math.hypot(scr[i][0] - scr[i - 1][0], scr[i][1] - scr[i - 1][1]);
+    for (let i = 0; i < n; i++) {
+      const cx = Math.floor(scr[i][0] / C), cy = Math.floor(scr[i][1] / C);
+      for (let u = cx - 1; u <= cx + 1 && keep[i]; u++) for (let v = cy - 1; v <= cy + 1 && keep[i]; v++) {
+        const b = bins.get(u + ',' + v);
+        if (b) for (const k of b) if (acc[i] - acc[k] > 30 && Math.hypot(scr[k][0] - scr[i][0], scr[k][1] - scr[i][1]) < 2.5) { keep[i] = false; break; }
+      }
+      const key = cx + ',' + cy;
+      if (!bins.has(key)) bins.set(key, []);
+      bins.get(key).push(i);
+    }
+    return keep;
+  }
+  // the stretches of the points pts kept, each with a point either side, so that they meet the rest
+  function runs(pts, keep) {
+    const out = [];
+    let cur = null;
+    for (let i = 0; i < pts.length; i++) {
+      if (keep[i]) { if (!cur) { cur = i ? [pts[i - 1]] : []; } cur.push(pts[i]); }
+      else if (cur) { cur.push(pts[i]); if (cur.length > 1) out.push(cur); cur = null; }
+    }
+    if (cur && cur.length > 1) out.push(cur);
+    return out;
   }
   // the number of strands, beside them in the cycle's colour
+  // where to put a label beside the point p, off by off along the normal (nx, ny), or the other
+  // way, or further, so that it is clear of the points avoid ([x, y, radius]: handles, roots)
+  function clearOf(p, nx, ny, off, avoid) {
+    for (const d of [off, off + 8, off + 16]) for (const sg of [1, -1]) {
+      const x = p[0] + sg * nx * d, y = p[1] + sg * ny * d;
+      if (avoid.every(([ax, ay, r]) => Math.hypot(ax - x, ay - y) > r + 8)) return [x, y];
+    }
+    return [p[0] + nx * off, p[1] + ny * off];
+  }
   function multLabel(ctx, j, x, y, m) {
     ctx.fillStyle = MM.rgba('surface', 0.9);
-    ctx.beginPath(); ctx.arc(x, y, 8.5, 0, TAU); ctx.fill();
-    MM.canvasLabel(ctx, '$' + m + '$', x, y, { size: 14, align: 'center', baseline: 'middle', color: cyc(j, 'text') });
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, TAU); ctx.fill();
+    MM.canvasLabel(ctx, String(m), x, y, { size: 13, weight: 600, align: 'center', baseline: 'middle', color: cyc(j, 'text') });
+  }
+  // The half-widths of the cycles drawn round their arcs (k times the size of the fibre), made
+  // smaller where another strand runs alongside, of the same cycle or another: at a distance d, to
+  // at most (d − 6)/2.5 but not below a small gap, so that the drawings do not pile up over each
+  // other and the two sides of a cycle run parallel through a winding; the bound is spread along
+  // each arc (its least over 20 px either side, then smoothed), so that the sides do not come and
+  // go. Points are binned in cells for the search.
+  function lensWidths(arcs, k) {
+    const C = 24, bins = new Map(), pts = [];
+    arcs.forEach((a, j) => {
+      if (!a || a.vanish) return;
+      const s = a.scr, n = s.length;
+      let acc = 0, last = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (i) acc += Math.hypot(s[i][0] - s[i - 1][0], s[i][1] - s[i - 1][1]);
+        const p = s[Math.max(0, i - 1)], q = s[Math.min(n - 1, i + 1)], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+        const e = { j, i, x: s[i][0], y: s[i][1], tx: (q[0] - p[0]) / l, ty: (q[1] - p[1]) / l, at: acc };
+        pts.push(e);
+        // (the points searched: about 4 px apart along each arc)
+        if (acc - last < 4 && i < n - 1) continue;
+        last = acc;
+        const key = Math.floor(e.x / C) + ',' + Math.floor(e.y / C);
+        if (!bins.has(key)) bins.set(key, []);
+        bins.get(key).push(e);
+      }
+    });
+    const GAP = 2.5, cap = arcs.map((a) => (a && !a.vanish ? a.fib.map(() => Infinity) : null)), acc = arcs.map(() => []);
+    pts.forEach((e) => {
+      acc[e.j][e.i] = e.at;
+      let d = Infinity;
+      const cx = Math.floor(e.x / C), cy = Math.floor(e.y / C);
+      for (let u = cx - 1; u <= cx + 1; u++) for (let v = cy - 1; v <= cy + 1; v++) {
+        const b = bins.get(u + ',' + v);
+        if (b) b.forEach((f) => {
+          if (f.j === e.j && Math.abs(f.at - e.at) < 30) return;
+          if (Math.abs(f.tx * e.tx + f.ty * e.ty) < 0.7) return;
+          d = Math.min(d, Math.hypot(f.x - e.x, f.y - e.y));
+        });
+      }
+      if (d < Infinity) cap[e.j][e.i] = Math.max(GAP, (d - 6) / 2.5);
+    });
+    return arcs.map((a, j) => {
+      if (!a || a.vanish) return null;
+      const C = cap[j], A = acc[j], n = C.length, lo = new Array(n);
+      // the least over a window of 20 px either side, then a moving average over 10 px
+      for (let i = 0, p = 0, q = 0; i < n; i++) {
+        while (A[p] < A[i] - 20) p++;
+        while (q + 1 < n && A[q + 1] <= A[i] + 20) q++;
+        let m = Infinity;
+        for (let t = p; t <= q; t++) m = Math.min(m, C[t]);
+        lo[i] = m;
+      }
+      const w = a.fib.map((f) => f * k);
+      return w.map((x, i) => {
+        if (lo[i] === Infinity) return x;
+        let sum = 0, cnt = 0;
+        for (let t = i; t >= 0 && A[i] - A[t] <= 10; t--) { sum += Math.min(lo[t], 99); cnt++; }
+        for (let t = i + 1; t < n && A[t] - A[i] <= 10; t++) { sum += Math.min(lo[t], 99); cnt++; }
+        return Math.min(x, sum / cnt);
+      });
+    });
   }
   const reverse = (s) => { const o = []; for (let k = s.length - 2; k >= 0; k -= 2) o.push(s[k], s[k + 1]); return o; };
   // the roots at the ends of Δ_j in the basis, from its class for n = 1
@@ -518,14 +699,27 @@
   }
 
   // Each cycle as what it is over its arc (t = 1): for n = 1 its two points, with their signs; for
-  // n = 2 the circle made of the two points ±y over each point of the arc (y² = z − p(x)), drawn
-  // either side of it, one sheet solid and the other dashed; for n = 3 the sphere made of the
+  // n = 2 the circle made of the two points ±y over each point of the arc (y² = z − p(x)), drawn as
+  // the 3D picture shows it from above, the half on the upper sheet solid and the half on the lower
+  // sheet dashed, a little below; for n = 3 the sphere made of the
   // circles of radius √|z − p(x)| over its points, drawn as its outline with a few of the circles.
   // Or as its arc, with its orientation (t = 0), the sphere shrinking onto it as t goes to 0.
+  // the heights of the sheets over the plane of x (as in 3D, from 0 at the cuts to 1), for the
+  // circles of n = 2 drawn as seen from above; and how far apart their two halves are drawn at most
+  const TIP = 5;
+  let sheetsKept = { key: '', F: null };
+  function sheets2() {
+    const key = JSON.stringify([state.z, state.crit, state.shift, frame.xv.R, model.atVal]);
+    if (sheetsKept.key !== key) sheetsKept = { key, F: window.PLSurface.field(model.P, state.z, rootsNow(), 1, RISE * frame.xv.R) };
+    return sheetsKept.F;
+  }
   function drawCycles(ctx, V, arcs, t) {
     let big = 1e-12;
     arcs.forEach((a) => { if (a) a.fib.forEach((f) => { big = Math.max(big, f); }); });
-    const kap = 13 / big * t, n = state.n;
+    // (the widths narrowed only where some cycle carried is not one of the basis: the arcs of the
+    // basis do not run alongside each other)
+    const twisted = state.carried && arcs.some((a) => a && !a.vanish && !a.asBasis);
+    const kap = 13 / big * t, n = state.n, widths = n === 3 && t > 0 && twisted ? lensWidths(arcs, kap) : null;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     arcs.forEach((a, j) => {
@@ -537,25 +731,40 @@
         ctx.beginPath(); ctx.arc(X, Y, 6, 0, TAU); ctx.stroke();
         return;
       }
-      const scr = a.scr, wid = a.fib.map((f) => f * kap), line = cyc(j, 'line');
+      const scr = a.scr, wid = widths ? widths[j] : a.fib.map((f) => f * kap), line = cyc(j, 'line');
+      a.wid = wid;
       if (scr.length < 2) return;
+      // (where strands of the cycle run together, dotted lines drawn once, as dots over dots look
+      // solid; solid lines in full, as cutting them would leave ends)
+      const keep = a.asBasis ? scr.map(() => true) : once(scr), draw = (pts) => { smooth(ctx, pts); ctx.stroke(); };
       if (n === 1) {
         // the arc: a line, dotted under the two points
         ctx.strokeStyle = line;
-        if (t < 1) { ctx.globalAlpha = 1 - t; ctx.lineWidth = 2.2; smooth(ctx, scr); ctx.stroke(); }
-        if (t > 0) { ctx.globalAlpha = t; ctx.lineWidth = 1.4; ctx.setLineDash([1.5, 4]); smooth(ctx, scr); ctx.stroke(); ctx.setLineDash([]); }
+        if (t < 1) { ctx.globalAlpha = 1 - t; ctx.lineWidth = 2.2; draw(scr); }
+        if (t > 0) { ctx.globalAlpha = t; ctx.lineWidth = 1.4; ctx.setLineDash([1.5, 4]); runs(scr, keep).forEach((r) => { smooth(ctx, r); ctx.stroke(); }); ctx.setLineDash([]); }
         ctx.globalAlpha = 1;
+      } else if (n === 2) {
+        // As the curve is seen from above in 3D, a little tipped: over each point of the arc its two
+        // points, the one on the upper sheet a little up the page, solid, the one on the lower sheet
+        // a little down, dashed and thinner, by the height of the sheets there; the two meet at the
+        // roots and where the arc crosses a cut, as the sheets do.
+        const F2 = sheets2(), xs2 = smoothArc(a.xs, F2.rays, 1), sc = xs2.map((q) => [V.X(q[0]), V.Y(q[1])]), up = [], dn = [];
+        xs2.forEach((q, i) => { const w = t * TIP * F2.top(q[0], q[1]); up.push([sc[i][0], sc[i][1] - w]); dn.push([sc[i][0], sc[i][1] + w]); });
+        // (the dashed half drawn once where strands run together, as dashes over dashes look solid;
+        // the solid half in full, as cutting it would leave ends)
+        const k2 = a.asBasis ? sc.map(() => true) : once(sc);
+        ctx.strokeStyle = line; ctx.lineWidth = 1.3; ctx.setLineDash([4, 3.5]); runs(dn, k2).forEach((r) => { smooth(ctx, r); ctx.stroke(); }); ctx.setLineDash([]);
+        ctx.lineWidth = 2.4; smooth(ctx, up); ctx.stroke();
+        a.wid = null;
       } else {
         // the two sides
         ctx.strokeStyle = line; ctx.lineWidth = 2.2;
-        smooth(ctx, offset(scr, wid, 1)); ctx.stroke();
-        if (n === 2) ctx.setLineDash([5, 4]);
-        smooth(ctx, offset(scr, wid, -1)); ctx.stroke();
-        ctx.setLineDash([]);
+        draw(offset(scr, wid, 1));
+        draw(offset(scr, wid, -1));
         if (n === 3) {
           // the axis, faint, and a few of the circles, seen from the side
           ctx.strokeStyle = MM.rgba('cy-' + (j + 1), 0.45); ctx.lineWidth = 1.2;
-          smooth(ctx, scr); ctx.stroke();
+          draw(scr);
           const L = arcLength(scr);
           ctx.strokeStyle = line; ctx.lineWidth = 1.1;
           for (const f of [0.2, 0.4, 0.6, 0.8]) {
@@ -600,28 +809,31 @@
   }
 
   const is3d = () => state.view === '3d' && state.n > 1;
+  let faintShown = false, countsShown = false;   // whether the picture shows the basis faintly, and counts of strands (for the legend)
   function drawX(coarse) {
-    if (is3d()) { draw3d(coarse); return; }
+    if (is3d()) { faintShown = false; countsShown = false; draw3d(coarse); return; }
     const { ctx } = MM.fitCanvas(xcv), V = view(frame.xv, xcv);
     ctx.drawImage(state.view === 'phase' ? phaseImage(V, coarse) : landImage(V), 0, 0, V.W, V.H);
     drawAxes(ctx, V, ['$\\mathrm{Re}\\,x$', '$\\mathrm{Im}\\,x$']);
-    if (state.carried) {
-      // the basis at z, faint, under the cycles carried
-      cycleArcs(V).forEach((a, j) => {
-        if (!a || a.scr.length < 2) return;
-        ctx.strokeStyle = MM.rgba('cy-' + (j + 1), 0.4); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
-        smooth(ctx, a.scr); ctx.stroke();
-      });
-    }
     const shown = shownArcs(V);
+    // the basis at z, faint, under the cycles carried that are not cycles of it
+    faintShown = false;
+    if (state.carried) cycleArcs(V).forEach((a, j) => {
+      if (!a || a.scr.length < 2 || !shown[j] || shown[j].asBasis || shown[j].vanish) return;
+      faintShown = true;
+      ctx.strokeStyle = MM.rgba('cy-' + (j + 1), 0.4); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+      smooth(ctx, a.scr); ctx.stroke();
+    });
     drawCycles(ctx, V, shown, shapeT);
     // (beside the strands, beyond the sphere round them)
-    let big = 1e-12;
-    shown.forEach((a) => { if (a && !a.vanish) a.fib.forEach((f) => { big = Math.max(big, f); }); });
+    countsShown = false;
     shown.forEach((a, j) => {
       if (!a || !a.mult) return;
-      const q = a.scr[a.mult.i], off = 12 + (state.n > 1 ? 13 * shapeT * a.fib[a.mult.i] / big : 0);
-      multLabel(ctx, j, q[0] + a.mult.nx * off, q[1] + a.mult.ny * off, a.mult.m);
+      countsShown = true;
+      const q = a.scr[a.mult.i], off = 11 + (state.n === 2 ? TIP * shapeT : state.n > 1 && a.wid ? a.wid[a.mult.i] : 0);
+      const avoid = state.crit.map((c) => [V.X(c[0]), V.Y(c[1]), 21]).concat(rootsNow().map((r) => [V.X(r[0]), V.Y(r[1]), 9]));
+      const at = clearOf(q, a.mult.nx, a.mult.ny, off, avoid);
+      multLabel(ctx, j, at[0], at[1], a.mult.m);
     });
     // the roots of p(x) = z
     ctx.fillStyle = MM.color('ink');
@@ -639,7 +851,7 @@
    * y_2² + y_3² = z − p(x) seen edge on: the vanishing sphere is drawn as the disc that its circle of
    * n = 2 bounds. */
   const YAW0 = -0.5, PITCH0 = 0.62, VIEWS = ['plane', 'phase', '3d'];
-  const v3d = { yaw: YAW0, pitch: PITCH0, key: '', mesh: null, field: null };
+  const v3d = { yaw: YAW0, pitch: PITCH0, key: '', meshes: {}, field: null };
   const SHEET = 0.15, RISE = 0.16;   // the height of the sheets, and how far from a cut they rise to it, as fractions of the disc's radius
   function cam3() {
     const W = xcv.clientWidth || 400, H = xcv.clientHeight || W;
@@ -649,13 +861,54 @@
   // points, one on each sheet. On the screen: the half on the upper sheet, which is seen, and the
   // half on the lower sheet, which is hidden; as t goes to 0 the hidden half comes up onto the seen
   // one, and the circle is its arc, drawn on the upper sheet.
-  function circle3(F, cam, xs, t) {
+  // (the arc made smooth first: a Catmull–Rom curve through its points, K points to each piece)
+  const SMOOTH3 = 4;
+  // (the points and their heights kept, by arc, until the surface or the arc changes: turning the
+  // picture only projects them again; the arcs carried change in place as they are pulled tight)
+  const curves3 = new WeakMap();
+  function circle3(F, cam, xs, t, coarse) {
+    let c = curves3.get(xs);
+    const key = v3d.key + '|' + ver + '|' + !!coarse;
+    if (!c || c.key !== key) {
+      // (while anything moves: the arc's points thinned to about 4 px apart, not subdivided)
+      let line = xs;
+      if (coarse) {
+        const gap = 4 / cam.k;
+        line = [xs[0]];
+        for (let i = 1; i < xs.length - 1; i++) { const q = line[line.length - 1]; if (Math.hypot(xs[i][0] - q[0], xs[i][1] - q[1]) >= gap) line.push(xs[i]); }
+        line.push(xs[xs.length - 1]);
+      }
+      const pts = smoothArc(line, F.rays, coarse ? 1 : SMOOTH3);
+      c = { key, pts, hs: pts.map((q) => Math.abs(F.lift(F.at(q[0], q[1]), [1, 0])[2])) };
+      curves3.set(xs, c);
+    }
     const top = [], bot = [];
-    xs.forEach((q) => {
-      const h = F.lift(F.at(q[0], q[1]), [1, 0])[2], a = Math.abs(h);
-      top.push(cam.proj(q[0], q[1], a)); bot.push(cam.proj(q[0], q[1], a * (1 - 2 * t)));
-    });
+    c.pts.forEach((q, i) => { top.push(cam.proj(q[0], q[1], c.hs[i])); bot.push(cam.proj(q[0], q[1], c.hs[i] * (1 - 2 * t))); });
     return { top, bot };
+  }
+  // An arc (points of the plane) made smooth, a Catmull–Rom curve through its points with sub points
+  // to each piece, and with the points where it crosses the cuts (where the sheets pass through each
+  // other, and the circle over it has its two halves meet) put in exactly.
+  function smoothArc(xs, rays, sub) {
+    const n = xs.length, P = (i) => xs[Math.max(0, Math.min(n - 1, i))], pts = [];
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < sub; k++) {
+      const u = k / sub, a = P(i - 1), b = P(i), c = P(i + 1), d = P(i + 2), u2 = u * u, u3 = u2 * u;
+      pts.push([0, 1].map((m) => 0.5 * (2 * b[m] + (c[m] - a[m]) * u + (2 * a[m] - 5 * b[m] + 4 * c[m] - d[m]) * u2 + (3 * b[m] - a[m] - 3 * c[m] + d[m]) * u3)));
+    }
+    pts.push(xs[n - 1]);
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i], dx = b[0] - a[0], dy = b[1] - a[1], cuts = [];
+      rays.forEach((r) => {
+        const den = dx * r.uy - dy * r.ux, wx = r.r[0] - a[0], wy = r.r[1] - a[1];
+        if (!den) return;
+        const t = (wx * r.uy - wy * r.ux) / den, s = (wx * dy - wy * dx) / den;
+        if (t > 1e-9 && t < 1 - 1e-9 && s > 0) cuts.push(t);
+      });
+      cuts.sort((u, v) => u - v).forEach((t) => out.push([a[0] + dx * t, a[1] + dy * t]));
+      out.push(b);
+    }
+    return out;
   }
   const onTop = (c) => { const F = v3d.field; return Math.abs(F.lift(F.at(c[0], c[1]), [1, 0])[2]); };
   // (at most twice the CSS resolution, as the phone's three times costs too much, but as asked for
@@ -668,37 +921,58 @@
     const cam = cam3(), P = model.P, z = state.z, S = window.PLSurface, R = frame.xv.R;
     // (coarse while z or a critical point moves, with the grid lines in the same places: rings at
     // every sixth of the radius, spokes every 30°)
-    const rough = coarse && (drag || anim), NR = rough ? 12 : 24, NA = rough ? 36 : 72, rts = rootsNow();
-    const key = [z[0], z[1], state.crit.flat().join(','), state.shift.join(','), R, NR].join('|');
-    if (v3d.key !== key) {
-      v3d.field = S.field(P, z, rts, SHEET * R, RISE * R);
-      v3d.mesh = S.mesh(P, z, { cx: frame.xv.cx, cy: frame.xv.cy, R, NR, NA, RG: NR / 6, AG: NA / 12, rts, F: v3d.field });
-      v3d.key = key;
-    }
-    // the axes of the plane of x, beyond the disc
-    const names = [['$\\mathrm{Re}\\,x$', 1, 0], ['$\\mathrm{Im}\\,x$', 0, 1]];
-    ctx.strokeStyle = MM.rgba('ink', 0.3); ctx.lineWidth = 1;
-    names.forEach(([, u, v]) => {
-      const a = cam.proj(frame.xv.cx + u * R, frame.xv.cy + v * R, 0), b = cam.proj(frame.xv.cx + 1.1 * u * R, frame.xv.cy + 1.1 * v * R, 0);
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-    });
+    // (coarse while anything moves, the picture turning included: the grid lines follow the surface
+    // itself, so they stay where they are; both meshes kept until the surface changes)
+    const NR = coarse ? 12 : 24, NA = coarse ? 36 : 72, rts = rootsNow();
+    const key = [z[0], z[1], state.crit.flat().join(','), state.shift.join(','), R].join('|');
+    if (v3d.key !== key) { v3d.field = S.field(P, z, rts, SHEET * R, RISE * R); v3d.key = key; v3d.meshes = {}; }
+    if (!v3d.meshes[NR]) v3d.meshes[NR] = S.mesh(P, z, { cx: frame.xv.cx, cy: frame.xv.cy, R, NR, NA, RG: NR / 6, AG: NA / 12, rts, F: v3d.field });
     const white = rgbOf('surface'), land = rgbOf('land'), blue = white.map((x, k) => x + (land[k] - x) * 0.2);
-    S.draw(ctx, cam, v3d.mesh, { white, blue, grid: MM.rgba('ink', 0.26) });
-    // the cuts, where the sheets pass through each other: from each root out to the rim
-    ctx.strokeStyle = MM.rgba('ink', 0.4); ctx.lineWidth = 1; ctx.beginPath();
-    v3d.field.rays.forEach((c) => {
-      const ox = c.r[0] - frame.xv.cx, oy = c.r[1] - frame.xv.cy, b = ox * c.ux + oy * c.uy, t = -b + Math.sqrt(Math.max(0, b * b - (ox * ox + oy * oy - R * R)));
-      if (!(t > 0)) return;
-      const a = cam.proj(c.r[0], c.r[1], 0), e = cam.proj(c.r[0] + c.ux * t, c.r[1] + c.uy * t, 0);
-      ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]);
+    const names = [['$\\mathrm{Re}\\,x$', 1, 0], ['$\\mathrm{Im}\\,x$', 0, 1]];
+    S.draw(ctx, cam, v3d.meshes[NR], { white, blue, grid: MM.rgba('ink', 0.26) });
+    // Lines on the plane h = 0, drawn where they are seen: the axes of the plane of x, across it
+    // (between the sheets inside the rim, so seen only where they come out from under the upper
+    // one), and the seams, where the sheets pass through each other, along the cuts from the roots
+    // to the rim. A point is hidden if the line from it to the eye passes through the upper sheet
+    // (from below it, if the point is between the sheets; from above, if it is on a seam or beyond
+    // the rim) before it leaves the disc.
+    const F = v3d.field, cx = frame.xv.cx, cy = frame.xv.cy, cp = Math.cos(v3d.pitch), sp = Math.sin(v3d.pitch);
+    const ex = -cp * Math.sin(v3d.yaw), ey = -cp * Math.cos(v3d.yaw), smax = SHEET * R / sp;
+    // (fewer points, and fewer steps along each line of sight, while the picture moves)
+    const steps = coarse ? 20 : 32, dens = coarse ? 0.6 : 1;
+    const seen = (x, y) => {
+      let entered = Math.hypot(x - cx, y - cy) <= R;
+      const below = entered && F.top(x, y) > 1e-6 * R;
+      for (let k = 1; k <= steps; k++) {
+        const s = smax * k / steps, px = x + ex * s, py = y + ey * s;
+        if (Math.hypot(px - cx, py - cy) > R) { if (entered) return true; continue; }
+        entered = true;
+        if ((F.top(px, py) > s * sp) !== below) return false;
+      }
+      return true;
+    };
+    const flat = (a, b, m, color, width) => {
+      m = Math.max(4, Math.round(m * dens));
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      let on = false;
+      for (let k = 0; k <= m; k++) {
+        const x = a[0] + (b[0] - a[0]) * k / m, y = a[1] + (b[1] - a[1]) * k / m, vis = seen(x, y), q = cam.proj(x, y, 0);
+        if (vis) { if (on) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }
+        on = vis;
+      }
+      ctx.stroke();
+    };
+    names.forEach(([, u, v]) => flat([cx - 1.1 * u * R, cy - 1.1 * v * R], [cx + 1.1 * u * R, cy + 1.1 * v * R], 160, MM.rgba('ink', 0.3), 1));
+    F.rays.forEach((c) => {
+      const ox = c.r[0] - cx, oy = c.r[1] - cy, b = ox * c.ux + oy * c.uy, t = -b + Math.sqrt(Math.max(0, b * b - (ox * ox + oy * oy - R * R)));
+      if (t > 0) flat(c.r, [c.r[0] + c.ux * t, c.r[1] + c.uy * t], Math.max(8, Math.ceil(60 * t / R)), MM.rgba('ink', 0.45), 1.1);
     });
-    ctx.stroke();
     // the cycles: for n = 3 the discs their circles bound, tinted; the hidden halves dashed, the
     // seen halves solid
     const V = view(frame.xv, xcv), n = state.n, vanished = [], loops = [];
     shownArcs(V).forEach((a, j) => {
       if (!a || a.vanish) { vanished.push(a ? a.vanish : P.crit[j]); return; }
-      if (a.xs.length >= 2) loops.push(Object.assign(circle3(v3d.field, cam, a.xs, shapeT), { j, mult: a.mult }));
+      if (a.xs.length >= 2) loops.push(Object.assign(circle3(v3d.field, cam, a.xs, shapeT, coarse), { j, mult: a.mult, sub: coarse ? 1 : SMOOTH3 }));
     });
     const path = (pts, back) => { (back ? pts.slice().reverse() : pts).forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); };
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -709,8 +983,17 @@
     loops.forEach((L) => { ctx.strokeStyle = cyc(L.j, 'line'); ctx.lineWidth = 2.6; ctx.beginPath(); path(L.top); ctx.stroke(); });
     loops.forEach((L) => {
       if (!L.mult) return;
-      const i = L.mult.i, a = L.top[Math.max(0, i - 1)], b = L.top[Math.min(L.top.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      multLabel(ctx, L.j, L.top[i][0] - (b[1] - a[1]) / l * 12, L.top[i][1] + (b[0] - a[0]) / l * 12, L.mult.m);
+      countsShown = true;
+      // (beside the strands, on the side away from the nearest root, or with fewer strands)
+      const i = Math.min(L.top.length - 1, L.mult.i * L.sub), p = L.top[i], a = L.top[Math.max(0, i - 2)], b = L.top[Math.min(L.top.length - 1, i + 2)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      let nx = -(b[1] - a[1]) / l, ny = (b[0] - a[0]) / l, near = null, nd = Infinity;
+      rts.forEach((r) => { const q = cam.proj(r[0], r[1], 0), d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < nd) { nd = d; near = q; } });
+      const crowd = (sx, sy) => { let c = 0; loops.forEach((M) => M.top.forEach((u) => { if (Math.hypot(u[0] - p[0] - sx * 14, u[1] - p[1] - sy * 14) < 10) c++; })); return c; };
+      if (near && nd < 40) { if ((p[0] - near[0]) * nx + (p[1] - near[1]) * ny < 0) { nx = -nx; ny = -ny; } }
+      else if (crowd(-nx, -ny) < crowd(nx, ny)) { nx = -nx; ny = -ny; }
+      const avoid = state.crit.map((c) => { const q = cam.proj(c[0], c[1], onTop(c)); return [q[0], q[1], 21]; }).concat(rts.map((r) => { const q = cam.proj(r[0], r[1], 0); return [q[0], q[1], 11]; }));
+      const at = clearOf(p, nx, ny, 12, avoid);
+      multLabel(ctx, L.j, at[0], at[1], L.mult.m);
     });
     // the roots, where the sheets meet, and a cycle that has vanished: the singular point
     ctx.fillStyle = MM.color('ink');
@@ -848,7 +1131,9 @@
     const n = state.n, mu = state.mu, S0 = model.ref.S[n], B = model.B[n];
     MM.setHTML($('title'), '$' + fTex() + '$');
     MM.setHTML($('sub'), SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
-    MM.setHTML($('legend'), legendHTML());
+    // (not while something is dragged: the legend's lines come and go, and the plane of values,
+    // under it, would move under the pointer)
+    if (!drag) { const L = legendHTML(); if ($('legend').dataset.html !== L) { $('legend').dataset.html = L; MM.setHTML($('legend'), L); } }
     if (!$('zlegend').dataset.done) { MM.setHTML($('zlegend'), zLegendHTML()); $('zlegend').dataset.done = '1'; }
     // where z is: on a critical value, on a Stokes ray, or just across one
     let note = '';
@@ -883,12 +1168,13 @@
     const three = (body) => '<svg class="pl-key" viewBox="0 0 26 18" aria-hidden="true">' + body + '</svg>';
     const cyclesMark = state.arcs ? three('<path d="M2 9H24" style="stroke:var(--cy-1-line);stroke-width:2.2"/><path d="M11 5L15 9L11 13" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/>') : [
       three('<line x1="4" y1="9" x2="22" y2="9" style="stroke:var(--cy-1-line);stroke-dasharray:1.5 3;stroke-width:1.4"/><circle cx="5" cy="9" r="4.2" style="fill:var(--surface);stroke:var(--cy-1-text);stroke-width:1.4"/><circle cx="21" cy="9" r="4.2" style="fill:var(--cy-1);stroke:var(--cy-1-text);stroke-width:1.4"/>'),
-      three('<path d="M2 9Q13 1 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><path d="M2 9Q13 17 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2;stroke-dasharray:4 3"/>'),
+      three('<path d="M2 10Q13 14.5 24 10" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.3;stroke-dasharray:3 2.5"/><path d="M2 8Q13 3.5 24 8" style="fill:none;stroke:var(--cy-1-line);stroke-width:2.4"/>'),
       three('<path d="M2 9Q13 0 24 9Q13 18 2 9Z" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><ellipse cx="13" cy="9" rx="2.2" ry="4.5" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.1"/>'),
     ][state.n - 1];
     const what = state.carried ? 'the cycles $h(\\Delta_i)$ carried along with $z$' : 'vanishing cycles $\\Delta_i$';
     return item(cyclesMark, state.arcs ? 'the arcs of ' + what.replace(/^the /, '') : what)
-      + (state.carried && !is3d() ? item(three('<path d="M1 9H25" style="stroke:var(--cy-1);stroke-width:1.4;opacity:.4"/><circle class="handle-point" cx="13" cy="9" r="4.6" style="stroke:var(--cy-1-text);stroke-width:1.6"/>'), 'the basis $\\Delta_i$ at $z$, through the $c_i$') : '')
+      + (countsShown ? item('<svg class="pl-key" viewBox="0 0 26 18" aria-hidden="true"><path d="M1 13H25" style="stroke:var(--cy-1-line);stroke-width:2.2"/><text x="13" y="8" text-anchor="middle" style="font:600 11px var(--sans);fill:var(--cy-1-text)">2</text></svg>', 'how many strands run together') : '')
+      + (faintShown ? item(three('<path d="M1 9H25" style="stroke:var(--cy-1);stroke-width:1.4;opacity:.4"/><circle class="handle-point" cx="13" cy="9" r="4.6" style="stroke:var(--cy-1-text);stroke-width:1.6"/>'), 'the basis $\\Delta_i$ at $z$, through the $c_i$') : '')
       + (is3d() ? item('<span class="pl-sheets"></span>', state.n === 2 ? 'the curve $V_z$' : 'the circles of $V_z$ over the plane of $x$, edge on')
         : state.view === 'phase' ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $V_z$' : 'the roots of $p(x)=z$')
@@ -930,7 +1216,7 @@
     if (!model.carry || !model.loose || !state.carried) return;
     const unit = 1 / view(frame.xv, xcv).k, rts = model.rts, C = model.carry;
     model.loose = false;
-    if (MM.reduceMotion()) { PL.tighten(C.arcs, C.ends, rts, unit, 3600); ver++; now = snap(); drawX(false); return; }
+    if (MM.reduceMotion()) { PL.tighten(C.arcs, C.ends, rts, unit, 3600); ver++; now = snap(); drawX(false); drawReadouts(); return; }
     let left = 24;
     const tick = () => {
       PL.tighten(C.arcs, C.ends, rts, unit, 150);
@@ -939,24 +1225,20 @@
       if (--left <= 0) settleReq = 0;
       drawX(false);
       if (left > 0) settleReq = requestAnimationFrame(tick);
-      else now = snap();
+      else { now = snap(); drawReadouts(); }
     };
     settleReq = requestAnimationFrame(tick);
   }
   const unsettle = () => { if (settleReq) model.loose = true; cancelAnimationFrame(settleReq); settleReq = 0; };
 
-  // z picked up: the cycles to carry are taken afresh where it is
-  let lastKey = 0;
+  // z picked up (the cycles carried go on from where they are)
   function pickUp() {
     stopTravel();
     unsettle();
     trail = null;
-    model.onRay = null;
-    rebase();
   }
   function startZ(e, onHandle) {
     pickUp();
-    lastKey = 0;
     const V = view(frame.zv, zcv), [px, py] = localXY(e, zcv);
     drag = { kind: 'z', off: onHandle ? [V.x(px) - state.z[0], V.y(py) - state.z[1]] : [0, 0] };
     coarse = true;
@@ -1003,16 +1285,12 @@
     elm.addEventListener('pointerup', endDrag);
     elm.addEventListener('pointercancel', endDrag);
   });
-  // (keys move z on from where the last key left it, as one move, until a pause)
   zh.addEventListener('keydown', (e) => {
     const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
     if (!k) return;
     e.preventDefault();
-    const t = performance.now();
-    if (t - lastKey > 2000) pickUp();
-    lastKey = t;
+    pickUp();
     const st = (e.shiftKey ? 2 : 8) * zUnit();
-    unsettle();
     moveZ([state.z[0] + k[0] * st, state.z[1] + k[1] * st]);
     keep();
     draw();
@@ -1202,9 +1480,9 @@
   menu.addEventListener('change', (e) => {
     const i = e.detail.value === 'all' ? 'all' : +e.detail.value;
     stopTravel();
+    unsettle();
     if (model.atVal !== null) { state.z = model.zi.slice(); model.atVal = null; }
     model.onRay = null;
-    rebase();
     travel(loopPath(i), () => { keep(); settle(); });
   });
 

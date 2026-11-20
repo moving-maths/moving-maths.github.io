@@ -35,7 +35,7 @@ references:
 
 <div class="control-bar"><div class="wrap">
   <div class="control"><span class="label">$n$</span>
-    <mm-seg id="n" value="3" aria-label="The number of variables n">
+    <mm-seg id="n" value="2" aria-label="The number of variables n">
       <button value="1">1</button><button value="2">2</button><button value="3">3</button>
     </mm-seg>
   </div>
@@ -44,17 +44,19 @@ references:
       <button value="2">2</button><button value="3">3</button><button value="4">4</button><button value="5">5</button>
     </mm-seg>
   </div>
-  <mm-seg id="which" value="carried" aria-label="The cycles in the picture: the basis at z, or the cycles carried along with z">
-    <button value="basis">$\Delta_i$</button><button value="carried">$h(\Delta_i)$</button>
-  </mm-seg>
+  <div class="control"><span class="label">Show</span>
+    <mm-seg id="which" value="carried" aria-label="The cycles in the picture: the basis at z, or the cycles carried along with z">
+      <button value="basis">$\Delta_i$</button><button value="carried">$h(\Delta_i)$</button>
+    </mm-seg>
+  </div>
   <mm-seg id="shape" value="sphere" aria-label="The vanishing cycles, drawn as">
-    <button value="arc">Arcs</button><button value="sphere" id="shape-sphere">Spheres</button>
+    <button value="arc">Arcs</button><button value="sphere" id="shape-sphere">Circles</button>
   </mm-seg>
   <mm-seg id="view" value="plane" aria-label="The plane of x: shaded, coloured by phase, or in 3D">
     <button value="plane">Plane</button><button value="phase">Phase</button><button value="3d" id="view-3d">3D</button>
   </mm-seg>
   <div class="control">
-    <mm-menu id="round" aria-label="Take z once round a critical value"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.4 4A5.2 5.2 0 1 0 10.6 4"/><path d="M10.45 6.2L9.73 3.5L12.43 2.78"/><path d="M8 8.5h0" style="stroke-width:2.6"/></svg></mm-menu>
+    <mm-menu id="round" aria-label="Take z once round a critical value"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2L12.6 8L5 12.8Z" style="fill:currentColor"/></svg></mm-menu>
     <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
     <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
   </div>
@@ -149,7 +151,7 @@ references:
     <p class="caption pl-twval" id="eig-val"></p>
     <figcaption class="caption">The eigenvalues of the classical monodromy $h$ on the unit circle, with ticks at the $(\mu+1)$-th roots of unity times $(-1)^{n-1}$.</figcaption>
   </figure>
-  <p>A loop that $z$ travels is a product of the loops $\tau_i$ and their inverses, which generate the fundamental group of the plane without the critical values, a free group. The <strong>monodromy</strong> of the loop is the automorphism $h$ it gives; if it is $\tau_{i_1}^{\pm1}$, then $\tau_{i_2}^{\pm1}$, and so on, then $h=\cdots h_{i_2}^{\pm1}h_{i_1}^{\pm1}$, which preserves the intersection form. Next to the picture at the top, $h(\Delta_i)$ is $\Delta_i$ carried along the path of $z$ since it was picked up (or along the loop chosen in the bar), written in the basis at $z$, with the path closed up by the straight segment back to its start. The picture shows these cycles (with $\Delta_i$ in the bar, the basis instead): their arcs are dragged along with the roots and pulled tight once $z$ rests, a number beside an arc saying how many of its strands run together there; a cycle that has come back as $\pm\Delta_i$ is drawn as $\Delta_i$.</p>
+  <p>A loop that $z$ travels is a product of the loops $\tau_i$ and their inverses, which generate the fundamental group of the plane without the critical values, a free group. The <strong>monodromy</strong> of the loop is the automorphism $h$ it gives; if it is $\tau_{i_1}^{\pm1}$, then $\tau_{i_2}^{\pm1}$, and so on, then $h=\cdots h_{i_2}^{\pm1}h_{i_1}^{\pm1}$, which preserves the intersection form. Next to the picture at the top, $h(\Delta_i)$ is $\Delta_i$ carried along the path of $z$ since it was picked up (or along the loop chosen in the bar), written in the basis at $z$, with the path closed up by the straight segment back to its start. The picture shows these cycles (with $\Delta_i$ in the bar, the basis instead): their arcs are dragged along with the roots and pulled tight once $z$ rests, a number beside an arc saying how many of its strands run together there, and while $h$ is the identity they are drawn as the basis. For odd $n$ the class of a sphere over an arc depends only on the roots at its ends, as for $n=1$, so that $h_i^2=1$ though the spheres carried wind once more round the ends of $\Delta_i$ each time $z$ goes round $z_i$; there each $h(\Delta_i)$ is drawn along the arcs of the basis that join its ends.</p>
   <p>The <strong>monodromy group</strong> is generated by $h_1,\dots,h_\mu$. For odd $n$ these are reflections, and they generate the Weyl group of $\mathrm{A}_\mu$, the symmetric group on $\mu+1$ letters; for $n=1$ it permutes the $\mu+1$ points of $V_z$. For $n=2$ the group is infinite: for $\mu=2$, $V_z$ is a torus with a hole and the group is $\mathrm{SL}_2(\ZZ)$.</p>
   <p>Once round all the critical values is the <strong>classical monodromy</strong>, $h=h_1h_2\cdots h_\mu$ for a distinguished basis [@arnold1988]. For $f=x^{\mu+1}+y_2^2+\cdots+y_n^2$ its eigenvalues are $(-1)^{n-1}\mathrm{e}^{2\pi\mathrm{i}k/(\mu+1)}$ for $k=1,\dots,\mu$; in the basis the page opens with it takes $\Delta_1,\dots,\Delta_{\mu-1}$ to $\pm\Delta_2,\dots,\pm\Delta_\mu$.</p>
 </section>

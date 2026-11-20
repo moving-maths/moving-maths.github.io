@@ -44,7 +44,16 @@
       const s = w[0] * q.yref[0] + w[1] * q.yref[1] >= 0 ? 1 : -1;
       return [q.x, q.y, s * H * q.g, s];
     };
-    return { at, lift, rays };
+    // the height of the upper sheet over (x, y)
+    const top = (x, y) => {
+      let g = Infinity;
+      for (const c of rays) {
+        const dx = x - c.r[0], dy = y - c.r[1], t = dx * c.ux + dy * c.uy;
+        g = Math.min(g, t > 0 ? Math.abs(dx * c.uy - dy * c.ux) : Math.hypot(dx, dy));
+      }
+      return H * Math.tanh(g / L);
+    };
+    return { at, lift, rays, top };
   }
 
   // The surface over the disc |x − (cx, cy)| ≤ R, for the polynomial P and the value z.
@@ -191,15 +200,18 @@
     };
   }
 
-  // Draws the faces of the surface M from the back to the front, each with its grid lines;
+  // Draws the faces of the surface M from the back to the front, each with its grid lines, and
+  // among them the segments segs ({ a, b: [x, y, h], color, width, bias }: lines such as the
+  // seams and the axes, short, a little nearer by bias, so that the faces in front hide them);
   // colours: { white, blue: [r, g, b], grid }.
-  function draw(ctx, cam, M, col) {
+  function draw(ctx, cam, M, col, segs) {
     const items = M.faces.map((f) => {
       const p = f.p, n = p.length / 3, scr = new Float64Array(2 * n);
       let d = 0;
       for (let i = 0; i < n; i++) { const q = cam.proj(p[3 * i], p[3 * i + 1], p[3 * i + 2]); scr[2 * i] = q[0]; scr[2 * i + 1] = q[1]; d += q[2]; }
       return { d: d / n, f, scr };
     });
+    (segs || []).forEach((sg) => { const a = cam.proj(...sg.a), b = cam.proj(...sg.b); items.push({ d: (a[2] + b[2]) / 2 - (sg.bias || 0), seg: [a, b], sg }); });
     items.sort((u, w) => w.d - u.d);
     const fill = (f) => {
       const t = (1 - f.c) / 2, sh = 0.9 + 0.1 * f.nz, W = col.white, B = col.blue;
@@ -207,6 +219,11 @@
     };
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     items.forEach((it) => {
+      if (it.seg) {
+        ctx.strokeStyle = it.sg.color; ctx.lineWidth = it.sg.width; ctx.beginPath();
+        ctx.moveTo(it.seg[0][0], it.seg[0][1]); ctx.lineTo(it.seg[1][0], it.seg[1][1]); ctx.stroke();
+        return;
+      }
       const s = it.scr, n = s.length / 2;
       let mx = 0, my = 0;
       for (let i = 0; i < n; i++) { mx += s[2 * i] / n; my += s[2 * i + 1] / n; }
@@ -223,6 +240,7 @@
         it.f.lines.forEach((L) => L.forEach((q, i) => { const a = cam.proj(q[0], q[1], q[2]); if (i) ctx.lineTo(a[0], a[1]); else ctx.moveTo(a[0], a[1]); }));
         ctx.stroke();
       }
+
     });
   }
 

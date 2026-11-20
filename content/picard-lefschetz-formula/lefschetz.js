@@ -523,10 +523,14 @@
   // not slide over it), the points spread evenly along each arc now and then. The margin is 12
   // unit, or less where roots are close; as no point jumps over a margin and segments stay shorter
   // than it, no arc crosses a root, and each keeps its class.
-  function tighten(arcs, ends, roots, unit, iters) {
+  // the margin round the roots of the ropes: 12 unit, or less where roots are close
+  function ropeMargin(roots, unit) {
     let sep = Infinity;
     roots.forEach((a, k) => roots.forEach((b, l) => { if (k < l) sep = Math.min(sep, Math.hypot(a[0] - b[0], a[1] - b[1])); }));
-    const mg = Math.min(12 * unit, 0.35 * sep), sp = 0.8 * mg;
+    return Math.min(12 * unit, 0.35 * sep);
+  }
+  function tighten(arcs, ends, roots, unit, iters) {
+    const mg = ropeMargin(roots, unit), sp = 0.8 * mg;
     arcs.forEach((A, a) => {
       const [e0, e1] = ends[a];
       // (free0, free1: the point is on the strand that ends at e0, at e1)
@@ -560,6 +564,32 @@
       B.forEach((q) => A.push(q));
     });
     return arcs;
+  }
+  // An arc pulled tight with the stretches where it lies round a root on the margin (the root's own
+  // ends included, but for the strands that end there) drawn as exact circular arcs, a point every
+  // 4°, from where it comes onto the circle to where it leaves, the way it goes round. A new array.
+  function roundWraps(A, ends, roots, mg) {
+    const n = A.length, at = new Array(n).fill(-1), acc = [0];
+    for (let i = 1; i < n; i++) acc.push(acc[i - 1] + Math.hypot(A[i][0] - A[i - 1][0], A[i][1] - A[i - 1][1]));
+    for (let i = 1; i < n - 1; i++) roots.forEach((r, k) => {
+      if (k === ends[0] && acc[i] < 2 * mg) return;
+      if (k === ends[1] && acc[n - 1] - acc[i] < 2 * mg) return;
+      if (Math.abs(Math.hypot(A[i][0] - r[0], A[i][1] - r[1]) - mg) < 0.15 * mg) at[i] = k;
+    });
+    const out = [];
+    for (let i = 0; i < n;) {
+      if (at[i] < 0) { out.push(A[i]); i++; continue; }
+      let j = i;
+      while (j + 1 < n - 1 && at[j + 1] === at[i]) j++;
+      if (j === i) { out.push(A[i]); i++; continue; }
+      const r = roots[at[i]];
+      let ang = Math.atan2(A[i][1] - r[1], A[i][0] - r[0]), sweep = 0;
+      for (let k = i + 1; k <= j; k++) sweep += turn(A[k - 1][0] - r[0], A[k - 1][1] - r[1], A[k][0] - r[0], A[k][1] - r[1]);
+      const m = Math.max(2, Math.ceil(Math.abs(sweep) / (Math.PI / 45)));
+      for (let k = 0; k <= m; k++) { const a = ang + sweep * k / m; out.push([r[0] + mg * Math.cos(a), r[1] + mg * Math.sin(a)]); }
+      i = j + 1;
+    }
+    return out;
   }
   // the polyline A with its points spread evenly, at most sp apart, ends kept
   function resample(A, sp) {
@@ -621,5 +651,5 @@
   const matmul = (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((s, x, k) => s + x * B[k][j], 0) || 0));
   const transpose = (A) => A[0].map((_, j) => A.map((r) => r[j]));
 
-  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, critFor, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, teardrop, dragArcs, tighten, eye, inverse, matmul, transpose };
+  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, critFor, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, teardrop, dragArcs, tighten, ropeMargin, roundWraps, eye, inverse, matmul, transpose };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

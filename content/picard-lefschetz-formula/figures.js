@@ -305,16 +305,18 @@
   function drawDynkin() {
     const svg = $('dyn');
     if (!svg || !main() || !main().model) return;
-    const m = main().model, vals = m.P.vals, S = currentForm(), n = nNow(), W = Math.max(240, Math.round(svg.parentNode.clientWidth || 360)), H = 200;
+    // (the nodes about 90 px apart: no wider than that needs, nor than the column)
+    const m = main().model, vals = m.P.vals, S = currentForm(), n = nNow(), W = Math.min(Math.max(240, Math.round(svg.parentNode.clientWidth || 360)), 70 + 90 * (vals.length - 1));
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    vals.forEach((v) => { x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]); y0 = Math.min(y0, v[1]); y1 = Math.max(y1, v[1]); });
+    // (a size that does not change as the critical points move, so that the page does not move)
+    const H = 170, k = Math.min((W - 60) / Math.max(1e-9, x1 - x0), (H - 60) / Math.max(1e-9, y1 - y0), 260);
     // (redrawn only when what it shows has changed)
     const key = JSON.stringify([W, n, S, vals]);
     if (svg.dataset.key === key) return;
     svg.dataset.key = key;
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.style.width = W + 'px'; svg.style.height = H + 'px';
     svg.textContent = '';
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    vals.forEach((v) => { x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]); y0 = Math.min(y0, v[1]); y1 = Math.max(y1, v[1]); });
-    const k = Math.min((W - 80) / Math.max(1e-9, x1 - x0), (H - 70) / Math.max(1e-9, y1 - y0), 260);
     const P = vals.map((v) => [W / 2 + (v[0] - (x0 + x1) / 2) * k, H / 2 - (v[1] - (y0 + y1) / 2) * k]);
     const el = MM.svg;
     for (let i = 0; i < vals.length; i++) for (let j = i + 1; j < vals.length; j++) {
