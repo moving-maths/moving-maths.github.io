@@ -67,13 +67,17 @@
     }
     return out;
   }
-  // The arcs that mark the matching rules, two to a half-tile, each centred at a vertex
-  // (0 apex, 1 b, 2 c) with a radius in units of the tile's short edge: Conway's for kites and
-  // darts, and arcs crossing the edges at the golden section for rhombs. Arcs of one colour
-  // run on across every edge into the next tile.
+  // The arcs that mark the matching rules, two to a half-tile (the first colour, then the
+  // second), each centred at a vertex (0 apex, 1 b, 2 c) with a radius in units of the tile's
+  // short edge, as Penrose's tiles are usually drawn: Conway's for kites and darts (the kite's
+  // first-colour arc round its tail, 1/φ, the second round its head, 1; the dart's round its
+  // notch, 1/φ², and its tip, 1/φ); for rhombs, small arcs round the thin rhomb's obtuse
+  // corners, and round one acute corner of the thick rhomb with a large arc round the other
+  // (radii 1/φ³ and 1 − 1/φ³). Arcs of one colour run on across every edge into the next tile.
+  const g3 = g1 * g2;
   const ARCS = {
-    p2: [[[0, 1], [2, g2]], [[2, g1], [0, g1]]],          // kite: head, tail; dart: tip, notch
-    p3: [[[1, g2], [2, g1]], [[1, g1], [2, g1]]],          // thin, thick: at b, at c
+    p2: [[[2, g1], [0, 1]], [[0, g2], [2, g1]]],          // kite: tail, head; dart: notch, tip
+    p3: [[[1, g3], [2, g3]], [[1, 1 - g3], [2, g3]]],     // thin, thick: at b, at c
   };
   // the length of the short edge of a half-tile (P2: a kite's short edge, a dart's leg; P3: the side)
   function unit(kind, t) {

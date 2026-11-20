@@ -77,10 +77,12 @@ references:
         <div class="legend" id="legend"></div>
       </section>
       <section class="side-block side-more rp-chamber-block" id="chamber-block" aria-label="The point x in the chamber">
-        <div class="rp-chamber-row">
-          <svg id="chamber" class="rp-chamber" role="group" aria-label="The chamber, with the point x"></svg>
-          <svg id="coxeter" class="rp-coxeter" role="group" aria-label="The Coxeter diagram: a node for each wall, ringed where x is off it"></svg>
+        <svg id="chamber" class="rp-chamber" role="group" aria-label="The chamber, with the point x"></svg>
+        <div class="rp-cox-head">
+          <h3 class="label" id="cox-h">Coxeter diagram</h3>
+          <a class="rp-cox-link" id="dynkin-link" href="/dynkin-diagrams/">in Dynkin diagrams</a>
         </div>
+        <svg id="coxeter" class="rp-coxeter" role="group" aria-labelledby="cox-h"></svg>
         <div class="slider-pair rp-sliders" id="pq">
           <mm-slider id="p" plain min="2" max="13" step="1" value="5">$p$</mm-slider>
           <mm-slider id="q" plain min="2" max="13" step="1" value="3">$q$</mm-slider>

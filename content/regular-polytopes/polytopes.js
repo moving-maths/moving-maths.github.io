@@ -388,17 +388,39 @@
     const V = reps.length, pos = new Float64Array(V * d);
     reps.forEach((e, v) => apply(T.mat(e), x, d, pos, v * d));
     // edges
-    const edges = [], seenE = new Set();
+    const edges = [], seenE = new Set(), lone = [];
     for (let e = 0; e < N; e++) for (let i = 0; i < n; i++) {
       if (on[i]) continue;
       const b = right[e * n + i];
-      if (b < 0) continue;
+      if (b < 0) { if (M.kind === 'hyperbolic') lone.push(e, i); continue; }
       const u = vid[e], v = vid[b];
       if (u === v) continue;
       const k = Math.min(u, v) * V + Math.max(u, v);
       if (seenE.has(k)) continue;
       seenE.add(k);
       edges.push(Math.min(u, v), Math.max(u, v), i);
+    }
+    // In the hyperbolic plane, an edge whose chamber across the wall is not among T still has its
+    // far end, g s_i x: kept, with that end as a vertex of its own (else the fans of edges into a
+    // corner at infinity, whose chambers there run on far longer than those across, stop short).
+    const ends = [];
+    let pos2 = pos;
+    if (lone.length) {
+      const at = new Map(), key = (v) => v.map((t) => Math.round(t * 1e7)).join(','), Sx = (i) => apply(M.S[i], x, d);
+      for (let v = 0; v < V; v++) at.set(key(M.normalize(Array.from(pos.subarray(v * d, v * d + d)))), v);
+      const more = [];
+      for (let t = 0; t < lone.length; t += 2) {
+        const e = lone[t], i = lone[t + 1], q = M.normalize(apply(T.mat(e), Sx(i), d)), kq = key(q);
+        let w = at.get(kq);
+        if (w === undefined) { w = V + more.length / d; at.set(kq, w); more.push(...q); ends.push(e, i); }
+        const u = vid[e], k = Math.min(u, w) * 1e9 + Math.max(u, w);
+        if (u === w || seenE.has(k)) continue;
+        seenE.add(k);
+        edges.push(Math.min(u, w), Math.max(u, w), i);
+      }
+      pos2 = new Float64Array(pos.length + more.length);
+      pos2.set(pos);
+      pos2.set(more, pos.length);
     }
     // 2-faces: walk round g W_{ij}, crossing walls i and j in turn. (In rank four a wall of K
     // apart from i and j in the diagram fixes the face too, so that several walks give one face:
@@ -431,14 +453,15 @@
         walks.push(fi, e0);
       }
     }
-    const out = { kind: 'wythoff', M, T, x, on, vid, reps, V, pos, edges: Int32Array.from(edges), faces };
+    const out = { kind: 'wythoff', M, T, x, on, vid, reps, ends, V, pos: pos2, edges: Int32Array.from(edges), faces };
     if (n === 4) out.cells = cellsOf(T, out, walks);
     return out;
   }
   // the vertices of P placed for another point x on the same walls (a drag that keeps the rings)
   function place(P, x) {
-    const d = P.T.d;
+    const d = P.T.d, M = P.T.M;
     P.reps.forEach((e, v) => apply(P.T.mat(e), x, d, P.pos, v * d));
+    if (P.ends) for (let t = 0; t < P.ends.length; t += 2) P.pos.set(M.normalize(apply(P.T.mat(P.ends[t]), apply(M.S[P.ends[t + 1]], x, d), d)), (P.V + t / 2) * d);
     P.x = x;
     return P;
   }
