@@ -142,7 +142,10 @@
     // space, the projection of the 3-sphere, and the turn of the chamber's picture
     four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: mm(rotX(0.3), rotY(-0.35)), m: null, proj: 'stereo', wR: mm(rotX(-0.5), rotY(0.6)) },
     colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(),
-    R3: mm(rotX(0.42), rotY(-0.5)),   // the sphere's turn (the solid, and the stereographic picture)
+    // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
+    // tipping it towards the eye
+    turn: { th: -0.45, ph: 0.3 },
+    R3: mm(rotX(0.3), rotY(-0.45)),   // the sphere's turn (the solid's from turn; the stereographic picture's own)
     L: I(3),                          // the hyperbolic plane's view: a Lorentz map, then the disc
     V: null,                          // the Euclidean plane's view: an affine map to pixels (3×3)
     span: 3.2,                        // … showing this far from the middle
@@ -400,7 +403,7 @@
     if (state.colours) { outline(); ctx.fillStyle = MM.color(state.two.dual ? 'dual-face-fill' : 'face-1-fill'); ctx.fill(); }
     if (state.mirrors) {
       // the circle of the vertices, the mirrors through the middle, and C shaded
-      ctx.strokeStyle = MM.color('wall');
+      ctx.strokeStyle = MM.rgba('wall', 0.42);
       ctx.lineWidth = 0.8;
       ctx.setLineDash([3, 4]);
       ctx.beginPath(); ctx.arc(ox, oy, K, 0, TAU); ctx.stroke();
@@ -412,10 +415,6 @@
         seen.add(key);
         ctx.beginPath(); ctx.moveTo(ox - L * Math.cos(a), oy + L * Math.sin(a)); ctx.lineTo(ox + L * Math.cos(a), oy - L * Math.sin(a)); ctx.stroke();
       }
-      const a0 = Math.atan2(M.corners[0][1], M.corners[0][0]), a1 = Math.atan2(M.corners[1][1], M.corners[1][0]);
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.arc(ox, oy, L, -a0, -a1, a1 - a0 > 0 ? true : false); ctx.closePath();
-      ctx.fillStyle = MM.rgba('accent', 0.1);
-      ctx.fill();
     }
     outline();
     ctx.strokeStyle = MM.color('edge');
@@ -479,7 +478,7 @@
     }
     // the mirrors on the near faces
     if (state.mirrors && !c.snubbed && !c.special) {
-      ctx.strokeStyle = MM.color('wall');
+      ctx.strokeStyle = MM.rgba('wall', 0.42);
       ctx.lineWidth = 0.8;
       const p = new Path2D();
       for (const [a, b, n] of wallLines(c)) {
@@ -677,9 +676,51 @@
     }
     return null;
   }
+  // The axis a solid stands on, as most pictures show it: the axis of its group's turn of highest
+  // order (the corner of C with the smallest angle; the vertex's corner where two tie), so that a
+  // vertex of the tetrahedron, octahedron and icosahedron points up, the cube and the dodecahedron
+  // and the prisms lie on a face, and the view stays as x moves; but a 3-fold axis for the
+  // rhombic duals, so that a vertex where three faces meet points up. As the rows of a turn taking
+  // that axis upright (y) and the normal of wall 0 towards the eye.
+  function upFrame(M, ms3, dual, rings) {
+    const m = [ms3[1], ms3[2], ms3[0]];      // the bonds at corners 0, 1, 2: q, r, p
+    let k = m.indexOf(Math.max(...m.map((x) => (x === INF ? 0 : x))));
+    if (dual && rings.join('') === '010' && m.includes(3) && Math.max(...m) > 3) k = m.indexOf(3);
+    if (k < 0) k = 0;
+    const u = M.corners[k], r0 = M.r[0], d = dot(r0, u);
+    let f = r0.map((x, i) => x - d * u[i]);
+    if (Math.hypot(...f) < 1e-6) { const r1 = M.r[1], d1 = dot(r1, u); f = r1.map((x, i) => x - d1 * u[i]); }
+    f = norm(f);
+    return [cross(u, f), u.slice(), f];
+  }
+  function upNow() {
+    const c = complex3();
+    if (c.special || c.kind !== 'sphere') return I(3);
+    const s = state.three;
+    return c.up && c.upKey === s.dual ? c.up : (c.upKey = s.dual, c.up = upFrame(c.M, [s.p, s.q, s.r], s.dual, c.on.map((o) => +!o)));
+  }
+  // The solid's turn: about the upright axis by a, tipped by b (never past looking straight down
+  // or up); its matrix; and the turn nearest a matrix (from the stereographic picture, or a link).
+  const turnR3 = () => mm(mm(rotX(state.turn.ph), rotY(state.turn.th)), upNow());
+  function turnBy(a, b) { const t = state.turn; t.th += a; t.ph = clamp(t.ph + b, -1.55, 1.55); state.R3 = turnR3(); }
+  function turnFrom(R) {
+    const Rb = mm(R, tr(upNow())), ph = clamp(Math.atan2(Rb[2][1], Rb[1][1]), -1.55, 1.55), m = mm(rotX(-ph), Rb);
+    state.turn = { th: Math.atan2(m[0][2], m[0][0]), ph };
+    state.R3 = turnR3();
+  }
   // the sphere turned so that the direction u of the model faces the eye (the middle of the
-  // stereographic picture), in steps
+  // stereographic picture), in steps; the solid by its turntable
   function centreSphere(u) {
+    if (state.view3 === 'solid') {
+      const ub = mv(upNow(), u), t0 = Object.assign({}, state.turn), th1 = Math.atan2(-ub[0], ub[2]), ph1 = Math.atan2(ub[1], Math.hypot(ub[0], ub[2]));
+      let dth = th1 - t0.th;
+      dth -= TAU * Math.round(dth / TAU);
+      const far = Math.hypot(dth, ph1 - t0.ph);
+      if (far < 1e-3) return;
+      flight = { step: (e) => { state.turn = { th: t0.th + e * dth, ph: t0.ph + e * (ph1 - t0.ph) }; state.R3 = turnR3(); }, t0: performance.now(), dur: MM.reduceMotion() ? 0 : 450 + 350 * far };
+      tick();
+      return;
+    }
     const R0 = state.R3, a = norm(mv(R0, u)), z = [0, 0, 1], ax = cross(a, z), l = Math.hypot(...ax), th = Math.atan2(l, dot(a, z));
     if (th < 1e-3) return;
     const n = l > 1e-9 ? ax.map((v) => v / l) : [1, 0, 0];
@@ -700,11 +741,13 @@
         continue;
       }
       const gx = V.cx + V.K * nrm[0] / nrm[2], gy = V.cy - V.K * nrm[1] / nrm[2], R = V.K / Math.abs(nrm[2]);
-      if (R > 40 * V.K) continue;
-      path.moveTo(gx + R, gy);
-      path.arc(gx, gy, R, 0, TAU);
+      if (R < 4 * V.K) { path.moveTo(gx + R, gy); path.arc(gx, gy, R, 0, TAU); continue; }
+      // a large circle (nearly straight across the picture): the part of it near the picture, as a
+      // polyline (canvases draw large circles pixels off)
+      const ac = Math.atan2(V.cy - gy, V.cx - gx), span = Math.min(Math.PI, 1.5 * (V.w + V.h) / R), m = 96;
+      for (let t = 0; t <= m; t++) { const a = ac - span + 2 * span * t / m, x = gx + R * Math.cos(a), y = gy + R * Math.sin(a); if (t) path.lineTo(x, y); else path.moveTo(x, y); }
     }
-    ctx.strokeStyle = MM.color('wall');
+    ctx.strokeStyle = MM.rgba('wall', 0.42);
     ctx.lineWidth = 0.8;
     ctx.stroke(path);
   }
@@ -751,9 +794,20 @@
   function drawPlane() {
     const { ctx, w, h } = frameCanvas(), c = complex3(), W = c.W, V = planeView(w, h), disc = V.disc, dualOn = state.three.dual;
     const src = dualOn ? dualOf2(c) : { all: W.pos, polys: W.faces, edges: W.edges };
-    const pos = src.all, nP = pos.length / 3, scr = new Float64Array(2 * nP), done = new Uint8Array(nP);
-    const P3 = (v) => [pos[3 * v], pos[3 * v + 1], pos[3 * v + 2]];
-    const at = (v) => { if (!done[v]) { const q = V.to(P3(v)); scr[2 * v] = q[0]; scr[2 * v + 1] = q[1]; done[v] = 1; } return v; };
+    const pos = src.all, nP = pos.length / 3, scr = new Float64Array(2 * nP), done = new Uint8Array(nP), lv = disc ? new Float64Array(3 * nP) : null, L = state.L;
+    // a point on the canvas (and in the disc, moved by the view, for its geodesics), worked out once
+    const at = (v) => {
+      if (done[v]) return v;
+      const x = pos[3 * v], y = pos[3 * v + 1], z = pos[3 * v + 2];
+      if (disc) {
+        const a = L[0][0] * x + L[0][1] * y + L[0][2] * z, b = L[1][0] * x + L[1][1] * y + L[1][2] * z, t = L[2][0] * x + L[2][1] * y + L[2][2] * z;
+        lv[3 * v] = a; lv[3 * v + 1] = b; lv[3 * v + 2] = t;
+        const q = t * t - a * a - b * b, k = 1 / (t + Math.sqrt(q > 0 ? q : 0));
+        scr[2 * v] = V.cx + V.K * a * k; scr[2 * v + 1] = V.cy - V.K * b * k;
+      } else { const q = V.to([x, y, z]); scr[2 * v] = q[0]; scr[2 * v + 1] = q[1]; }
+      done[v] = 1;
+      return v;
+    };
     ctx.save();
     if (disc) { ctx.beginPath(); ctx.arc(V.cx, V.cy, V.K, 0, TAU); ctx.clip(); }
     // an edge from vertex a to b (on the canvas a polyline or an arc of its geodesic), added to a path
@@ -762,9 +816,10 @@
       if (!disc) { path.lineTo(bx, by); return; }
       const L2 = (bx - ax) ** 2 + (by - ay) ** 2;
       if (L2 < 9) { path.lineTo(bx, by); return; }
-      const g = geodesic(mv(state.L, P3(a)), mv(state.L, P3(b)));
-      if (!g) { path.lineTo(bx, by); return; }
-      const gx = V.cx + V.K * g.x, gy = V.cy - V.K * g.y, R = V.K * g.r;
+      const u0 = lv[3 * a], u1 = lv[3 * a + 1], u2 = lv[3 * a + 2], v0 = lv[3 * b], v1 = lv[3 * b + 1], v2 = lv[3 * b + 2];
+      const m0 = u1 * v2 - u2 * v1, m1 = u2 * v0 - u0 * v2, m2 = -(u0 * v1 - u1 * v0), l = Math.hypot(m0, m1);
+      if (l < 1e-14 || Math.abs(m2) < 1e-9 * l) { path.lineTo(bx, by); return; }
+      const kk = l / Math.abs(m2), gx = V.cx + V.K * m0 / m2, gy = V.cy - V.K * m1 / m2, R = V.K * Math.sqrt(Math.max(0, kk * kk - 1));
       if (L2 / (8 * R) < 0.15) { path.lineTo(bx, by); return; } // the sagitta: less than a sixth of a pixel
       const a0 = Math.atan2(ay - gy, ax - gx);
       let d = Math.atan2(by - gy, bx - gx) - a0;
@@ -814,7 +869,7 @@
       edgeTo(buckets[k], a, b);
     }
     const kk = thin();
-    buckets.forEach((path, k) => { ctx.strokeStyle = MM.rgba('edge', [1, 0.9, 0.75, 0.6][k]); ctx.lineWidth = [1.5, 1.1, 0.75, 0.45][k] * kk; ctx.stroke(path); });
+    buckets.forEach((path, k) => { ctx.strokeStyle = MM.rgba('edge', [1, 0.92, 0.8, 0.66][k]); ctx.lineWidth = [1.5, 1.2, 0.95, 0.7][k] * kk; ctx.stroke(path); });
     // the dual's vertices, in the colours of the faces they stand for
     if (dualOn && state.colours) {
       const D = dualOf2(c);
@@ -900,7 +955,7 @@
   function dualOf2(c) {
     if (c.D2) return c.D2;
     const W = c.W, D = P.laves(W), nV = W.V, all = new Float64Array(3 * (nV + D.pos.length)), seen = new Set(), edges = [];
-    all.set(W.pos);
+    all.set(W.pos.subarray(0, 3 * nV));
     D.pos.forEach((p, i) => all.set(p, 3 * (nV + i)));
     D.faces.forEach((f) => {
       const n = f.v.length;
@@ -912,40 +967,59 @@
     c.D2 = { pos: D.pos, kinds: D.kinds, all, polys: D.faces.map((f) => ({ v: f.v.map((i) => nV + i), k: -1, open: f.open, at: f.at })), edges };
     return c.D2;
   }
-  // the walls: the sides of the chambers, thin and grey; C shaded
-  function drawWalls(ctx, c, V) {
-    const T = c.g.T, M = c.g.M, path = new Path2D(), home = new Path2D();
-    const sideTo = (pth, G, ka, kb, a, b) => {
-      if (V.disc) {
-        const A = mv(state.L, P.apply(G, M.corners[ka], 3)), B = mv(state.L, P.apply(G, M.corners[kb], 3)), g = geodesic(A, B);
-        if (g && g.r < 40) {
-          const gx = V.cx + V.K * g.x, gy = V.cy - V.K * g.y, a0 = Math.atan2(a[1] - gy, a[0] - gx);
-          let d = Math.atan2(b[1] - gy, b[0] - gx) - a0;
-          d -= TAU * Math.round(d / TAU);
-          pth.arc(gx, gy, V.K * g.r, a0, a0 + d, d < 0);
-          return;
-        }
-      }
-      pth.lineTo(b[0], b[1]);
-    };
-    for (let e = 0; e < T.N; e++) {
-      const G = T.mat(e), pts = M.corners.map((p) => V.to(P.apply(G, p, 3)));
-      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
-      if (Math.max(...xs) < 0 || Math.min(...xs) > V.w || Math.max(...ys) < 0 || Math.min(...ys) > V.h) continue;
-      if (Math.max(...xs) - Math.min(...xs) < 2 && Math.max(...ys) - Math.min(...ys) < 2) continue;
-      for (let i = 0; i < 3; i++) {
-        if (T.right[e * 3 + i] >= 0 && T.right[e * 3 + i] < e) continue;
-        const ka = (i + 1) % 3, kb = (i + 2) % 3, a = pts[ka], b = pts[kb];
-        path.moveTo(a[0], a[1]);
-        sideTo(path, G, ka, kb, a, b);
-      }
-      if (e === 0) { home.moveTo(pts[0][0], pts[0][1]); for (let i = 0; i < 3; i++) sideTo(home, G, i, (i + 1) % 3, pts[i], pts[(i + 1) % 3]); }
+  // The walls: the sides of the chambers, thin and grey, fainter towards the rim of the disc.
+  // The chambers' corners are found once for the group; each frame they are only moved by the
+  // view. A wall less than a pixel long is left out, and one of a few pixels drawn straight (near
+  // a corner at infinity there are thousands of them).
+  function wallData(g) {
+    if (g.walls) return g.walls;
+    const T = g.T, M = g.M, N = T.N, pts = new Float64Array(9 * N), list = [];
+    for (let e = 0; e < N; e++) {
+      const G = T.mat(e);
+      for (let k = 0; k < 3; k++) pts.set(M.normalize(P.apply(G, M.corners[k], 3)), 9 * e + 3 * k);
+      for (let i = 0; i < 3; i++) if (T.right[e * 3 + i] < 0 || T.right[e * 3 + i] > e) list.push(9 * e + 3 * ((i + 1) % 3), 9 * e + 3 * ((i + 2) % 3));
     }
-    ctx.fillStyle = MM.rgba('accent', 0.14);
-    ctx.fill(home);
-    ctx.strokeStyle = MM.color('wall');
+    return (g.walls = { pts, list: Int32Array.from(list) });
+  }
+  function drawWalls(ctx, c, V) {
+    const { pts, list } = wallData(c.g), n = pts.length / 3, scr = new Float64Array(2 * n), lv = V.disc ? new Float64Array(pts.length) : null;
+    const L = state.L, w = V.w, h = V.h;
+    for (let p = 0, o = 0; p < n; p++, o += 3) {
+      const x = pts[o], y = pts[o + 1], z = pts[o + 2];
+      if (V.disc) {
+        const a = L[0][0] * x + L[0][1] * y + L[0][2] * z, b = L[1][0] * x + L[1][1] * y + L[1][2] * z, t = L[2][0] * x + L[2][1] * y + L[2][2] * z;
+        lv[o] = a; lv[o + 1] = b; lv[o + 2] = t;
+        const q = t * t - a * a - b * b, k = 1 / (t + Math.sqrt(q > 0 ? q : 0));
+        scr[2 * p] = V.cx + V.K * a * k; scr[2 * p + 1] = V.cy - V.K * b * k;
+      } else { const q = V.to([x, y, z]); scr[2 * p] = q[0]; scr[2 * p + 1] = q[1]; }
+    }
+    const paths = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+    for (let t = 0; t < list.length; t += 2) {
+      const oa = list[t], ob = list[t + 1], pa = oa / 3, pb = ob / 3;
+      const ax = scr[2 * pa], ay = scr[2 * pa + 1], bx = scr[2 * pb], by = scr[2 * pb + 1];
+      if ((ax < 0 && bx < 0) || (ax > w && bx > w) || (ay < 0 && by < 0) || (ay > h && by > h)) continue;
+      const len = Math.abs(bx - ax) + Math.abs(by - ay);
+      if (len < 1) continue;
+      let k = 0;
+      if (V.disc) { const mx = ((ax + bx) / 2 - V.cx) / V.K, my = ((ay + by) / 2 - V.cy) / V.K, room = 1 - mx * mx - my * my; k = room > 0.5 ? 0 : room > 0.25 ? 1 : room > 0.1 ? 2 : 3; }
+      const path = paths[k];
+      path.moveTo(ax, ay);
+      if (!V.disc || len < 8) { path.lineTo(bx, by); continue; }
+      // the geodesic: the circle with its centre at the pole of the line through the two points
+      const u0 = lv[oa], u1 = lv[oa + 1], u2 = lv[oa + 2], v0 = lv[ob], v1 = lv[ob + 1], v2 = lv[ob + 2];
+      const m0 = u1 * v2 - u2 * v1, m1 = u2 * v0 - u0 * v2, m2 = -(u0 * v1 - u1 * v0), l = Math.hypot(m0, m1);
+      if (l < 1e-14 || Math.abs(m2) < 1e-9 * l) { path.lineTo(bx, by); continue; }
+      const kk = l / Math.abs(m2), gx = V.cx + V.K * m0 / m2, gy = V.cy - V.K * m1 / m2, R = V.K * Math.sqrt(Math.max(0, kk * kk - 1));
+      if (len * len / (8 * R) < 0.25) { path.lineTo(bx, by); continue; }
+      const a0 = Math.atan2(ay - gy, ax - gx);
+      let d = Math.atan2(by - gy, bx - gx) - a0;
+      d -= TAU * Math.round(d / TAU);
+      if (R < 4 * V.K) { path.arc(gx, gy, R, a0, a0 + d, d < 0); continue; }
+      const m = Math.max(2, Math.ceil(Math.abs(d) * Math.sqrt(R / 0.8)));
+      for (let i = 1; i <= m; i++) { const th = a0 + d * i / m; path.lineTo(gx + R * Math.cos(th), gy + R * Math.sin(th)); }
+    }
     ctx.lineWidth = 0.8;
-    ctx.stroke(path);
+    paths.forEach((path, k) => { ctx.strokeStyle = MM.rgba('wall', [0.42, 0.34, 0.24, 0.15][k]); ctx.stroke(path); });
   }
 
   /* ---------- Penrose ---------- */
@@ -984,7 +1058,7 @@
       ctx.globalAlpha = 1;
     };
     // edges: a tile's edges, not the cut between its halves (P3: apex–b and apex–c; P2: apex–b and b–c)
-    const edges = (list, width, alpha) => {
+    const edges = (list, width, alpha, light) => {
       if (alpha <= 0.002) return;
       const path = new Path2D();
       for (const tri of list) {
@@ -993,7 +1067,7 @@
         else { path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); }
       }
       ctx.globalAlpha = alpha;
-      ctx.strokeStyle = MM.color('edge');
+      ctx.strokeStyle = MM.rgba('edge', light || 1);
       ctx.lineWidth = width;
       ctx.stroke(path);
       ctx.globalAlpha = 1;
@@ -1003,13 +1077,14 @@
     const u = smooth(0.7, 1, t);
     fillT(coarseT, 1);
     fillT(fineT, u);
-    edges(coarseT, 1.1, 1 - u);
-    edges(fineT, 1.1, u);
+    const faint = pen.arcs ? 0.45 : 1;
+    edges(coarseT, 1.1, 1 - u, faint);
+    edges(fineT, 1.1, u, faint);
     if (pen.arcs) { drawArcs(ctx, kind, coarseT, at, s, 1 - u); drawArcs(ctx, kind, fineT, at, s, u); }
     if (pen.larger) {
       // the tiles two and four levels up, which the shown ones make up
       for (const [base, alpha] of [[fine - 1, 1 - u], [fine, u]]) {
-        for (const [up, width] of [[2, 2.6], [4, 4.6]]) { const list = levels[base - up]; if (list) edges(list, width, 0.8 * alpha); }
+        for (const [up, width, light] of [[2, 2.4, 0.42], [4, 3.6, 0.28]]) { const list = levels[base - up]; if (list) edges(list, width, alpha, light); }
       }
     }
     ctx.strokeStyle = MM.color('rule');
@@ -1033,7 +1108,7 @@
         path.arc(C[0], C[1], R * s, a0, a0 + d, d < 0);
       }
       ctx.strokeStyle = MM.color(colour ? 'arc-2' : 'arc-1');
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.3;
       ctx.stroke(path);
     }
     ctx.globalAlpha = 1;
@@ -1168,18 +1243,44 @@
     };
     strokes(back);
     if (mid) {
-      const region = new Path2D();
+      // Each face of the cell cut into small triangles from its middle, their corners placed as the
+      // face's points are (on the 3-sphere or the hyperboloid where the picture is curved, so that
+      // the faces are the pieces of spheres the edges bound), all filled together: their union is
+      // the cell's outline, edges and the rims of its faces' spheres.
+      const region = new Path2D(), pt = new Float64Array(4);
+      const tri = (a, b, c) => {
+        const cr2 = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        if (Math.abs(cr2) < 1e-9) return;
+        const [p, q] = cr2 > 0 ? [b, c] : [c, b];
+        region.moveTo(a[0], a[1]); region.lineTo(p[0], p[1]); region.lineTo(q[0], q[1]); region.closePath();
+      };
       for (const face of X.cellFaces(mid)) {
-        const pts = [];
-        for (let i = 0; i < face.length; i++) { const part = []; edgePts(face[i], face[(i + 1) % face.length], part); if (part.length > 1) part.pop(); pts.push(...part); }
-        if (pts.length < 3) continue;
-        // all one way round, so that together they fill their union
-        let area = 0;
-        for (let i = 0; i < pts.length; i++) { const p0 = pts[i], p1 = pts[(i + 1) % pts.length]; area += p0[0] * p1[1] - p1[0] * p0[1]; }
-        if (area < 0) pts.reverse();
-        region.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < pts.length; i++) region.lineTo(pts[i][0], pts[i][1]);
-        region.closePath();
+        const n = face.length, o = face.map((v) => 4 * v);
+        if (face.some((v) => ok[v] !== 1)) continue;
+        const m = [0, 1, 2, 3].map((k) => o.reduce((t, oo) => t + Q[oo + k], 0) / n);
+        let N = 1;
+        if (bend) {
+          let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+          for (const oo of o) { x0 = Math.min(x0, Sx[oo]); x1 = Math.max(x1, Sx[oo]); y0 = Math.min(y0, Sx[oo + 1]); y1 = Math.max(y1, Sx[oo + 1]); }
+          N = clamp(Math.ceil(Math.max(x1 - x0, y1 - y0) / 16), 3, 12);
+        }
+        for (let i = 0; i < n; i++) {
+          const A = o[i], B = o[(i + 1) % n], grid = [];
+          for (let r = 0; r <= N; r++) {
+            const row = [];
+            for (let t = 0; t <= N - r; t++) {
+              const u = r / N, v = t / N;
+              for (let k = 0; k < 4; k++) pt[k] = m[k] + u * (Q[A + k] - m[k]) + v * (Q[B + k] - m[k]);
+              row.push(scr(pt[0], pt[1], pt[2], pt[3], tmp, 0) ? [tmp[0], tmp[1]] : null);
+            }
+            grid.push(row);
+          }
+          for (let r = 0; r < N; r++) for (let t = 0; t < N - r; t++) {
+            const g00 = grid[r][t], g10 = grid[r + 1][t], g01 = grid[r][t + 1];
+            if (g00 && g10 && g01) tri(g00, g10, g01);
+            if (r + t + 1 < N) { const g11 = grid[r + 1][t + 1]; if (g10 && g11 && g01) tri(g10, g11, g01); }
+          }
+        }
       }
       ctx.globalAlpha = 0.82;
       ctx.fillStyle = MM.color('cell-mid');
@@ -1329,48 +1430,6 @@
     if (state.kind === 'penrose' || state.three.special) return '';
     return '3|' + [state.three.p, state.three.q, state.three.r].join(',');
   }
-  // a conformal chart of the plane of rank three round ρ (the sphere stereographically from −ρ,
-  // the hyperbolic plane as the Poincaré disc about ρ), and back
-  function chart3(M) {
-    const rho = M.rho;
-    if (M.kind === 'plane') return { to: (v) => [v[0] / v[2] - rho[0], v[1] / v[2] - rho[1]], from: (u) => [u[0] + rho[0], u[1] + rho[1], 1] };
-    if (M.kind === 'sphere') {
-      const e1 = norm(cross(rho, Math.abs(rho[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), e2 = cross(rho, e1);
-      return {
-        to: (v) => { const k = 1 / (1 + dot(v, rho)); return [dot(v, e1) * k, dot(v, e2) * k]; },
-        from: (u) => { const s = u[0] * u[0] + u[1] * u[1]; return [0, 1, 2].map((i) => (2 * u[0] * e1[i] + 2 * u[1] * e2[i] + (1 - s) * rho[i]) / (1 + s)); },
-      };
-    }
-    const proj = (a) => a.map((x, i) => x + lor(a, rho) * rho[i]);
-    let e1 = proj([1, 0, 0]);
-    e1 = e1.map((x) => x / Math.sqrt(lor(e1, e1)));
-    let e2 = proj([0, 1, 0]);
-    e2 = e2.map((x, i) => x - lor(e2, e1) * e1[i]);
-    e2 = e2.map((x) => x / Math.sqrt(lor(e2, e2)));
-    return {
-      to: (v) => { const q = Math.sqrt(Math.max(0, -lor(v, v))), k = 1 / (-lor(v, rho) + q); return [lor(v, e1) * k, lor(v, e2) * k]; },
-      from: (u) => { const s = Math.min(0.9999, u[0] * u[0] + u[1] * u[1]); return [0, 1, 2].map((i) => (2 * u[0] * e1[i] + 2 * u[1] * e2[i] + (1 + s) * rho[i]) / (1 - s)); },
-    };
-  }
-  // a chart of rank four round ρ where walls are flat (gnomonic, Klein, or the space itself)
-  function chart4(M) {
-    const rho = M.rho;
-    if (M.kind === 'plane') return { to: (v) => [0, 1, 2].map((i) => v[i] / v[3] - rho[i]), from: (u) => [u[0] + rho[0], u[1] + rho[1], u[2] + rho[2], 1] };
-    const form = M.kind === 'sphere' ? dot : lor, sg = M.kind === 'sphere' ? 1 : -1;
-    const proj = (a) => a.map((x, i) => x - sg * form(a, rho) * rho[i]);
-    const es = [];
-    for (const a of [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {
-      let v = proj(a);
-      for (const e of es) v = v.map((x, i) => x - form(v, e) * e[i]);
-      const l = form(v, v);
-      if (l > 1e-9 && es.length < 3) es.push(v.map((x) => x / Math.sqrt(l)));
-    }
-    return {
-      to: (v) => { const k = 1 / (sg * form(v, rho)); return es.map((e) => form(v, e) * k); },
-      from: (u) => { const v = rho.map((x, i) => x + u[0] * es[0][i] + u[1] * es[1][i] + u[2] * es[2][i]); return M.kind === 'sphere' ? norm(v) : lnorm(v); },
-      lin: (u) => rho.map((x, i) => x + u[0] * es[0][i] + u[1] * es[1][i] + u[2] * es[2][i]),
-    };
-  }
   // a label beside the point q of the chamber's picture, on the side away from `mid`, clear of a
   // handle at q (its size measured once drawn)
   function labelAt(q, mid, text) {
@@ -1434,42 +1493,50 @@
     lab(M.corners[1], '$\\{' + p + '\\}$');
     lab(M.point([1, 1]), '$\\{' + 2 * p + '\\}$');
   }
+  // Rank three: a Euclidean triangle for C, corner 0 at the left, 1 at the right, 2 above (wall 2
+  // level at the bottom), with angles near C's (π/q, π/r, π/p, made to add up to π, and a corner
+  // at infinity or a very sharp one opened up), so that x has room in every case; x placed by its
+  // distances to the walls (exactly so for the Euclidean groups), and in the three chambers
+  // across its walls, where x gives the snub, by reflection.
   function build3() {
-    const s = state.three, g = group3(s.p, s.q, s.r), M = g.M, cht = chart3(M);
-    // C and the three chambers across its walls, in the chart
-    const corners = M.corners, flapCorner = [0, 1, 2].map((i) => M.normalize(P.apply(M.S[i], corners[i], 3)));
-    const side = (a, b) => geoPts(M, a, b, 24).map(cht.to);
-    const C = [side(corners[0], corners[1]), side(corners[1], corners[2]), side(corners[2], corners[0])];
-    const flaps = [0, 1, 2].map((i) => { const [j, k] = [0, 1, 2].filter((t) => t !== i); return [side(corners[j], flapCorner[i]), side(flapCorner[i], corners[k]), side(corners[k], corners[j])]; });
-    // turned so that the side of corners 0 and 1 (wall 2) is level, corner 2 above it
-    const c0 = cht.to(corners[0]), c1 = cht.to(corners[1]), c2 = cht.to(corners[2]), ang = Math.atan2(c1[1] - c0[1], c1[0] - c0[0]);
-    const turnP = (u) => { const c = Math.cos(-ang), sn = Math.sin(-ang); return [c * u[0] - sn * u[1], sn * u[0] + c * u[1]]; };
-    const flip = turnP(c2)[1] < turnP(c0)[1] ? -1 : 1;
-    const T2 = (u) => { const t = turnP(u); return [t[0], flip * t[1]]; }, T2inv = (u) => { const t = [u[0], flip * u[1]], c = Math.cos(ang), sn = Math.sin(ang); return [c * t[0] - sn * t[1], sn * t[0] + c * t[1]]; };
-    const all = [].concat(...C, ...flaps.flat()).map(T2);
-    const F = fitTo(all, 30);
-    const px = (u) => F.px(T2(u));
-    Object.assign(ch, { M, g, cht, F, T2, T2inv, px, toPx: (v) => px(cht.to(v)) });
+    const s = state.three, g = group3(s.p, s.q, s.r), M = g.M;
+    const raw = [s.q, s.r, s.p].map((m) => Math.max(Math.PI / m, 0.6)), sum = raw.reduce((t, x) => t + x, 0), ang = raw.map((x) => x * Math.PI / sum);
+    const c0 = 1 / Math.tan(ang[0]), c1 = 1 / Math.tan(ang[1]), hgt = 1 / (c0 + c1);
+    const A = [[0, 0], [1, 0], [hgt * c0, hgt]];
+    // side k: the line through the corners other than k, with its inward unit normal
+    const sides = [0, 1, 2].map((k) => {
+      const P0 = A[(k + 1) % 3], P1 = A[(k + 2) % 3], d = [P1[0] - P0[0], P1[1] - P0[1]], l = Math.hypot(d[0], d[1]);
+      let n = [-d[1] / l, d[0] / l];
+      if (n[0] * (A[k][0] - P0[0]) + n[1] * (A[k][1] - P0[1]) < 0) n = [-n[0], -n[1]];
+      return { P0, n };
+    });
+    const dist = (P, k) => sides[k].n[0] * (P[0] - sides[k].P0[0]) + sides[k].n[1] * (P[1] - sides[k].P0[1]);
+    const alt = [0, 1, 2].map((k) => dist(A[k], k));
+    const reflect = (P, k) => { const d = dist(P, k); return [P[0] - 2 * d * sides[k].n[0], P[1] - 2 * d * sides[k].n[1]]; };
+    const posOf = (w, flap) => {
+      const l = w.map((x, k) => x / alt[k]), t = l.reduce((u, x) => u + x, 0);
+      const P = [0, 1].map((i) => l.reduce((u, x, k) => u + x * A[k][i], 0) / t);
+      return flap >= 0 ? reflect(P, flap) : P;
+    };
+    const flapCorner = [0, 1, 2].map((k) => reflect(A[k], k));
+    // fitted to C and the near half of each chamber beside it (their far tips may be cut off)
+    const halfway = [0, 1, 2].map((k) => { const m = [(A[(k + 1) % 3][0] + A[(k + 2) % 3][0]) / 2, (A[(k + 1) % 3][1] + A[(k + 2) % 3][1]) / 2]; return [m[0] + 0.55 * (flapCorner[k][0] - m[0]), m[1] + 0.55 * (flapCorner[k][1] - m[1])]; });
+    const F = fitTo(A.concat(halfway), 36);
+    Object.assign(ch, { M, g, F, A, dist, reflect, posOf, px: F.px, toPx: (w, flap) => F.px(posOf(w, flap)) });
     // the ground: flaps grey, C light blue (and, with colours, each corner in its faces' colour)
-    const poly = (sides) => [].concat(...sides.map((sd) => sd.slice(0, -1))).map(px);
-    flaps.forEach((fl) => el('polygon', { points: ptsAttr(poly(fl)), class: 'rp-ch-flap' }, ch.gShapes));
-    el('polygon', { points: ptsAttr(poly(C)), class: 'rp-ch-c' }, ch.gShapes);
+    [0, 1, 2].forEach((k) => el('polygon', { points: ptsAttr([A[(k + 1) % 3], flapCorner[k], A[(k + 2) % 3]].map(F.px)), class: 'rp-ch-flap' }, ch.gShapes));
+    el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-c' }, ch.gShapes);
     ch.cornerTint = el('g', {}, ch.gShapes);
-    C.forEach((sd) => el('polyline', { points: ptsAttr(sd.map(px)), class: 'rp-ch-side' }, ch.gShapes));
+    el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-side' }, ch.gShapes);
     // the special points: the uniform points in C, the snub's in each flap
-    const snubX = snubPoint(g);
-    ch.specials = g.special.map((x) => ({ x, flap: -1 })).concat([0, 1, 2].map((i) => ({ x: snubX, flap: i })));
-    for (const sp of ch.specials) {
-      const v = sp.flap < 0 ? sp.x : P.apply(M.S[sp.flap], sp.x, 3), q = ch.toPx(v);
-      el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: sp.flap < 0 ? 'rp-ch-dot' : 'rp-ch-dot snub' }, ch.gDots);
-    }
+    const snubW = weights(M.walls(snubPoint(g)));
+    ch.specials = RINGS3.map((r) => ({ w: r.slice(), flap: -1 })).concat([0, 1, 2].map((i) => ({ w: snubW, flap: i })));
+    for (const sp of ch.specials) { const q = ch.toPx(sp.w, sp.flap); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: sp.flap < 0 ? 'rp-ch-dot' : 'rp-ch-dot snub' }, ch.gDots); }
     // the corners named by the regular polytopes there (for [p, q])
     if (s.r === 2) {
-      const mid = px(cht.to(M.rho));
-      const lab = (k, text) => labelAt(ch.toPx(corners[k]), mid, text);
-      const tx = (m) => (m === INF ? '\\infty' : m);
-      lab(0, '$\\{' + tx(s.p) + ',' + tx(s.q) + '\\}$');
-      lab(2, '$\\{' + tx(s.q) + ',' + tx(s.p) + '\\}$');
+      const mid = F.px([(A[0][0] + A[1][0] + A[2][0]) / 3, (A[0][1] + A[1][1] + A[2][1]) / 3]), tx = (m) => (m === INF ? '\\infty' : m);
+      labelAt(F.px(A[0]), mid, '$\\{' + tx(s.p) + ',' + tx(s.q) + '\\}$');
+      labelAt(F.px(A[2]), mid, '$\\{' + tx(s.q) + ',' + tx(s.p) + '\\}$');
     }
     tintCorners();
   }
@@ -1478,37 +1545,38 @@
     if (!ch || ch.rank !== 3 || !ch.cornerTint) return;
     ch.cornerTint.textContent = '';
     if (!state.colours) return;
-    const M = ch.M, rho = M.rho;
+    const A = ch.A;
     for (let k = 0; k < 3; k++) {
-      const c = M.corners[k], pts = [];
-      const toward = (o, t) => M.normalize(c.map((x, i) => x + t * (o[i] - x)));
-      const [i, j] = [0, 1, 2].filter((t) => t !== k), a = M.corners[i], b = M.corners[j];
-      // the corner's region: a small piece of C at it
-      const f = 0.22;
-      pts.push(ch.toPx(c));
-      for (let n = 0; n <= 8; n++) { const o = M.normalize(a.map((x, t) => x + (b[t] - x) * n / 8)); pts.push(ch.toPx(toward(o, f))); }
-      void rho;
-      el('polygon', { points: ptsAttr(pts), class: 'rp-ch-tint', style: 'fill: var(--' + fill(k) + ')' }, ch.cornerTint);
+      const a = A[k], u = A[(k + 1) % 3], v = A[(k + 2) % 3], r = 0.22 * Math.min(Math.hypot(u[0] - a[0], u[1] - a[1]), Math.hypot(v[0] - a[0], v[1] - a[1]));
+      const t0 = Math.atan2(u[1] - a[1], u[0] - a[0]);
+      let dt = Math.atan2(v[1] - a[1], v[0] - a[0]) - t0;
+      dt -= TAU * Math.round(dt / TAU);
+      const pts = [a];
+      for (let n = 0; n <= 10; n++) { const t = t0 + dt * n / 10; pts.push([a[0] + r * Math.cos(t), a[1] + r * Math.sin(t)]); }
+      el('polygon', { points: ptsAttr(pts.map(ch.F.px)), class: 'rp-ch-tint', style: 'fill: var(--' + fill(k) + ')' }, ch.cornerTint);
     }
   }
+  // Rank four: a regular tetrahedron for C, x at the mean of its corners weighted by x's walls,
+  // turning (a drag on it turns it)
+  const TETRA = [[1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1]].map((v) => v.map((x) => x / Math.sqrt(3)));
+  const tetraAt = (w) => { const t = w.reduce((u, x) => u + x, 0); return [0, 1, 2].map((i) => w.reduce((u, x, k) => u + x * TETRA[k][i], 0) / t); };
+  // the weights of a point of space in the tetrahedron's corners (adding up to 1)
+  const TETRA_M = [0, 1, 2].map((i) => TETRA.map((c) => c[i])).concat([[1, 1, 1, 1]]);
+  const tetraWeights = (Q) => P.solve(TETRA_M, [Q[0], Q[1], Q[2], 1]);
   function build4() {
-    const g = group4(state.four.ms), M = g.M, cht = chart4(M);
-    const corners = M.corners.map(cht.to);
-    Object.assign(ch, { M, g, cht, corners3: corners });
+    const g = group4(state.four.ms), M = g.M;
+    Object.assign(ch, { M, g, corners3: TETRA });
     ch.specials = [];
-    for (let b = 1; b < 16; b++) { const r = [8, 4, 2, 1].map((m) => +!!(b & m)); ch.specials.push({ x: P.uniform(M, r), rings: r }); }
-    ch.u = ch.specials.map((sp) => cht.to(sp.x));
+    for (let b = 1; b < 16; b++) { const r = [8, 4, 2, 1].map((m) => +!!(b & m)); ch.specials.push({ w: r }); }
+    ch.u = ch.specials.map((sp) => tetraAt(sp.w));
     placeTetra();
   }
   // the tetrahedron's picture for its present turn: edges, the corners' names, the dots
   function placeTetra() {
-    const R = state.four.wR, u = ch.corners3, all = u.concat(ch.u);
+    const R = state.four.wR, u = ch.corners3;
     // fitted by the sphere round its corners (so that turning it does not change its size)
-    const cen = u.reduce((a, p) => a.map((x, i) => x + p[i] / 4), [0, 0, 0]);
-    let top = 0;
-    for (const p of u) top = Math.max(top, Math.hypot(p[0] - cen[0], p[1] - cen[1], p[2] - cen[2]));
-    const s = (Math.min(ch.W, ch.H) / 2 - 14) / top, ox = ch.W / 2, oy = ch.H / 2;
-    ch.px3 = (p) => { const q = mv(R, [p[0] - cen[0], p[1] - cen[1], p[2] - cen[2]]); return [ox + s * q[0], oy - s * q[1], q[2]]; };
+    const s = Math.min(ch.W, ch.H) / 2 - 16, ox = ch.W / 2, oy = ch.H / 2;
+    ch.px3 = (p) => { const q = mv(R, p); return [ox + s * q[0], oy - s * q[1], q[2]]; };
     ch.s3 = s;
     ch.gShapes.textContent = '';
     ch.gDots.textContent = '';
@@ -1517,7 +1585,7 @@
     // the faces, faint, and the edges (behind dashed)
     const faces = [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]];
     faces.forEach((f) => el('polygon', { points: ptsAttr(f.map((i) => P2[i])), class: 'rp-ch-face' }, ch.gShapes));
-    const centre = mv(R, u.reduce((a, p) => a.map((x, i) => x + p[i] / 4), [0, 0, 0]));
+    const centre = [0, 0, 0];
     for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
       // an edge is behind when both faces on it face away
       const others = [0, 1, 2, 3].filter((k) => k !== i && k !== j), back = others.every((k) => {
@@ -1527,7 +1595,6 @@
       });
       el('line', { x1: P2[i][0].toFixed(1), y1: P2[i][1].toFixed(1), x2: P2[j][0].toFixed(1), y2: P2[j][1].toFixed(1), class: back ? 'rp-ch-side back' : 'rp-ch-side' }, ch.gShapes);
     }
-    void all;
     ch.u.forEach((p) => { const q = ch.px3(p); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.4, class: 'rp-ch-dot' }, ch.gDots); });
     const ms = state.four.ms, t = (m) => m, mid = [ch.W / 2, ch.H / 2];
     const names = ['$\\{' + ms.map(t).join(',') + '\\}$', '$\\mathrm r\\{' + ms.join(',') + '\\}$', '$\\mathrm r\\{' + ms.slice().reverse().join(',') + '\\}$', '$\\{' + ms.slice().reverse().join(',') + '\\}$'];
@@ -1538,8 +1605,8 @@
     if (!ch) return;
     let q;
     if (ch.rank === 2) q = ch.F.px(complex2().x);
-    else if (ch.rank === 3) { const c = complex3(); q = ch.toPx(c.xe); }
-    else q = ch.px3(ch.cht.to(space4().x || state.four.w));
+    else if (ch.rank === 3) q = ch.toPx(state.three.w, state.three.flap);
+    else q = ch.px3(tetraAt(state.four.w));
     ch.handle.setAttribute('transform', 'translate(' + q[0].toFixed(1) + ',' + q[1].toFixed(1) + ')');
     ch.handle.setAttribute('aria-valuetext', valueText());
   }
@@ -1560,52 +1627,45 @@
       return;
     }
     if (ch.rank === 3) {
-      const M = ch.M, s = state.three;
-      let y3 = ch.cht.from(ch.T2inv(ch.F.un(x, y)));
-      const where = (v) => {
-        const wv = M.walls(v);
-        if (wv.every((t) => t >= -1e-12)) return { flap: -1, x: v };
-        for (let i = 0; i < 3; i++) if (wv[i] < 0) { const r = P.apply(M.S[i], v, 3); if (M.walls(r).every((t) => t >= -1e-12)) return { flap: i, x: r }; }
+      const s = state.three, P = ch.F.un(x, y), inC = (Q) => [0, 1, 2].every((k) => ch.dist(Q, k) >= -1e-9);
+      const where = (Q) => {
+        if (inC(Q)) return { flap: -1, P: Q };
+        for (let i = 0; i < 3; i++) if (ch.dist(Q, i) < 0) { const R = ch.reflect(Q, i); if (inC(R)) return { flap: i, P: R }; }
         return null;
       };
-      let at = where(y3);
+      let at = where(P);
       if (!at) {
-        // beyond the flaps: back towards ρ, to the edge of where x may be
-        const u1 = ch.T2inv(ch.F.un(x, y));
+        // beyond the flaps: back towards the middle of C, to the edge of where x may be
+        const m = [0, 1].map((i) => (ch.A[0][i] + ch.A[1][i] + ch.A[2][i]) / 3);
         let lo = 0, hi = 1;
-        for (let t = 0; t < 30; t++) { const m = (lo + hi) / 2; if (where(ch.cht.from([u1[0] * m, u1[1] * m]))) lo = m; else hi = m; }
-        y3 = ch.cht.from([u1[0] * lo, u1[1] * lo]);
-        at = where(y3) || { flap: -1, x: M.rho };
+        for (let t = 0; t < 30; t++) { const h = (lo + hi) / 2; if (where([m[0] + h * (P[0] - m[0]), m[1] + h * (P[1] - m[1])])) lo = h; else hi = h; }
+        at = where([m[0] + lo * (P[0] - m[0]), m[1] + lo * (P[1] - m[1])]) || { flap: -1, P: m };
       }
+      let w = weights([0, 1, 2].map((k) => Math.max(0, ch.dist(at.P, k))));
       // the special points, then the walls, within a few pixels
       let held = false;
       for (const sp of ch.specials) {
-        const v = sp.flap < 0 ? sp.x : P.apply(M.S[sp.flap], sp.x, 3), q = ch.toPx(v);
-        if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { at = { flap: sp.flap, x: sp.x }; held = true; break; }
+        const q = ch.toPx(sp.w, sp.flap);
+        if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { w = weights(sp.w); at.flap = sp.flap; held = true; break; }
       }
       if (!held) {
-        const wv = M.walls(at.x);
-        for (let i = 0; i < 3; i++) {
-          const w2 = wv.slice(); w2[i] = 0;
-          if (!w2.some((v) => v > 1e-9)) continue;
-          const on = M.point(w2), q = ch.toPx(at.flap < 0 ? on : P.apply(M.S[at.flap], on, 3));
-          if (Math.hypot(q[0] - x, q[1] - y) < HOLD_WALL()) { at = { flap: -1, x: on }; break; }
-        }
+        const k0 = ch.F.s;
+        for (let k = 0; k < 3; k++) if (ch.dist(at.P, k) * k0 < HOLD_WALL() && w.some((v, j) => j !== k && v > 1e-9)) { w[k] = 0; if (k === at.flap) at.flap = -1; }
+        w = weights(w);
       }
-      s.w = weights(M.walls(at.x));
+      s.w = w;
       s.flap = at.flap;
       return;
     }
-    // rank four: in the plane facing the eye through the handle
-    const M = ch.M, f = state.four, R = f.wR, s3 = ch.s3, ox = ch.W / 2, oy = ch.H / 2;
-    const cen = ch.corners3.reduce((a, p) => a.map((v, i) => v + p[i] / 4), [0, 0, 0]);
-    const cur = mv(R, ch.cht.to(M.point(f.w)).map((v, i) => v - cen[i])), u = mv(tr(R), [(x - ox) / s3, (oy - y) / s3, cur[2]]).map((v, i) => v + cen[i]);
-    // into C: back towards ρ (the chart's origin) to where every wall's form is ≥ 0
+    // rank four: in the plane facing the eye through the handle, then into C (towards its middle
+    // until every weight is ≥ 0), held at the special points
+    const f = state.four, R = f.wR, s3 = Math.min(ch.W, ch.H) / 2 - 16, ox = ch.W / 2, oy = ch.H / 2;
+    const cur = mv(R, tetraAt(f.w)), Pn = mv(tr(R), [(x - ox) / s3, (oy - y) / s3, cur[2]]), lam = tetraWeights(Pn);
     let t = 1;
-    for (const fi of M.f) { const a = dot(fi, ch.cht.lin([0, 0, 0])), b = dot(fi, ch.cht.lin(u)) - a; if (a + b < 0) t = Math.min(t, -a / b * 0.99999); }
-    let v = ch.cht.from(u.map((c) => c * Math.max(0, t)));
-    for (const sp of ch.specials) { const q = ch.px3(ch.cht.to(sp.x)); if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { v = sp.x; break; } }
-    f.w = weights(M.walls(v));
+    lam.forEach((l) => { if (l < 0) t = Math.min(t, 0.25 / (0.25 - l)); });
+    let w = lam.map((l) => Math.max(0, 0.25 + t * (l - 0.25)));
+    for (const sp of ch.specials) { const q = ch.px3(tetraAt(sp.w)); if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { w = sp.w.slice(); break; } }
+    f.w = weights(w);
   }
   // the walls of x, scaled to a largest of 1, the small ones 0
   function weights(wv) {
@@ -1671,6 +1731,10 @@
     else if (k === 'space') { ms = state.four.ms; w = state.four.w; }
     else { const s = state.three; ms = [s.p, s.q]; w = s.w; tri = s.r !== 2; snubbed = complex3().snubbed; if (tri) ms = [s.p, s.q, s.r]; }
     const n = w.length, rings = w.map((v) => v > 1e-9), key = ms.join(',') + '|' + rings.map(Number).join('') + '|' + snubbed + '|' + tri;
+    // the same diagram in Dynkin diagrams
+    const link = $('dynkin-link'), code = dynkinCode(k === 'polygon' ? [[1, ms[0]], [ms[0], 1]] : k === 'space' ? P.linear(ms) : P.triangle(state.three.p, state.three.q, state.three.r));
+    link.hidden = !code;
+    if (code && link.getAttribute('href') !== '/dynkin-diagrams/?t=' + code) link.setAttribute('href', '/dynkin-diagrams/?t=' + code);
     if (svg.dataset.key === key) return;
     svg.dataset.key = key;
     const step = 46, r = 6;
@@ -1700,6 +1764,35 @@
       MM.svg('circle', { cx: pos[i][0], cy: pos[i][1], r: snubbed ? r : r - 2.2, class: snubbed ? 'cx-dot hollow' : 'cx-dot' }, g);
       MM.svg('circle', { cx: pos[i][0], cy: pos[i][1], r: 13, class: 'focus-ring' }, g);
     }
+  }
+  // A Coxeter matrix as Dynkin diagrams writes a diagram in a link: as a Cartan matrix (its size,
+  // then each bond i–j with |a_ij| and |a_ji| unless both are 1: m = 3, 4, 6, ∞ give products 1, 2,
+  // 3, 4), then its bonds with a number (5, 7–12) as ijm5. The bonds 4 and 6 point alternately
+  // one way and the other along the diagram (the cubic honeycomb's is C₃⁽¹⁾), so that round a
+  // triangle the matrix is symmetrizable, which it can be only with an even number of each:
+  // null otherwise (Dynkin diagrams would not see the group in it).
+  function dynkinCode(m) {
+    const n = m.length, b36 = (i) => i.toString(36), out = [], labels = [], seen = { 4: 0, 6: 0 };
+    const cyc = n === 3 && m[0][2] !== 2, order = cyc ? [[0, 1], [1, 2], [2, 0]] : Array.from({ length: n - 1 }, (_, i) => [i, i + 1]);
+    for (const [i, j] of order) {
+      const x = m[i][j];
+      if (x === 2) continue;
+      const lo = Math.min(i, j), hi = Math.max(i, j), id = b36(lo) + b36(hi);
+      if (x === 3) out.push(id);
+      else if (x === INF) out.push(id + '22');
+      else if (x === 4 || x === 6) {
+        const big = x === 4 ? 2 : 3, k = seen[x]++;
+        // which node's row has the larger entry: round a triangle, the first of a kind's and then
+        // the other's; along a line, the end node's for a single bond (B₃, B₄, G₂⁽¹⁾), the inner
+        // node's for two (C₂⁽¹⁾, C₃⁽¹⁾)
+        let onI;
+        if (cyc) onI = k % 2 === 0;
+        else { const two = m.flat().filter((y) => y === x).length > 2, end = i === 0 ? i : j === n - 1 ? j : i; onI = two ? end !== i : end === i; }
+        out.push(id + (onI === (i < j) ? big + '1' : '1' + big));
+      } else labels.push(id + 'm' + x);
+    }
+    if (cyc && (seen[4] % 2 || seen[6] % 2)) return null;
+    return [String(n)].concat(out, labels).join('.');
   }
   function toggleRing(i) {
     const k = state.kind;
@@ -1917,7 +2010,7 @@
           leg = [2, 0, 1, 3].filter((kk) => kinds.has(kk)).map((kk) => ['swatch', FACE[kk], words[kk]]);
         } else leg = [['swatch', 'dual-face', 'a face for each vertex of the ' + lower(a.primal)], ['dots', [2, 0, 1].filter((kk) => kinds.has(kk)).map((kk) => FACE[kk]), 'a vertex for each of its faces, in the face’s colour']];
       }
-      if (state.mirrors && state.kind !== 'space' && !(state.kind !== 'polygon' && (complex3().snubbed || state.three.special))) leg.push(['line', 'wall', 'mirrors']);
+      if (state.mirrors && state.kind !== 'space' && !(state.kind !== 'polygon' && (complex3().snubbed || state.three.special))) leg.push(['line', 'wall-line', 'mirrors']);
     }
     MM.setHTML(head, html);
     const legHtml = leg.map(([t, col, words]) => {
@@ -1943,12 +2036,10 @@
     if (k === 'space' && !state.four.special) key = state.four.ms.join(',');
     else if ((k === 'sphere' || k === 'plane') && !state.three.special && state.three.r === 2) key = state.three.p + ',' + state.three.q;
     const RS = { '3,3': ['a3', 'A_3'], '4,3': ['b3', 'B_3'], '3,4': ['b3', 'B_3'], '4,4': ['c21', 'C_2^{(1)}'], '3,6': ['g21', 'G_2^{(1)}'], '6,3': ['g21', 'G_2^{(1)}'] };
-    const DK = { '3,3': 'a3', '4,3': 'b3', '3,4': 'b3', '5,3': 'h3', '3,5': 'h3', '3,3,3': 'a4', '4,3,3': 'b4', '3,3,4': 'b4', '3,4,3': 'f4', '5,3,3': 'h4', '3,3,5': 'h4' };
     const links = [];
     if (RS[key]) links.push('its root system in <a href="/root-systems/?t=' + RS[key][0] + '">Root systems</a>');
-    if (DK[key]) links.push('its diagram in <a href="/dynkin-diagrams/?t=' + DK[key] + '">Dynkin diagrams</a>');
     elx.hidden = !links.length;
-    const html = links.length ? 'The group $[' + key + ']$: ' + links.join(', and ') + '.' : '';
+    const html = links.length ? 'The group $[' + key + ']$: ' + links[0] + '.' : '';
     if (elx.dataset.html !== html) { elx.dataset.html = html; MM.setHTML(elx, html); }
   }
   // the readouts' links: in the page, without loading it again
@@ -2010,7 +2101,7 @@
   function draw() {
     const k = state.kind;
     if (k === 'polygon') drawPolygon();
-    else if (k === 'sphere') { if (state.view3 === 'stereo') drawStereo(); else drawSolid(); }
+    else if (k === 'sphere') { if (state.view3 === 'stereo') drawStereo(); else { state.R3 = turnR3(); drawSolid(); } }
     else if (k === 'plane' || k === 'hyperbolic') drawPlane();
     else if (k === 'penrose') drawPenrose();
     else drawSpace();
@@ -2069,7 +2160,7 @@
     }
     if (turning() && dt && !dragging && !(drag && drag.active)) {
       // (about the screen's upright axis: the picture turns level, whatever the drags have done)
-      if (state.kind === 'sphere') state.R3 = ortho(mm(rotY(0.16 * dt), state.R3));
+      if (state.kind === 'sphere') state.turn.th += 0.16 * dt;
       else state.four.R3 = ortho(mm(rotY(0.1 * dt), state.four.R3));
     }
     draw();
@@ -2277,7 +2368,7 @@
       if (M.kind === 'sphere') {
         // the solid, seen a little from above and from the side: the edges of its faces towards the eye
         const faces = it.dual ? P.polar(W).faces : P.planes(W);
-        const R = mm(rotX(0.42), rotY(-0.5)), rho = Math.max(...faces.flatMap((f) => f.pts.map((p) => Math.hypot(...p))));
+        const R = mm(mm(rotX(0.3), rotY(-0.45)), upFrame(M, [it.p, it.q, it.r], !!it.dual, it.snub ? [1, 1, 1] : it.w.map((v) => +(v > 0)))), rho = Math.max(...faces.flatMap((f) => f.pts.map((p) => Math.hypot(...p))));
         const k = 18 / rho, pr = (p) => { const q = mv(R, p); return [S / 2 + k * q[0], S / 2 - k * q[1]]; };
         let d = '';
         const seen = new Set();
@@ -2298,7 +2389,7 @@
       let pos = W.pos, edges = W.edges;
       if (it.dual) {
         const D = P.laves(W), nV = W.V, all = new Float64Array(3 * (nV + D.pos.length)), e2 = [], seen = new Set();
-        all.set(W.pos);
+        all.set(W.pos.subarray(0, 3 * nV));
         D.pos.forEach((p, i) => all.set(p, 3 * (nV + i)));
         D.faces.forEach((f) => { for (let i = 0; i < (f.open ? f.v.length - 1 : f.v.length); i++) { const a = f.v[i], b = f.v[(i + 1) % f.v.length], k2 = Math.min(a, b) * 1e6 + Math.max(a, b); if (!seen.has(k2)) { seen.add(k2); e2.push(nV + a, nV + b, 0); } } });
         pos = all; edges = e2;
@@ -2399,8 +2490,9 @@
     end: () => { hold = null; tick(); },
     move(dx, dy, e) {
       const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-      if ((state.kind === 'sphere' && state.view3 === 'solid') || state.kind === 'space') {
-        const K = Math.min(r.width, r.height) / 2, f = state.kind === 'space' ? state.four : state;
+      if (state.kind === 'sphere' && state.view3 === 'solid') { const K = Math.min(r.width, r.height) / 2; turnBy(dx / K, dy / K); }
+      else if (state.kind === 'space') {
+        const K = Math.min(r.width, r.height) / 2, f = state.four;
         f.R3 = ortho(mm(mm(rotY(dx / K), rotX(dy / K)), f.R3));
       } else if (state.kind === 'sphere') moveSphere(x - dx, y - dy, x, y);
       else if (state.kind === 'hyperbolic') moveDisc(x - dx, y - dy, x, y);
@@ -2410,7 +2502,8 @@
     },
     keys: {
       turn(a, b) {
-        if ((state.kind === 'sphere' && state.view3 === 'solid') || state.kind === 'space') { const f = state.kind === 'space' ? state.four : state; f.R3 = ortho(mm(mm(rotY(a), rotX(b)), f.R3)); }
+        if (state.kind === 'sphere' && state.view3 === 'solid') turnBy(a, b);
+        else if (state.kind === 'space') state.four.R3 = ortho(mm(mm(rotY(a), rotX(b)), state.four.R3));
         else if (state.kind === 'sphere') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2; moveSphere(w, h, w + a * 60, h + b * 60); }
         else if (state.kind === 'hyperbolic') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2, k = 60; moveDisc(w, h, w + a * k, h + b * k); }
         else if (state.kind === 'plane') pan(a * 60, b * 60);
@@ -2532,7 +2625,7 @@
   $('rotate').addEventListener('change', (e) => { state.rotate = e.detail.pressed; lastT = 0; tick(); draw(); });
   $('arcs').addEventListener('change', (e) => { state.pen.arcs = e.detail.pressed; draw(); });
   $('larger').addEventListener('change', (e) => { state.pen.larger = e.detail.pressed; draw(); });
-  $('view3').addEventListener('change', (e) => { state.view3 = e.detail.value; draw(); tick(); });
+  $('view3').addEventListener('change', (e) => { state.view3 = e.detail.value; if (state.view3 === 'solid') turnFrom(state.R3); draw(); tick(); });
   $('proj4').addEventListener('change', (e) => { state.four.proj = e.detail.value; state.four.m = null; draw(); });
   // p, q, r: another group, x kept by its walls (the same rings, the same proportions)
   ['p', 'q', 'r'].forEach((k) => $(k).addEventListener('input', (e) => {
@@ -2653,7 +2746,7 @@
       state.rotate = x.r && !MM.reduceMotion();
       if (k === 'sphere') state.view3 = x.j === 'stereo' ? 'stereo' : 'solid';
       if (k === 'space') state.four.proj = ['stereo', 'persp', 'parallel'].includes(x.j) ? x.j : 'stereo';
-      if (named.has('v')) { if (k === 'space') state.four.R3 = x.v; else state.R3 = x.v; }
+      if (named.has('v')) { if (k === 'space') state.four.R3 = x.v; else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
       if (named.has('z')) { if (k === 'plane') { state.span = clamp(x.z, PLANE_SPAN.min, PLANE_SPAN.max); state.V = null; } else if (k === 'penrose') state.pen.span = clamp(x.z, PEN_SPAN.min, PEN_SPAN.max); }
       syncControls();

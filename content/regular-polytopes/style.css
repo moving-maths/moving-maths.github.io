@@ -18,7 +18,8 @@ body {
   --face-4-fill: color-mix(in srgb, var(--c4) 24%, var(--surface));
   --dual-face: var(--c6);
   --dual-face-fill: color-mix(in srgb, var(--c6) 24%, var(--surface));
-  --wall: var(--ink-3);  /* the mirrors */
+  --wall: var(--ink-3);  /* the mirrors (drawn lighter) */
+  --wall-line: color-mix(in srgb, var(--ink-3) 45%, var(--surface));
   --cell-mid: color-mix(in srgb, var(--accent) 17%, var(--surface));  /* four dimensions: the cell in the middle */
   --tile-thick: color-mix(in srgb, var(--c1) 30%, var(--surface));
   --tile-thin: color-mix(in srgb, var(--c2) 36%, var(--surface));
@@ -49,11 +50,13 @@ body {
 .rp-stage > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .rp-handle.rp-return { transition: transform .28s ease-out; }
 
-/* the chamber with x (an SVG drawn by main.js), beside the Coxeter diagram */
-.rp-chamber-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
-.rp-chamber { display: block; flex: 1 1 200px; max-width: 280px; overflow: visible; touch-action: none; }
+/* the chamber with x (an SVG drawn by main.js), the Coxeter diagram under it */
+.rp-chamber { display: block; width: 100%; max-width: 280px; overflow: hidden; touch-action: none; }
 .rp-chamber.is-turnable { max-width: 320px; cursor: grab; }
 .rp-chamber.is-turnable:active { cursor: grabbing; }
+.rp-cox-head { display: flex; align-items: baseline; gap: 12px; margin-top: 10px; }
+.rp-cox-head .label { margin: 0; }
+.rp-cox-link { font-size: var(--text-label); }
 .rp-ch-c { fill: color-mix(in srgb, var(--accent) 12%, var(--surface)); stroke: none; }
 .rp-ch-flap { fill: var(--sunken); stroke: var(--rule); stroke-width: 1; }
 .rp-ch-face { fill: color-mix(in srgb, var(--accent) 7%, transparent); stroke: none; }
@@ -72,7 +75,7 @@ body {
 .rp-dots { display: inline-flex; gap: 2px; margin-right: 6px; }
 
 /* the Coxeter diagram: a click on a node rings it or takes its ring off */
-.rp-coxeter { display: block; overflow: visible; flex: none; }
+.rp-coxeter { display: block; overflow: visible; margin-top: 4px; }
 .cx-bond { stroke: var(--ink); stroke-width: 1.4; }
 .cx-label { font-size: 13px; text-anchor: middle; fill: var(--ink-2); font-style: normal; }
 .cx-node { cursor: pointer; outline: none; }
