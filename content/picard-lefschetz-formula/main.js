@@ -1,4 +1,5 @@
-// Picard–Lefschetz formula: the plane of x, coloured by the phase of p(x) − z, with the roots of
+// Picard–Lefschetz formula: the plane of x, shaded by |p(x) − z| (or coloured by the phase of
+// p(x) − z), with the roots of
 // p(x) = z (where the level set V_z degenerates) and the vanishing cycles along the straight paths
 // from z to the critical values; the plane of values, with the critical values, those paths, the
 // Stokes rays where the cycles jump, and z; the cycles carried along with z, and the intersection
@@ -20,7 +21,8 @@
     4: [[-0.968, 0.263], [-0.444, -0.263], [0.444, -0.263], [0.968, 0.263]],
     5: [[-0.826, 0.596], [-0.709, 0.029], [-0.107, -0.399], [0.628, -0.33], [1.013, 0.103]],
   };
-  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), z: null, z0: null };
+  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), z: null, z0: null, phase: false, arcs: false };
+  let shapeT = 1;   // the cycles drawn as their arcs (0) or as what they are (1), and in between
   let frame = null;   // the windows of the two planes
   let model = null;   // what follows from the critical points and z
   let example = null;
@@ -235,14 +237,99 @@
     return phase.cv;
   }
 
+  // The plain picture: the landscape of g = asinh(|p(x) − z|/σ), light blue where |p(x) − z| is
+  // small (below the levels of the critical points) and white where it is large, with level lines evenly in g and those through the critical
+  // points darker, as in the picture of the Stokes phenomenon. The critical points are its saddles,
+  // and the arc of each vanishing cycle runs from its saddle down to two roots, across the level
+  // lines. Sampled every GRID pixels, and kept with its level lines until z, p or the size changes.
+  const GRID = 4, LEVEL = 0.5;
+  const land = { key: '', cv: document.createElement('canvas'), small: document.createElement('canvas') };
+  const rgbOf = (name) => MM.color(name).match(/[\d.]+/g).slice(0, 3).map(Number);
+  function landImage(V) {
+    const dpr = Math.min(2, MM.pixelRatio()), z = state.z, P = model.P;
+    const key = [V.W, V.H, dpr, z[0], z[1], state.crit.flat().join(','), frame.xv.R].join('|');
+    if (land.key === key) return land.cv;
+    const sig = 0.4 * frame.Rc, m = P.m, cr = P.r, ci = P.i;
+    const g = (x, y) => {
+      let ar = cr[m], ai = ci[m];
+      for (let k = m - 1; k >= 0; k--) { const t = ar * x - ai * y + cr[k]; ai = ar * y + ai * x + ci[k]; ar = t; }
+      return Math.asinh(Math.hypot(ar - z[0], ai - z[1]) / sig);
+    };
+    const nx = Math.ceil(V.W / GRID) + 1, ny = Math.ceil(V.H / GRID) + 1, G = new Float64Array(nx * ny);
+    let top = 0;
+    for (let j = 0; j < ny; j++) { const y = V.y(j * GRID); for (let i = 0; i < nx; i++) { const v = g(V.x(i * GRID), y); G[j * nx + i] = v; top = Math.max(top, v); } }
+    // the shading, at the corners of the cells, smoothed: from white to light blue across the
+    // levels of the critical points (at their median)
+    const lv = P.vals.map((v) => Math.asinh(dist(v, z) / sig)).sort((a, b) => a - b), mid = lv[lv.length >> 1];
+    const sm = land.small;
+    if (sm.width !== nx || sm.height !== ny) { sm.width = nx; sm.height = ny; }
+    const sctx = sm.getContext('2d'), img = sctx.createImageData(nx, ny), d = img.data, S = rgbOf('surface'), B = rgbOf('land');
+    for (let q = 0; q < nx * ny; q++) {
+      const a = 0.12 * (1 - Math.tanh((G[q] - mid) / 0.9)), o = 4 * q;
+      d[o] = S[0] + (B[0] - S[0]) * a; d[o + 1] = S[1] + (B[1] - S[1]) * a; d[o + 2] = S[2] + (B[2] - S[2]) * a; d[o + 3] = 255;
+    }
+    sctx.putImageData(img, 0, 0);
+    const cv = land.cv, w = Math.round(V.W * dpr), h = Math.round(V.H * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    // (the samples are at the corners of the cells: half a cell beyond each edge)
+    ctx.drawImage(sm, 0, 0, nx, ny, -GRID / 2, -GRID / 2, nx * GRID, ny * GRID);
+    // the level lines, by marching squares: each cell adds a piece to the lines of the levels
+    // between its corners' values
+    const NL = Math.min(60, Math.floor(top / LEVEL)), even = Array.from({ length: NL + 1 }, () => []);
+    const crit = P.vals.map((v) => ({ v: Math.asinh(dist(v, z) / sig), segs: [] }));
+    const cut = (a, b, c, e, v, x0, y0, out) => {
+      const A = a - v, Bv = b - v, C = c - v, D = e - v, pts = [];
+      if ((A > 0) !== (Bv > 0)) pts.push(x0 + GRID * A / (A - Bv), y0);
+      if ((Bv > 0) !== (C > 0)) pts.push(x0 + GRID, y0 + GRID * Bv / (Bv - C));
+      if ((D > 0) !== (C > 0)) pts.push(x0 + GRID * D / (D - C), y0 + GRID);
+      if ((A > 0) !== (D > 0)) pts.push(x0, y0 + GRID * A / (A - D));
+      for (let q = 0; q + 3 < pts.length; q += 4) out.push(pts[q], pts[q + 1], pts[q + 2], pts[q + 3]);
+    };
+    for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const a = G[j * nx + i], b = G[j * nx + i + 1], c = G[(j + 1) * nx + i + 1], e = G[(j + 1) * nx + i];
+      const lo = Math.min(a, b, c, e), hi = Math.max(a, b, c, e), x0 = i * GRID, y0 = j * GRID;
+      for (let k = Math.max(1, Math.ceil(lo / LEVEL)); k <= Math.min(NL, Math.floor(hi / LEVEL)); k++) cut(a, b, c, e, k * LEVEL, x0, y0, even[k]);
+      for (const L of crit) if (L.v > 1e-9 && L.v >= lo && L.v <= hi) cut(a, b, c, e, L.v, x0, y0, L.segs);
+    }
+    ctx.lineWidth = 1;
+    const stroke = (segs, alpha) => {
+      if (!segs.length) return;
+      ctx.strokeStyle = MM.rgba('c1-text', alpha);
+      ctx.beginPath();
+      for (let q = 0; q < segs.length; q += 4) { ctx.moveTo(segs[q], segs[q + 1]); ctx.lineTo(segs[q + 2], segs[q + 3]); }
+      ctx.stroke();
+    };
+    even.forEach((segs) => stroke(segs, 0.11));
+    crit.forEach((L) => stroke(L.segs, 0.3));
+    land.key = key;
+    return cv;
+  }
+
   // The arcs of the cycles, on the screen, from the − end to the + end (null for a cycle that has
   // vanished), with the size of the fibre's sphere, √|z − p(x)|, at each point.
+  let arcsKept = { key: '', arcs: null };
   function cycleArcs(V) {
+    const key = JSON.stringify([state.z, state.crit, model.atVal, model.onRay, model.B[1], model.rts, V.W, V.H, frame.xv.R]);
+    if (arcsKept.key === key) return arcsKept.arcs;
+    arcsKept = { key, arcs: arcsNow(V) };
+    return arcsKept.arcs;
+  }
+  function arcsNow(V) {
     const P = model.P, z = state.z, h = 1.5 / V.k, out = [];
     const rts = model.atVal !== null ? follow(P, z, model.rts) : model.rts;
     for (let j = 0; j < P.mu; j++) {
       if (model.atVal === j) { out.push(null); continue; }
       let w = z, cut = null;
+      // at z = z_k the arcs that end at c_k end at a double root, which the lift reaches only by
+      // ever smaller steps: each path starts a hair's breadth along it (its roots near c_k a fifth
+      // of a pixel apart)
+      if (model.atVal !== null) {
+        const zj = P.vals[j], L = dist(zj, z), d = Math.hypot(P.a[model.atVal][0], P.a[model.atVal][1]) * Math.pow(0.2 / V.k, 2);
+        w = [z[0] + (zj[0] - z[0]) / L * d, z[1] + (zj[1] - z[1]) / L * d];
+      }
       // on the Stokes ray of z_k for z_j the path runs through z_k: the arc runs into c_k, where it
       // goes on either way round on the two sides of the ray; it is drawn up to c_k
       if (model.onRay && model.onRay.j === j) {
@@ -252,9 +339,13 @@
       }
       const a = arcAt(P, w, j, rts, h);
       let pts = PL.arcOf(a.A).pts, minus = a.q, plus = a.p;
-      // the orientation the basis has (its class for n = 1 is [+ end] − [− end])
+      // the orientation the basis has (its class for n = 1 is [+ end] − [− end]), by where its +
+      // end is (two roots may meet at c_k)
       const ends = classEnds(j);
-      if (ends && ends.plus === a.q && ends.minus === a.p) { pts = reverse(pts); minus = a.p; plus = a.q; }
+      if (ends) {
+        const e = rts[ends.plus];
+        if (dist(e, [pts[0], pts[1]]) < dist(e, [pts[pts.length - 2], pts[pts.length - 1]])) { pts = reverse(pts); minus = a.p; plus = a.q; }
+      }
       if (cut) {
         let best = 0, bd = Infinity;
         for (let k = 0; k < pts.length; k += 2) { const d = Math.hypot(pts[k] - cut[0], pts[k + 1] - cut[1]); if (d < bd) { bd = d; best = k; } }
@@ -316,14 +407,15 @@
     ctx.stroke();
   }
 
-  // Each cycle as what it is over its arc: for n = 1 its two points, with their signs; for n = 2
-  // the circle made of the two points ±y over each point of the arc (y² = z − p(x)), drawn either
-  // side of it, one sheet solid and the other dashed; for n = 3 the sphere made of the circles of
-  // radius √|z − p(x)| over its points, drawn as its outline with a few of the circles.
-  function drawCycles(ctx, V, arcs) {
+  // Each cycle as what it is over its arc (t = 1): for n = 1 its two points, with their signs; for
+  // n = 2 the circle made of the two points ±y over each point of the arc (y² = z − p(x)), drawn
+  // either side of it, one sheet solid and the other dashed; for n = 3 the sphere made of the
+  // circles of radius √|z − p(x)| over its points, drawn as its outline with a few of the circles.
+  // Or as its arc, with its orientation (t = 0), the sphere shrinking onto it as t goes to 0.
+  function drawCycles(ctx, V, arcs, t) {
     let big = 1e-12;
     arcs.forEach((a) => { if (a) a.fib.forEach((f) => { big = Math.max(big, f); }); });
-    const kap = 13 / big, n = state.n;
+    const kap = 13 / big * t, n = state.n;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     arcs.forEach((a, j) => {
@@ -338,9 +430,11 @@
       const scr = a.scr, wid = a.fib.map((f) => f * kap), line = cyc(j, 'line');
       if (scr.length < 2) return;
       if (n === 1) {
-        ctx.strokeStyle = line; ctx.lineWidth = 1.4; ctx.setLineDash([1.5, 4]);
-        smooth(ctx, scr); ctx.stroke();
-        ctx.setLineDash([]);
+        // the arc: a line, dotted under the two points
+        ctx.strokeStyle = line;
+        if (t < 1) { ctx.globalAlpha = 1 - t; ctx.lineWidth = 2.2; smooth(ctx, scr); ctx.stroke(); }
+        if (t > 0) { ctx.globalAlpha = t; ctx.lineWidth = 1.4; ctx.setLineDash([1.5, 4]); smooth(ctx, scr); ctx.stroke(); ctx.setLineDash([]); }
+        ctx.globalAlpha = 1;
       } else {
         // the two sides
         ctx.strokeStyle = line; ctx.lineWidth = 2.2;
@@ -363,26 +457,28 @@
             if (r < 1.5) continue;
             ctx.beginPath(); ctx.ellipse(q.x, q.y, 0.3 * r, r, Math.atan2(q.dy, q.dx), 0, TAU); ctx.stroke();
           }
-          // its orientation
-          const mid = along(scr, 0.62 * L, false);
-          if (mid) { ctx.strokeStyle = line; ctx.lineWidth = 2; chevron(ctx, mid, 5); }
         }
       }
-      if (n === 1) {
+      // its orientation: for n = 3 on the sphere, otherwise on the arc
+      const mid = along(scr, 0.62 * arcLength(scr), false), ca = n === 3 ? 1 : 1 - t;
+      if (mid && ca > 0.01) { ctx.globalAlpha = ca; ctx.strokeStyle = line; ctx.lineWidth = 2; chevron(ctx, mid, 5); ctx.globalAlpha = 1; }
+      if (n === 1 && t > 0.01) {
         // the two points: + filled, − hollow, a little way along the arc from the roots
-        const L = arcLength(scr), d = Math.min(15, 0.32 * L);
+        const L = arcLength(scr), d = Math.min(15, 0.32 * L), u = t;
+        ctx.globalAlpha = t;
         [[a.minus, false], [a.plus, true]].forEach(([r, isPlus]) => {
           if (r === null) return;
           const q = along(scr, d, isPlus);
           if (!q) return;
           ctx.fillStyle = isPlus ? cyc(j) : MM.color('surface');
           ctx.strokeStyle = cyc(j, 'text'); ctx.lineWidth = 1.6;
-          ctx.beginPath(); ctx.arc(q.x, q.y, 6.5, 0, TAU); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(q.x, q.y, 6.5 * u, 0, TAU); ctx.fill(); ctx.stroke();
           ctx.strokeStyle = isPlus ? MM.color('surface') : cyc(j, 'text'); ctx.lineWidth = 1.6;
-          ctx.beginPath(); ctx.moveTo(q.x - 3.2, q.y); ctx.lineTo(q.x + 3.2, q.y);
-          if (isPlus) { ctx.moveTo(q.x, q.y - 3.2); ctx.lineTo(q.x, q.y + 3.2); }
+          ctx.beginPath(); ctx.moveTo(q.x - 3.2 * u, q.y); ctx.lineTo(q.x + 3.2 * u, q.y);
+          if (isPlus) { ctx.moveTo(q.x, q.y - 3.2 * u); ctx.lineTo(q.x, q.y + 3.2 * u); }
           ctx.stroke();
         });
+        ctx.globalAlpha = 1;
       }
       if (a.cut) {
         // the critical point it runs into, on a Stokes ray
@@ -394,15 +490,14 @@
 
   function drawX(coarse) {
     const { ctx } = MM.fitCanvas(xcv), V = view(frame.xv, xcv);
-    ctx.drawImage(phaseImage(V, coarse), 0, 0, V.W, V.H);
+    ctx.drawImage(state.phase ? phaseImage(V, coarse) : landImage(V), 0, 0, V.W, V.H);
     drawAxes(ctx, V, ['$\\mathrm{Re}\\,x$', '$\\mathrm{Im}\\,x$']);
-    drawCycles(ctx, V, cycleArcs(V));
+    drawCycles(ctx, V, cycleArcs(V), shapeT);
     // the roots of p(x) = z
     const rts = model.atVal !== null ? PL.roots(model.P, state.z[0], state.z[1], model.rts) : model.rts;
     ctx.fillStyle = MM.color('ink');
     rts.forEach((q) => { ctx.beginPath(); ctx.arc(V.X(q[0]), V.Y(q[1]), 3.8, 0, TAU); ctx.fill(); });
-    const kr = Math.max(17, Math.min(24, V.W / 22));
-    MM.phase.key(ctx, V.W - kr - 18, V.H - kr - 18, kr);
+    if (state.phase) { const kr = Math.max(17, Math.min(24, V.W / 22)); MM.phase.key(ctx, V.W - kr - 18, V.H - kr - 18, kr); }
     placeCrit(V);
   }
 
@@ -523,12 +618,13 @@
   function legendHTML() {
     const item = (mark, text) => '<span class="legend-item">' + mark + text + '</span>';
     const three = (body) => '<svg class="pl-key" viewBox="0 0 26 18" aria-hidden="true">' + body + '</svg>';
-    const cyclesMark = [
+    const cyclesMark = state.arcs ? three('<path d="M2 9H24" style="stroke:var(--cy-1-line);stroke-width:2.2"/><path d="M11 5L15 9L11 13" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/>') : [
       three('<line x1="4" y1="9" x2="22" y2="9" style="stroke:var(--cy-1-line);stroke-dasharray:1.5 3;stroke-width:1.4"/><circle cx="5" cy="9" r="4.2" style="fill:var(--surface);stroke:var(--cy-1-text);stroke-width:1.4"/><circle cx="21" cy="9" r="4.2" style="fill:var(--cy-1);stroke:var(--cy-1-text);stroke-width:1.4"/>'),
       three('<path d="M2 9Q13 1 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><path d="M2 9Q13 17 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2;stroke-dasharray:4 3"/>'),
       three('<path d="M2 9Q13 0 24 9Q13 18 2 9Z" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><ellipse cx="13" cy="9" rx="2.2" ry="4.5" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.1"/>'),
     ][state.n - 1];
-    return item(cyclesMark, 'vanishing cycles $\\Delta_i$')
+    return item(cyclesMark, state.arcs ? 'the arcs of the vanishing cycles $\\Delta_i$' : 'vanishing cycles $\\Delta_i$')
+      + (state.phase ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $V_z$' : 'the roots of $p(x)=z$')
       + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $c_i$')
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="5" style="fill:var(--cy-1)"/></svg>', 'critical values $z_i=p(c_i)$')
@@ -546,7 +642,7 @@
     if (window.PLFigures && window.PLFigures.update) window.PLFigures.update();
     // sharpen once things rest
     clearTimeout(sharpTimer);
-    if (coarse) sharpTimer = setTimeout(() => { coarse = false; drawX(false); }, 180);
+    if (coarse) sharpTimer = setTimeout(() => { coarse = false; if (state.phase) drawX(false); }, 180);
   }
   const later = () => { if (!frameReq) frameReq = requestAnimationFrame(draw); };
 
@@ -745,7 +841,31 @@
   });
 
   /* ---------- the bar ---------- */
-  $('n').addEventListener('change', (e) => { state.n = +e.detail.value; draw(); window.dispatchEvent(new CustomEvent('pl:n', { detail: state.n })); });
+  const SHAPE = ['Points', 'Circles', 'Spheres'];
+  function setN(n) {
+    state.n = n;
+    $('shape-sphere').textContent = SHAPE[n - 1];
+  }
+  $('n').addEventListener('change', (e) => { setN(+e.detail.value); draw(); window.dispatchEvent(new CustomEvent('pl:n', { detail: state.n })); });
+  // the cycles as their arcs or as what they are: the spheres shrink onto their arcs, or grow
+  let shapeReq = 0;
+  function setShape(arcs, now) {
+    state.arcs = arcs;
+    cancelAnimationFrame(shapeReq);
+    const goal = arcs ? 0 : 1, from = shapeT, t0 = performance.now(), dur = 500;
+    drawReadouts();
+    if (now || MM.reduceMotion()) { shapeT = goal; draw(); return; }
+    const tick = (tn) => {
+      const u = Math.min(1, (tn - t0) / dur), e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u);
+      shapeT = from + (goal - from) * e;
+      drawX(coarse);
+      if (u < 1) shapeReq = requestAnimationFrame(tick);
+      else if (example) example.changed();
+    };
+    shapeReq = requestAnimationFrame(tick);
+  }
+  $('shape').addEventListener('change', (e) => setShape(e.detail.value === 'arc'));
+  $('phase').addEventListener('change', (e) => { state.phase = e.detail.pressed; draw(); });
   function chooseMu(mu, crit, z) {
     stopTravel();
     state.mu = mu;
@@ -766,8 +886,8 @@
   now = snap();
   draw();
   example = MM.example({
-    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), z: MM.example.numbers(3) },
-    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), z: state.z.slice() }),
+    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), z: MM.example.numbers(3), a: 'int', ph: 'int' },
+    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), z: state.z.slice(), a: state.arcs ? 1 : 0, ph: state.phase ? 1 : 0 }),
     set(x, named) {
       if (![1, 2, 3].includes(x.n) || !DEFAULTS[x.m]) return false;
       let crit = DEFAULTS[x.m];
@@ -777,8 +897,12 @@
         for (let k = 0; k < x.m; k++) crit.push([x.c[2 * k], x.c[2 * k + 1]]);
       }
       if (named.has('z') && (!Array.isArray(x.z) || x.z.length !== 2 || x.z.some((v) => !isFinite(v)))) return false;
-      state.n = x.n;
+      setN(x.n);
       $('n').value = String(x.n);
+      state.phase = x.ph === 1;
+      $('phase').pressed = state.phase;
+      $('shape').value = x.a === 1 ? 'arc' : 'sphere';
+      setShape(x.a === 1, true);
       $('mu').value = String(x.m);
       chooseMu(x.m, crit, named.has('z') ? x.z : null);
       forget();

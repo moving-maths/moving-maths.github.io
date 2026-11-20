@@ -19,11 +19,12 @@
      x² + y_2² + ⋯ = ε, ε = z − z_i. With θ = arg √ε and every coordinate turned by e^{−iθ}, its
      real points are the sphere of radius |√ε| (two points, a circle, a sphere), the vanishing cycle.
        n = 1: the two points ±√ε in the plane of x;
-       n = 2: the curve x² + y² = ε, drawn over the plane of x with height Re(e^{−iθ} y): a neck whose
-              waist is the circle; at ε = 0 it is the two planes y = ±ix, crossing at the node;
+       n = 2: the curve x² + y² = ε, drawn over the plane of x with height Re(e^{−iθ} y) (flattened):
+              a double cover of the disc, two sheets joined along the waist, which is the circle;
+              at ε = 0 it is the two planes y = ±ix, crossing at the node;
        n = 3: the sphere in the real space of (e^{−iθ}x, e^{−iθ}y_2, e^{−iθ}y_3).
      ===================================================================== */
-  const v3 = { cv: $('v3-cv'), dial: $('v3-dial'), eps: [0, -0.62], yaw: -0.15, pitch: 0.5, theta: -Math.PI / 4, drag: null, spin: true, last: 0 };
+  const v3 = { cv: $('v3-cv'), dial: $('v3-dial'), eps: [0, -0.62], yaw: -0.15, pitch: 0.72, theta: -Math.PI / 4, drag: null, spin: true, last: 0 };
   const R3 = 1;   // the disc |x| ≤ 1 of the plane of x
   function cam(W, H) { return { k: Math.min(W, H) * 0.34, cx: W / 2, cy: H * 0.56 }; }
   function proj(p, c) {
@@ -32,64 +33,69 @@
     return [c.cx + x1 * c.k, c.cy - (p[2] * cp + y1 * sp) * c.k, y1 * cp - p[2] * sp];
   }
   function shade(rgb, f) { return 'rgb(' + rgb.map((x) => Math.round(clamp(x * f, 0, 255))).join(',') + ')'; }
-  // The surface (n = 2, 3) as a grid of points and its faces, each with its colour (for n = 2 the
-  // phase of y; light from above, by the slope of the face), kept until n or ε changes: turning
-  // the picture only projects the points again.
+  const rgbOf = (name) => MM.color(name).match(/[\d.]+/g).slice(0, 3).map(Number);
+  const mix = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
+  // For n = 2 the heights are flattened, so that the curve lies over the disc as a double cover:
+  // two sheets, one white and one light blue, joined along the waist.
+  const FLAT = 0.22;
+  // The curve (n = 2) as a grid of points and its faces, each with its sheet's colour, lit from
+  // above by the slope of the face, and the grid lines along its edges (lines of constant σ and
+  // τ: confocal hyperbolas and ellipses over the disc); kept until ε changes, so that turning the
+  // picture only projects the points again.
   let geo = null;
-  function geometry(n, s, th) {
-    const key = n + ':' + s + ':' + th;
+  function geometry(s, th) {
+    const key = s + ':' + th;
     if (geo && geo.key === key) return geo;
     const ct = Math.cos(th), st = Math.sin(th), pts = [], faces = [];
-    const face = (v, rgb) => {
+    const sheets = [rgbOf('surface'), mix(rgbOf('surface'), rgbOf('cy-1'), 0.16)];
+    const height = (x, y) => [x[0], x[1], FLAT * (ct * y[0] + st * y[1])];   // over x, at Re(e^{−iθ} y)
+    const face = (v, sheet, lines) => {
       const [A, B, C, D] = v.map((i) => pts[i]);
       const d1 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]], d2 = [D[0] - B[0], D[1] - B[1], D[2] - B[2]];
       const nz = d1[0] * d2[1] - d1[1] * d2[0], nl = Math.hypot(d1[1] * d2[2] - d1[2] * d2[1], d1[2] * d2[0] - d1[0] * d2[2], nz) || 1;
-      faces.push({ v, fill: shade(rgb, 0.78 + 0.22 * Math.abs(nz / nl)) });
+      faces.push({ v, fill: shade(sheets[sheet], 0.9 + 0.1 * Math.abs(nz / nl)), lines });
     };
-    if (n === 2) {
-      const height = (x, y) => [x[0], x[1], ct * y[0] + st * y[1]];   // over x, at Re(e^{−iθ} y)
-      if (s > 1e-9) {
-        // the curve: x = √ε cos w, y = √ε sin w (w = σ + iτ), out to |x| = 1
-        const T = Math.acosh(Math.max(1.0001, R3 / s)), NS = 48, NT = 22, se = [s * ct, s * st];
-        const at = (sg, ta) => {
-          const cw = [Math.cos(sg) * Math.cosh(ta), -Math.sin(sg) * Math.sinh(ta)], sw = [Math.sin(sg) * Math.cosh(ta), Math.cos(sg) * Math.sinh(ta)];
-          return [[se[0] * cw[0] - se[1] * cw[1], se[0] * cw[1] + se[1] * cw[0]], [se[0] * sw[0] - se[1] * sw[1], se[0] * sw[1] + se[1] * sw[0]]];
-        };
-        for (let a = 0; a < NS; a++) for (let b = 0; b <= NT; b++) pts.push(height(...at(a / NS * TAU, -T + 2 * T * b / NT)));
-        const id = (a, b) => (a % NS) * (NT + 1) + b;
-        for (let a = 0; a < NS; a++) for (let b = 0; b < NT; b++) {
-          const y = at((a + 0.5) / NS * TAU, -T + 2 * T * (b + 0.5) / NT)[1];
-          face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], MM.phase.color(Math.atan2(y[1], y[0])));
-        }
-      } else {
-        // the node: the two planes y = ±ix
-        const NR = 8, NA = 48;
-        for (const sg of [1, -1]) {
-          const o = pts.length, id = (a, b) => o + (a % NA) * (NR + 1) + b;
-          for (let a = 0; a < NA; a++) for (let b = 0; b <= NR; b++) {
-            const rr = R3 * b / NR, x = [rr * Math.cos(a / NA * TAU), rr * Math.sin(a / NA * TAU)];
-            pts.push(height(x, [-sg * x[1], sg * x[0]]));
-          }
-          for (let a = 0; a < NA; a++) for (let b = 0; b < NR; b++) {
-            const am = (a + 0.5) / NA * TAU;
-            face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], MM.phase.color(Math.atan2(sg * Math.cos(am), -sg * Math.sin(am))));
-          }
-        }
+    if (s > 1e-9) {
+      // x = √ε cos w, y = √ε sin w (w = σ + iτ), out to |x| = 1; τ > 0 and τ < 0 are the two
+      // sheets, and τ = 0 is the waist; they cross where σ = 0 or π (lines of the grid, so that no
+      // face crosses another)
+      const T = Math.acosh(Math.max(1.0001, R3 / s)), NS = 36, NT = 20, se = [s * ct, s * st];
+      const at = (sg, ta) => {
+        const cw = [Math.cos(sg) * Math.cosh(ta), -Math.sin(sg) * Math.sinh(ta)], sw = [Math.sin(sg) * Math.cosh(ta), Math.cos(sg) * Math.sinh(ta)];
+        return [[se[0] * cw[0] - se[1] * cw[1], se[0] * cw[1] + se[1] * cw[0]], [se[0] * sw[0] - se[1] * sw[1], se[0] * sw[1] + se[1] * sw[0]]];
+      };
+      for (let a = 0; a < NS; a++) for (let b = 0; b <= NT; b++) pts.push(height(...at(a / NS * TAU, -T + 2 * T * b / NT)));
+      const id = (a, b) => (a % NS) * (NT + 1) + b, onS = (a) => a % 3 === 0, onT = (b) => b % 5 === 0 && b !== NT / 2;
+      for (let a = 0; a < NS; a++) for (let b = 0; b < NT; b++) {
+        // the edges on grid lines: [from, to] as corners 0–3 of the face
+        const lines = [];
+        if (onT(b)) lines.push([0, 1]);
+        if (onT(b + 1)) lines.push([3, 2]);
+        if (onS(a)) lines.push([0, 3]);
+        if (onS(a + 1)) lines.push([1, 2]);
+        face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], b < NT / 2 ? 1 : 0, lines);
       }
     } else {
-      // n = 3: the sphere of radius |√ε|, lit from above (a shade for each band of latitude, so that
-      // it is drawn in few pieces)
-      const NU = 40, NV = 20, rgb = MM.color('cy-1-soft').match(/[\d.]+/g).slice(0, 3).map(Number), id = (a, b) => (a % NU) * (NV + 1) + b;
-      for (let a = 0; a < NU; a++) for (let b = 0; b <= NV; b++) {
-        const lo = a / NU * TAU, la = -Math.PI / 2 + b / NV * Math.PI;
-        pts.push([s * Math.cos(la) * Math.cos(lo), s * Math.cos(la) * Math.sin(lo), s * Math.sin(la)]);
-      }
-      for (let a = 0; a < NU; a++) for (let b = 0; b < NV; b++) {
-        const la = -Math.PI / 2 + (b + 0.5) / NV * Math.PI;
-        faces.push({ v: [id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], fill: shade(rgb, 0.8 + 0.25 * Math.max(0, Math.sin(la))) });
+      // the node: the two planes y = ±ix, the sheets of τ → ±∞, which cross along the line of
+      // e^{iθ} (a line of the grid, so that no face crosses another)
+      const NR = 6, NA = 36;
+      for (const sg of [1, -1]) {
+        const o = pts.length, id = (a, b) => o + (a % NA) * (NR + 1) + b;
+        for (let a = 0; a < NA; a++) for (let b = 0; b <= NR; b++) {
+          const rr = R3 * b / NR, x = [rr * Math.cos(th + a / NA * TAU), rr * Math.sin(th + a / NA * TAU)];
+          pts.push(height(x, [-sg * x[1], sg * x[0]]));
+        }
+        for (let a = 0; a < NA; a++) for (let b = 0; b < NR; b++) {
+          const lines = [];
+          if (b % 2 === 1) lines.push([0, 1]);
+          if ((b + 1) % 2 === 1 || b + 1 === NR) lines.push([3, 2]);
+          if (a % 3 === 0) lines.push([0, 3]);
+          if ((a + 1) % 3 === 0) lines.push([1, 2]);
+          face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], sg > 0 ? 0 : 1, lines);
+        }
       }
     }
-    geo = { key, pts, faces, T: n === 2 && s > 1e-9 ? Math.acosh(Math.max(1.0001, R3 / s)) : 0, NT: 22 };
+    geo = { key, pts, faces, T: s > 1e-9 ? Math.acosh(Math.max(1.0001, R3 / s)) : 0, NT: 20 };
     return geo;
   }
   function draw3() {
@@ -98,7 +104,7 @@
     const [er, ei] = v3.eps, r = Math.hypot(er, ei);
     if (r > 1e-9) v3.theta = Math.atan2(ei, er) / 2;
     const th = v3.theta, ct = Math.cos(th), st = Math.sin(th), s = Math.sqrt(r);
-    // the disc of the plane of x, and on it the arc between the branch points ±√ε
+    // the disc of the plane of x
     const ring = [];
     for (let q = 0; q <= 96; q++) ring.push(proj([R3 * Math.cos(q / 96 * TAU), R3 * Math.sin(q / 96 * TAU), 0], c));
     ctx.fillStyle = MM.rgba('sunken', 0.75);
@@ -106,23 +112,26 @@
     ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1; ctx.stroke();
     // the axes, under the surface; their names, over it (drawn last)
     const names = [];
-    const ax = (a, b, name) => {
+    const ax = (a, b, name, side) => {
       const A = proj(a, c), B = proj(b, c);
       ctx.strokeStyle = MM.rgba('ink', 0.3); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
-      names.push(() => MM.canvasLabel(ctx, name, B[0] + (B[0] - A[0]) * 0.06, B[1] + (B[1] - A[1]) * 0.06, { size: 13, align: 'center', baseline: 'middle', color: MM.color('ink-3') }));
+      // (side: the name beside the end, to its right, rather than beyond it)
+      names.push(() => MM.canvasLabel(ctx, name, side ? B[0] + 6 : B[0] + (B[0] - A[0]) * 0.06, side ? B[1] : B[1] + (B[1] - A[1]) * 0.06, { size: 13, align: side ? 'left' : 'center', baseline: 'middle', color: MM.color('ink-3') }));
     };
     if (n === 3) {
       ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
-      ax([0, -1.15, 0], [0, 1.15, 0], '$\\mathrm{Re}\\,y_2$');
-      ax([0, 0, -0.85], [0, 0, 0.9], '$\\mathrm{Re}\\,y_3$');
+      ax([0, -1.05, 0], [0, 1.05, 0], '$\\mathrm{Re}\\,y_2$', true);
+      ax([0, 0, -1.05], [0, 0, 1.25], '$\\mathrm{Re}\\,y_3$');
     } else {
       ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
       ax([0, -1.15, 0], [0, 1.15, 0], '$\\mathrm{Im}\\,x$');
-      if (n === 2) ax([0, 0, -0.85], [0, 0, 0.9], '$\\mathrm{Re}(\\mathrm{e}^{-\\mathrm{i}\\theta}y)$');
+      if (n === 2) ax([0, 0, -0.45], [0, 0, 0.5], '$\\mathrm{Re}(\\mathrm{e}^{-\\mathrm{i}\\theta}y)$', true);
     }
     const col = MM.color('cy-1-line'), colText = MM.color('cy-1-text');
     const bp = [[s * ct, s * st, 0], [-s * ct, -s * st, 0]];
+    const singular = () => { const O = proj([0, 0, 0], c); ctx.fillStyle = MM.color('red'); ctx.beginPath(); ctx.arc(O[0], O[1], 5, 0, TAU); ctx.fill(); };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (n === 1) {
       // the two points, + and −, and the segment they move along
       const A = proj(bp[0], c), B = proj(bp[1], c);
@@ -132,64 +141,78 @@
         ctx.fillStyle = plus ? MM.color('cy-1') : MM.color('surface'); ctx.strokeStyle = colText; ctx.lineWidth = 1.8;
         ctx.beginPath(); ctx.arc(p[0], p[1], 7, 0, TAU); ctx.fill(); ctx.stroke();
       });
-      if (r < 1e-9) { const O = proj([0, 0, 0], c); ctx.fillStyle = MM.color('red'); ctx.beginPath(); ctx.arc(O[0], O[1], 5, 0, TAU); ctx.fill(); }
-      names.forEach((f) => f());
-      return;
-    }
-    // the surface, projected
-    const g = geometry(n, s, th), N = g.pts.length, SX = new Float64Array(N), SY = new Float64Array(N), SD = new Float64Array(N);
-    g.pts.forEach((p, i) => { const q = proj(p, c); SX[i] = q[0]; SY[i] = q[1]; SD[i] = q[2]; });
-    const depth = (f) => SD[f.v[0]] + SD[f.v[1]] + SD[f.v[2]] + SD[f.v[3]];
-    // a face, a little larger than it is (grow, in pixels), so that no seams show between faces
-    const face = (f, grow) => {
-      const v = f.v, mx = (SX[v[0]] + SX[v[1]] + SX[v[2]] + SX[v[3]]) / 4, my = (SY[v[0]] + SY[v[1]] + SY[v[2]] + SY[v[3]]) / 4;
-      for (let k = 0; k < 4; k++) {
-        let x = SX[v[k]], y = SY[v[k]];
-        if (grow) { const dx = x - mx, dy = y - my, l = Math.hypot(dx, dy) || 1; x += dx / l * grow; y += dy / l * grow; }
-        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-      }
-      ctx.closePath();
-    };
-    ctx.lineCap = 'round';
-    if (n === 2) {
-      // the faces from the back to the front, and the vanishing cycle, the waist (the real circle
-      // τ = 0), among them, nearer than the surface it lies on by about the size of the faces next
-      // to it (which would otherwise hide it)
-      const items = g.faces.map((f) => ({ d: depth(f) / 4, f }));
+      if (r < 1e-9) singular();
+    } else if (n === 3) {
+      // the sphere of radius |√ε|: its disc on the screen, then the near halves of its circles of
+      // latitude and longitude (the far halves are hidden), and its outline
+      const O = proj([0, 0, 0], c), R = s * c.k;
+      if (r > 1e-9) {
+        ctx.fillStyle = MM.rgba('cy-1-soft', 0.55);
+        ctx.beginPath(); ctx.arc(O[0], O[1], R, 0, TAU); ctx.fill();
+        const circle = (f, wid) => {
+          ctx.lineWidth = wid; ctx.beginPath();
+          for (let q = 0; q < 72; q++) {
+            const PA = proj(f(q / 72 * TAU), c), PB = proj(f((q + 1) / 72 * TAU), c);
+            if (PA[2] + PB[2] < 0) { ctx.moveTo(PA[0], PA[1]); ctx.lineTo(PB[0], PB[1]); }
+          }
+          ctx.stroke();
+        };
+        ctx.strokeStyle = col;
+        for (const la of [-60, -30, 0, 30, 60]) { const L = la * Math.PI / 180, cl = Math.cos(L), sl = Math.sin(L); circle((t) => [s * cl * Math.cos(t), s * cl * Math.sin(t), s * sl], la ? 1 : 1.6); }
+        for (let m = 0; m < 6; m++) { const lo = m * Math.PI / 6, cl = Math.cos(lo), sl = Math.sin(lo); circle((t) => [s * Math.cos(t) * cl, s * Math.cos(t) * sl, s * Math.sin(t)], 1); }
+        ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(O[0], O[1], R, 0, TAU); ctx.stroke();
+      } else singular();
+    } else {
+      // n = 2: the faces from the back to the front, each with its grid lines, and the vanishing
+      // cycle, the waist, among them, nearer than the surface it lies on by about the size of the
+      // faces next to it (which would otherwise hide it)
+      const g = geometry(s, th), N = g.pts.length, SX = new Float64Array(N), SY = new Float64Array(N), SD = new Float64Array(N);
+      g.pts.forEach((p, i) => { const q = proj(p, c); SX[i] = q[0]; SY[i] = q[1]; SD[i] = q[2]; });
+      const items = g.faces.map((f) => ({ d: (SD[f.v[0]] + SD[f.v[1]] + SD[f.v[2]] + SD[f.v[3]]) / 4, f }));
       if (r > 1e-9) {
         const bias = Math.max(0.06 * Math.max(s, 0.2), 1.2 * s * Math.sinh(2 * g.T / g.NT));
         for (let q = 0; q < 96; q++) {
           const a = q / 96 * TAU, b = (q + 1) / 96 * TAU;
-          const PA = proj([s * Math.cos(a) * ct, s * Math.cos(a) * st, s * Math.sin(a)], c), PB = proj([s * Math.cos(b) * ct, s * Math.cos(b) * st, s * Math.sin(b)], c);
+          const PA = proj([s * Math.cos(a) * ct, s * Math.cos(a) * st, FLAT * s * Math.sin(a)], c), PB = proj([s * Math.cos(b) * ct, s * Math.cos(b) * st, FLAT * s * Math.sin(b)], c);
           items.push({ d: (PA[2] + PB[2]) / 2 - bias, seg: [PA, PB] });
         }
       }
       items.sort((u, w) => w.d - u.d);
-      ctx.strokeStyle = col; ctx.lineWidth = 3.2;
+      const grid = MM.rgba('ink', 0.32);
       items.forEach((it) => {
-        ctx.beginPath();
-        if (it.f) { ctx.fillStyle = it.f.fill; face(it.f, 0.45); ctx.fill(); }
-        else { ctx.moveTo(it.seg[0][0], it.seg[0][1]); ctx.lineTo(it.seg[1][0], it.seg[1][1]); ctx.stroke(); }
+        if (it.f) {
+          // a face, a little larger than it is, so that no seams show between faces
+          const v = it.f.v, mx = (SX[v[0]] + SX[v[1]] + SX[v[2]] + SX[v[3]]) / 4, my = (SY[v[0]] + SY[v[1]] + SY[v[2]] + SY[v[3]]) / 4;
+          ctx.fillStyle = it.f.fill; ctx.beginPath();
+          for (let k = 0; k < 4; k++) {
+            const dx = SX[v[k]] - mx, dy = SY[v[k]] - my, l = Math.hypot(dx, dy) || 1, x = SX[v[k]] + dx / l * 0.45, y = SY[v[k]] + dy / l * 0.45;
+            if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+          }
+          ctx.fill();
+          if (it.f.lines.length) {
+            ctx.strokeStyle = grid; ctx.lineWidth = 0.9; ctx.beginPath();
+            it.f.lines.forEach(([i, j]) => { ctx.moveTo(SX[v[i]], SY[v[i]]); ctx.lineTo(SX[v[j]], SY[v[j]]); });
+            ctx.stroke();
+          }
+        } else {
+          ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+          ctx.moveTo(it.seg[0][0], it.seg[0][1]); ctx.lineTo(it.seg[1][0], it.seg[1][1]); ctx.stroke();
+        }
       });
-    } else {
-      // n = 3: the near half of the sphere (it is convex: no face hides another), a path for each
-      // shade; then the near halves of its equator and a meridian
-      const byFill = new Map();
-      g.faces.forEach((f) => { if (depth(f) < 0) { if (!byFill.has(f.fill)) byFill.set(f.fill, []); byFill.get(f.fill).push(f); } });
-      ctx.lineWidth = 0.7;
-      byFill.forEach((list, fill) => { ctx.fillStyle = fill; ctx.strokeStyle = fill; ctx.beginPath(); list.forEach((f) => face(f, 0)); ctx.fill(); ctx.stroke(); });
-      ctx.strokeStyle = col; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (const kind of [0, 1]) for (let q = 0; q < 72; q++) {
-        const at = (t) => (kind ? [s * Math.cos(t), 0, s * Math.sin(t)] : [s * Math.cos(t), s * Math.sin(t), 0]);
-        const PA = proj(at(q / 72 * TAU), c), PB = proj(at((q + 1) / 72 * TAU), c);
-        if (PA[2] + PB[2] < 0) { ctx.moveTo(PA[0], PA[1]); ctx.lineTo(PB[0], PB[1]); }
+      // the vanishing circle again, thin and dashed, so that its hidden half shows (where it is seen,
+      // the solid line is under it)
+      if (r > 1e-9) {
+        ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.setLineDash([4, 3.5]); ctx.beginPath();
+        for (let q = 0; q <= 96; q++) {
+          const a = q / 96 * TAU, P = proj([s * Math.cos(a) * ct, s * Math.cos(a) * st, FLAT * s * Math.sin(a)], c);
+          if (q) ctx.lineTo(P[0], P[1]); else ctx.moveTo(P[0], P[1]);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
       }
-      ctx.stroke();
+      // the branch points, or the singular point
+      if (r > 1e-9) bp.forEach((q) => { const P = proj(q, c); ctx.fillStyle = MM.color('ink'); ctx.beginPath(); ctx.arc(P[0], P[1], 3.6, 0, TAU); ctx.fill(); });
+      else singular();
     }
-    // the branch points (n = 2), or the singular point
-    if (r > 1e-9 && n === 2) bp.forEach((q) => { const P = proj(q, c); ctx.fillStyle = MM.color('ink'); ctx.beginPath(); ctx.arc(P[0], P[1], 3.6, 0, TAU); ctx.fill(); });
-    if (r <= 1e-9) { const O = proj([0, 0, 0], c); ctx.fillStyle = MM.color('red'); ctx.beginPath(); ctx.arc(O[0], O[1], 5, 0, TAU); ctx.fill(); }
     names.forEach((f) => f());
   }
   // At most one drawing a frame; while the picture turns by itself, about 30 a second, and none
@@ -262,7 +285,7 @@
       start() { v3.spin = false; },
       move(dx, dy) { v3.yaw += dx * 0.01; v3.pitch = clamp(v3.pitch + dy * 0.01, -0.2, 1.45); redraw3(); },
       end() { v3.spin = !MM.reduceMotion(); redraw3(); },
-      keys: { turn(a, b) { v3.yaw += a; v3.pitch = clamp(v3.pitch + b, -0.2, 1.45); redraw3(); }, home() { v3.yaw = -0.15; v3.pitch = 0.5; redraw3(); } },
+      keys: { turn(a, b) { v3.yaw += a; v3.pitch = clamp(v3.pitch + b, -0.2, 1.45); redraw3(); }, home() { v3.yaw = -0.15; v3.pitch = 0.72; redraw3(); } },
     });
     v3.spin = !MM.reduceMotion();
     seen3 = MM.whenVisible([v3.cv], (on) => { if (on) redraw3(); });

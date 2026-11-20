@@ -26,7 +26,11 @@ body {
   --cy-3-soft: var(--c3-soft);
   --cy-4-soft: var(--c4-soft);
   --cy-5-soft: var(--c5-soft);
+  /* the landscape of |p(x) − z|, light where it is small */
+  --land: var(--c1);
 }
+/* its key in the legend */
+.pl-shade { display: inline-block; width: 13px; height: 13px; border-radius: 3px; flex: none; background: color-mix(in srgb, var(--land) 22%, var(--surface)); }
 
 .pl { --split-main: 1.25fr; --split-below: 40px; }
 @media (max-width: 899.98px) {

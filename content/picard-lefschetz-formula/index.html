@@ -44,6 +44,10 @@ references:
       <button value="2">2</button><button value="3">3</button><button value="4">4</button><button value="5">5</button>
     </mm-seg>
   </div>
+  <mm-seg id="shape" value="sphere" aria-label="The vanishing cycles, drawn as">
+    <button value="arc">Arcs</button><button value="sphere" id="shape-sphere">Spheres</button>
+  </mm-seg>
+  <mm-toggle id="phase">Phase</mm-toggle>
   <div class="control">
     <mm-menu id="round" aria-label="Take z once round a critical value"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.6 5.2A5.2 5.2 0 1 0 13.2 9"/><path d="M13.4 2.6v3.1h-3.1"/></svg></mm-menu>
     <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
@@ -55,7 +59,7 @@ references:
   <figure class="panel split pl" id="figure">
     <div class="split-main pl-main">
       <div class="pl-xplane split-fit" id="xplane">
-        <canvas id="xcv" role="img" aria-label="The plane of x, coloured by the phase of p(x) − z, with the roots of p(x) = z, over which the level set degenerates, the vanishing cycles along the straight paths from z, and the critical points of p"></canvas>
+        <canvas id="xcv" role="img" aria-label="The plane of x, shaded where |p(x) − z| is small, with its level lines (or coloured by the phase of p(x) − z), the roots of p(x) = z, over which the level set degenerates, the vanishing cycles along the straight paths from z, and the critical points of p"></canvas>
         <svg id="xsvg" class="pl-over" aria-label="Critical points"></svg>
       </div>
       <p class="hint">Drag critical points to move them.</p>
@@ -97,13 +101,13 @@ references:
       <div class="pl-v3" id="v3-box"><canvas id="v3-cv" role="img" aria-label="The level set near a critical point in three dimensions, as z comes to the critical value: the vanishing cycle and its shrinking to the singular point"></canvas></div>
       <div class="pl-dialbox"><canvas id="v3-dial" role="img" aria-label="z near the critical value z_i"></canvas><div class="handle draggable pl-dialh" id="v3-z" role="slider" tabindex="0" aria-label="z near z_i: drag it, or move it with the arrow keys"></div><p class="pl-dialval" id="v3-val"></p></div>
     </div>
-    <figcaption class="caption">The level set $V_z$ near $c_i$, in coordinates in which $f=z_i+x^2+y_2^2+\cdots+y_n^2$, as $z$ comes to $z_i$, for the $n$ chosen in the bar. For $n=2$ it is the curve $x^2+y^2=z-z_i$ over the disc $|x|\le1$, drawn with height $\mathrm{Re}(\mathrm{e}^{-\mathrm{i}\theta}y)$, $\theta=\frac12\arg(z-z_i)$, and coloured by the phase of $y$; its waist is the vanishing circle. For $n=3$ it is the vanishing sphere, and for $n=1$ the two points. At $z=z_i$ the cycle has shrunk to the singular point.</figcaption>
+    <figcaption class="caption">The level set $V_z$ near $c_i$, in coordinates in which $f=z_i+x^2+y_2^2+\cdots+y_n^2$, as $z$ comes to $z_i$, for the $n$ chosen in the bar. For $n=2$ it is the curve $x^2+y^2=z-z_i$, a double cover of the disc $|x|\le1$ branched at $\pm\sqrt{z-z_i}$, drawn at the height $\mathrm{Re}(\mathrm{e}^{-\mathrm{i}\theta}y)$, made smaller, with $\theta=\frac12\arg(z-z_i)$: its two sheets, white and blue, meet along the vanishing circle, dashed where it is hidden. For $n=3$ it is the vanishing sphere, and for $n=1$ the two points. At $z=z_i$ the cycle has shrunk to the singular point.</figcaption>
   </figure>
   <p>Let $p$ be a monic polynomial of degree $\mu+1$ whose critical points $c_1,\dots,c_\mu$ are simple and whose critical values $z_i=p(c_i)$ are distinct. The critical points of $f=p(x)+y_2^2+\cdots+y_n^2$ are the points $(c_i,0,\dots,0)$, all nondegenerate, so the level set $V_z=f^{-1}(z)$ is a smooth complex manifold for every $z$ other than $z_1,\dots,z_\mu$. It is homotopy equivalent to a bouquet of $\mu$ spheres $S^{n-1}$, as Milnor showed for the level sets near any isolated critical point [@milnor1968], so that</p>
   $$H_{n-1}(V_z)\cong\ZZ^\mu$$
   <p>(in reduced homology for $n=1$, where $V_z$ is $\mu+1$ points).</p>
   <p>Near $c_i$ there are coordinates in which $f=z_i+x^2+y_2^2+\cdots+y_n^2$. For $z$ near $z_i$ the level set there is the quadric $x^2+y_2^2+\cdots+y_n^2=z-z_i$, which contains the sphere of its points in $\sqrt{z-z_i}\,\RR^n$, and this sphere shrinks to the point $c_i$ as $z$ tends to $z_i$, where the quadric becomes a cone. Carried back along a path $\gamma$ from a regular value to $z_i$, it gives a class in the homology of the level set at the start of $\gamma$, the <strong>vanishing cycle</strong> along $\gamma$, defined up to its orientation [@arnold1988, Ch. 1].</p>
-  <p>Since $f$ is $p(x)$ plus a sum of squares, its vanishing cycles can be seen in the plane of $x$. Over a point $x$ the level set is the quadric $y_2^2+\cdots+y_n^2=z-p(x)$, which contains the sphere $\sqrt{z-p(x)}\,S^{n-2}$ and degenerates to a point where $p(x)=z$. A path from $z$ to $z_i$ lifts through $c_i$ to an arc between two roots of $p(x)=z$, and the vanishing cycle is made of the spheres over the points of the arc [@seidel2008]. For the straight path from $z$ to $z_i$ the arc is the line through $c_i$ on which $p(x)-z$ has the phase of $z_i-z$, so in the picture of $x$ it runs along the colour of $c_i$'s phase.</p>
+  <p>Since $f$ is $p(x)$ plus a sum of squares, its vanishing cycles can be seen in the plane of $x$. Over a point $x$ the level set is the quadric $y_2^2+\cdots+y_n^2=z-p(x)$, which contains the sphere $\sqrt{z-p(x)}\,S^{n-2}$ and degenerates to a point where $p(x)=z$. A path from $z$ to $z_i$ lifts through $c_i$ to an arc between two roots of $p(x)=z$, and the vanishing cycle is made of the spheres over the points of the arc [@seidel2008]. For the straight path from $z$ to $z_i$ the arc is the line through $c_i$ on which $p(x)-z$ has the phase of $z_i-z$: it runs from the saddle $c_i$ of $|p(x)-z|$ down to two roots, the way water runs, across the level lines in the picture at the top (with Phase in the bar, it runs along the colour of $c_i$).</p>
   <p>The straight paths from $z$ to the critical values meet only at $z$, and numbered in the order in which they leave it, clockwise, they form a <strong>distinguished system of paths</strong>; their vanishing cycles $\Delta_1,\dots,\Delta_\mu$ form a basis of $H_{n-1}(V_z)$ [@arnold1988].</p>
 </section>
 

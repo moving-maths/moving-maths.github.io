@@ -1,6 +1,6 @@
 <!-- The card image (npm run thumbs): the page's two pictures as it opens (μ = 3, n = 3), computed
      with lefschetz.js as main.js computes them, with heavier marks so that they read at card size.
-     Left, the plane of x, coloured by the phase of p(x) − z, with the roots of p(x) = z, the
+     Left, the plane of x, shaded by |p(x) − z| with its level lines, the roots of p(x) = z, the
      vanishing spheres over the arcs of the straight paths (their outlines, a few of their circles
      and their orientations) and the critical points. Right, the plane of values: the Stokes rays,
      the straight paths from z to the critical values, the critical values and the handle z. -->
@@ -75,22 +75,43 @@
   function draw() {
     cx.clearRect(0, 0, W, H);
     cx.lineCap = 'round'; cx.lineJoin = 'round';
-    // the plane of x: the phase of p(x) − z
-    const s = 1, w = XB.side * s, hh = XB.side * s, ph = new Float32Array(w * hh), lm = new Float32Array(w * hh), kind = new Uint8Array(w * hh).fill(1);
-    for (let py = 0, q = 0; py < hh; py++) {
-      const y = XB.y(XB.y0 + (py + 0.5) / s);
-      for (let px = 0; px < w; px++, q++) {
-        const x = XB.x(XB.x0 + (px + 0.5) / s), e = [0, 0, 0, 0];
-        PL.evalPD(P, x, y, e);
-        const ar = e[0] - z[0], ai = e[1] - z[1];
-        ph[q] = Math.atan2(ai, ar); lm[q] = 0.5 * Math.log(ar * ar + ai * ai + 1e-300);
-      }
-    }
-    const off = document.createElement('canvas'); off.width = w; off.height = hh;
-    off.getContext('2d').putImageData(MM.phase.paint(new ImageData(w, hh), { w, h: hh, dpr: s, ph, lm, kind, step: Math.PI / 6, lines: false }), 0, 0);
+    // the plane of x: the landscape of g = asinh(|p(x) − z|/σ), light blue below the levels of the
+    // critical points, with its level lines, those through the critical points darker (main.js,
+    // landImage)
     cx.save();
     cx.beginPath(); cx.rect(XB.x0, XB.y0, XB.side, XB.side); cx.clip();
-    cx.drawImage(off, XB.x0, XB.y0, XB.side, XB.side);
+    const sig = 0.4 * Rc, G0 = 5, nx = Math.ceil(XB.side / G0) + 1, ny = nx, G = new Float64Array(nx * ny), e = [0, 0, 0, 0];
+    const g = (x, y) => { PL.evalPD(P, x, y, e); return Math.asinh(Math.hypot(e[0] - z[0], e[1] - z[1]) / sig); };
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) G[j * nx + i] = g(XB.x(XB.x0 + i * G0), XB.y(XB.y0 + j * G0));
+    const lv = P.vals.map((v) => Math.asinh(dist(v, z) / sig)).sort((a, b) => a - b), mid = lv[lv.length >> 1];
+    const rgbOf = (name) => MM.color(name).match(/[\d.]+/g).slice(0, 3).map(Number), S = rgbOf('surface'), B = rgbOf('land');
+    const off = document.createElement('canvas'); off.width = nx; off.height = ny;
+    const octx = off.getContext('2d'), img = octx.createImageData(nx, ny);
+    for (let q = 0; q < nx * ny; q++) {
+      const a = 0.12 * (1 - Math.tanh((G[q] - mid) / 0.9)), o = 4 * q;
+      for (let c = 0; c < 3; c++) img.data[o + c] = S[c] + (B[c] - S[c]) * a;
+      img.data[o + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    cx.imageSmoothingEnabled = true;
+    cx.drawImage(off, 0, 0, nx, ny, XB.x0 - G0 / 2, XB.y0 - G0 / 2, nx * G0, ny * G0);
+    const segs = (L) => {
+      cx.beginPath();
+      for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+        const A = G[j * nx + i] - L, Bv = G[j * nx + i + 1] - L, C = G[(j + 1) * nx + i + 1] - L, D = G[(j + 1) * nx + i] - L, x0 = XB.x0 + i * G0, y0 = XB.y0 + j * G0, q = [];
+        if ((A > 0) !== (Bv > 0)) q.push([x0 + G0 * A / (A - Bv), y0]);
+        if ((Bv > 0) !== (C > 0)) q.push([x0 + G0, y0 + G0 * Bv / (Bv - C)]);
+        if ((D > 0) !== (C > 0)) q.push([x0 + G0 * D / (D - C), y0 + G0]);
+        if ((A > 0) !== (D > 0)) q.push([x0, y0 + G0 * A / (A - D)]);
+        for (let k = 0; k + 1 < q.length; k += 2) { cx.moveTo(q[k][0], q[k][1]); cx.lineTo(q[k + 1][0], q[k + 1][1]); }
+      }
+      cx.stroke();
+    };
+    cx.lineWidth = 2;
+    cx.strokeStyle = MM.rgba('c1-text', 0.16);
+    for (let k = 1; k * 0.5 < Math.max(...G); k++) segs(k * 0.5);
+    cx.strokeStyle = MM.rgba('c1-text', 0.42);
+    lv.forEach((L) => segs(L));
     // the vanishing spheres: outline, axis, a few circles, orientation
     let big = 1e-12;
     arcs.forEach((a) => a.fib.forEach((v) => { big = Math.max(big, v); }));
