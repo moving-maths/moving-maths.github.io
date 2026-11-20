@@ -140,7 +140,7 @@
     // rank four: the group, x, the dual or the honeycomb that is not Wythoff's; the view: a map
     // of the space (a rotation of R⁴, an affine map, a Lorentz map), the turn of the picture in
     // space, the projection of the 3-sphere, and the turn of the chamber's picture
-    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: mm(rotX(0.3), rotY(-0.35)), m: null, proj: 'stereo', wR: mm(rotX(-0.5), rotY(0.6)) },
+    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: I(3), turn: { th: -0.45, ph: 0.3 }, m: null, proj: 'stereo', wR: I(3), wt: { th: 1, ph: 0.3 } },
     colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(),
     // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
     // tipping it towards the eye
@@ -225,6 +225,7 @@
       // the snub of the point across wall i: every vertex reflected in it
       const Sf = M.S[s.flap];
       for (let v = 0; v < W.V; v++) W.pos.set(P.apply(Sf, Array.from(W.pos.subarray(3 * v, 3 * v + 3)), 3), 3 * v);
+      W.flip = Sf;
       xe = P.apply(Sf, x, 3);
     }
     // uniform: every edge of one length (over the edges near the middle)
@@ -245,7 +246,7 @@
   }
 
   /* ---------- rank four ---------- */
-  const HYP4_R = { '5,3,4': 3.7, '4,3,5': 3.6, '5,3,5': 4.1, '3,5,3': 3.4 };
+  const HYP4_R = { '5,3,4': 3.3, '4,3,5': 3.2, '5,3,5': 3.6, '3,5,3': 3.1 };
   const groups4 = new Map();
   function group4(ms) {
     const key = ms.join(',');
@@ -703,11 +704,30 @@
   // or up); its matrix; and the turn nearest a matrix (from the stereographic picture, or a link).
   const turnR3 = () => mm(mm(rotX(state.turn.ph), rotY(state.turn.th)), upNow());
   function turnBy(a, b) { const t = state.turn; t.th += a; t.ph = clamp(t.ph + b, -1.55, 1.55); state.R3 = turnR3(); }
-  function turnFrom(R) {
-    const Rb = mm(R, tr(upNow())), ph = clamp(Math.atan2(Rb[2][1], Rb[1][1]), -1.55, 1.55), m = mm(rotX(-ph), Rb);
-    state.turn = { th: Math.atan2(m[0][2], m[0][0]), ph };
-    state.R3 = turnR3();
+  function turnOf(R, up) {
+    const Rb = mm(R, tr(up)), ph = clamp(Math.atan2(Rb[2][1], Rb[1][1]), -1.55, 1.55), m = mm(rotX(-ph), Rb);
+    return { th: Math.atan2(m[0][2], m[0][0]), ph };
   }
+  function turnFrom(R) { state.turn = turnOf(R, upNow()); state.R3 = turnR3(); }
+  // Rank four on a turntable too, upright along the middle cell's axis of highest order (by the
+  // group, so that the view stays as x moves): through a face of a cube or dodecahedron, a vertex
+  // of a tetrahedron, octahedron or icosahedron. The picture starts with corner 3 of C (the
+  // middle of a cell) in its middle, where the projections all keep directions: the axis is the
+  // way from there to corner 0 (a vertex) or corner 2 (the middle of a face).
+  function upFrame4() {
+    const f = state.four;
+    if (f.special) return I(3);
+    const g = group4(f.ms);
+    if (g.up) return g.up;
+    const M = g.M, k = f.ms[0] > f.ms[1] ? 2 : 0, R0 = startRot(f.ms), at = (v) => mv(R0, v).slice(0, 3);
+    const u = norm(at(M.corners[k]));
+    let fr = [0, 0, 0];
+    for (const r of [M.r[0], M.r[1], M.r[2]]) { const v = at(r), d = dot(v, u); fr = v.map((x, i) => x - d * u[i]); if (Math.hypot(...fr) > 1e-6) break; }
+    fr = norm(fr);
+    return (g.up = [cross(u, fr), u, fr]);
+  }
+  const turnR3_4 = () => mm(mm(rotX(state.four.turn.ph), rotY(state.four.turn.th)), upFrame4());
+  function turnBy4(a, b) { const t = state.four.turn; t.th += a; t.ph = clamp(t.ph + b, -1.55, 1.55); state.four.R3 = turnR3_4(); }
   // the sphere turned so that the direction u of the model faces the eye (the middle of the
   // stereographic picture), in steps; the solid by its turntable
   function centreSphere(u) {
@@ -1082,9 +1102,19 @@
     edges(fineT, 1.1, u, faint);
     if (pen.arcs) { drawArcs(ctx, kind, coarseT, at, s, 1 - u); drawArcs(ctx, kind, fineT, at, s, u); }
     if (pen.larger) {
-      // the tiles two and four levels up, which the shown ones make up
+      // the tiles two and four levels up, as the patches of whole shown tiles that make them up
+      ctx.lineCap = ctx.lineJoin = 'round';
       for (const [base, alpha] of [[fine - 1, 1 - u], [fine, u]]) {
-        for (const [up, width, light] of [[2, 2.4, 0.42], [4, 3.6, 0.28]]) { const list = levels[base - up]; if (list) edges(list, width, alpha, light); }
+        if (alpha <= 0.002) continue;
+        for (const [up, width, light] of [[2, 2.4, 0.42], [4, 3.6, 0.28]]) {
+          const seg = PEN.outline(kind, levels, base, up), path = new Path2D();
+          for (let i = 0; i < seg.length; i += 4) { const a = at([seg[i], seg[i + 1]]), b = at([seg[i + 2], seg[i + 3]]); path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); }
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = MM.rgba('edge', light);
+          ctx.lineWidth = width;
+          ctx.stroke(path);
+          ctx.globalAlpha = 1;
+        }
       }
     }
     ctx.strokeStyle = MM.color('rule');
@@ -1152,6 +1182,7 @@
   }
   function drawSpace() {
     const { ctx, w, h } = frameCanvas(), X = space4(), f = state.four, V = X.V, pos = X.pos, edges = X.edges;
+    f.R3 = turnR3_4();
     const frame = frameOf(X), C = cam3 = camera(f.R3, frame, w, h), Rv = f.rot, view = viewOf(X);
     const [r0, r1, r2, r3] = Rv, cr = C.R, Dc = C.D, F = C.f * C.s, w2 = w / 2, h2 = h / 2, K2 = D4 + 1;
     // 0: as it is (parallel, the Euclidean honeycomb), 1: stereographic, 2: perspective, 3: the ball
@@ -1185,7 +1216,7 @@
     const at = (oa, ob, u) => scr(Q[oa] + u * (Q[ob] - Q[oa]), Q[oa + 1] + u * (Q[ob + 1] - Q[oa + 1]), Q[oa + 2] + u * (Q[ob + 2] - Q[oa + 2]), Q[oa + 3] + u * (Q[ob + 3] - Q[oa + 3]), tmp, 0);
     // how strongly a point shows: nearer the eye darker; far out (in the stereographic picture, the
     // Euclidean honeycomb, the ball) fading away
-    const near = Dc - frame, radial = mode === 3 ? [0.82, 0.995] : X.kind === 'plane' ? [0.7 * frame, 1.25 * frame] : mode === 1 ? [1.15 * frame, 2.4 * frame] : null;
+    const near = Dc - frame, radial = mode === 3 ? [0.74, 0.96] : X.kind === 'plane' ? [0.7 * frame, 1.25 * frame] : mode === 1 ? [1.15 * frame, 2.4 * frame] : null;
     const alpha = (depth, r) => (1 - 0.62 * clamp((depth - near) / (2 * frame), 0, 1)) * (radial ? 1 - smooth(radial[0], radial[1], r) : 1);
     // the points of the edge from a to b on the canvas, into pts (a polyline along it where it is
     // curved, finer where it is long; out to the edge of the picture towards a point at infinity)
@@ -1252,7 +1283,7 @@
         const cr2 = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
         if (Math.abs(cr2) < 1e-9) return;
         const [p, q] = cr2 > 0 ? [b, c] : [c, b];
-        region.moveTo(a[0], a[1]); region.lineTo(p[0], p[1]); region.lineTo(q[0], q[1]); region.closePath();
+        region.moveTo(a[0], a[1]); region.lineTo(p[0], p[1]); region.lineTo(q[0], q[1]); // (fill closes it: closePath is slow on thousands)
       };
       for (const face of X.cellFaces(mid)) {
         const n = face.length, o = face.map((v) => 4 * v);
@@ -1439,8 +1470,12 @@
     try { const b = t.getBBox(); if (b.width) { w = b.width; h = b.height; } } catch (err) { /* not laid out */ }
     const dx = q[0] - mid[0], dy = q[1] - mid[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
     const off = 16 + Math.abs(ux) * w / 2 + Math.abs(uy) * h / 2;
-    t.setAttribute('x', (q[0] + off * ux).toFixed(1));
-    t.setAttribute('y', (q[1] + off * uy + h * 0.32).toFixed(1));
+    // (kept inside the picture; if that brings it over the point, then above or below it)
+    const cx = clamp(q[0] + off * ux, w / 2 + 2, ch.W - w / 2 - 2);
+    let cy = clamp(q[1] + off * uy, h / 2 + 1, ch.H - h / 2 - 1);
+    if (Math.hypot(Math.max(0, Math.abs(cx - q[0]) - w / 2), Math.max(0, Math.abs(cy - q[1]) - h / 2)) < 13) cy = clamp(q[1] + (uy >= 0 ? 1 : -1) * (14 + h / 2), h / 2 + 1, ch.H - h / 2 - 1);
+    t.setAttribute('x', cx.toFixed(1));
+    t.setAttribute('y', (cy + h * 0.32).toFixed(1));
   }
   const el = (tag, attrs, parent) => { const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
   const ptsAttr = (pts) => pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
@@ -1449,7 +1484,7 @@
   function buildChamber() {
     const key = chamberKey(), rank4 = key[0] === '4';
     chamberSvg.classList.toggle('is-turnable', rank4);
-    const box = chamberSvg.getBoundingClientRect(), W = Math.max(160, Math.round(box.width || 220)), H = Math.round(W * (rank4 ? 0.92 : key[0] === '2' ? 0.5 : 0.72));
+    const box = chamberSvg.getBoundingClientRect(), W = Math.max(160, Math.round(box.width || 220)), H = Math.round(W * (rank4 ? 0.92 : key[0] === '2' ? 0.5 : 0.8));
     $('chamber-block').hidden = !key;
     if (!key) { ch = null; return; }
     const fullKey = key + '|' + W;
@@ -1459,16 +1494,16 @@
     chamberSvg.style.height = H + 'px';
     const rank = +key[0];
     ch = { key, fullKey, rank, W, H };
-    const gShapes = el('g', {}, chamberSvg), gDots = el('g', {}, chamberSvg), gLabels = el('g', {}, chamberSvg);
-    ch.gShapes = gShapes; ch.gDots = gDots; ch.gLabels = gLabels;
+    const gShapes = el('g', {}, chamberSvg), gDots = el('g', {}, chamberSvg), gRings = el('g', {}, chamberSvg), gLabels = el('g', {}, chamberSvg);
+    Object.assign(ch, { gShapes, gDots, gRings, gLabels });
     const hd = el('g', { class: 'rp-chamber-handle draggable', tabindex: '0', role: 'slider', 'aria-label': 'The point x in the chamber', 'aria-valuetext': '' }, chamberSvg);
     MM.handle(hd, 9);
     ch.handle = hd;
     if (rank === 2) build2(); else if (rank === 3) build3(); else build4();
   }
-  function fitTo(pts2, pad) {
+  function fitTo(pts2, pad, padY = pad) {
     const xs = pts2.map((p) => p[0]), ys = pts2.map((p) => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    const s = Math.min((ch.W - 2 * pad) / (x1 - x0 || 1), (ch.H - 2 * pad) / (y1 - y0 || 1));
+    const s = Math.min((ch.W - 2 * pad) / (x1 - x0 || 1), (ch.H - 2 * padY) / (y1 - y0 || 1));
     const ox = ch.W / 2 - s * (x0 + x1) / 2, oy = ch.H / 2 + s * (y0 + y1) / 2;
     return { s, ox, oy, px: (u) => [ox + s * u[0], oy - s * u[1]], un: (x, y) => [(x - ox) / s, (oy - y) / s] };
   }
@@ -1487,6 +1522,7 @@
     el('polyline', { points: ptsAttr(arc), class: 'rp-ch-arc' }, ch.gShapes);
     ch.specials = [[1, 0], [1, 1], [0, 1]].map((w) => M.point(w));
     for (const sp of ch.specials) { const q = F.px(sp); el('circle', { cx: q[0], cy: q[1], r: 2.6, class: 'rp-ch-dot' }, ch.gDots); }
+    ch.same = { w: [[1, 0], [1, 1], [0, 1]], key: ['1', '2', '1'], at: (i) => F.px(ch.specials[i]) };
     const p = state.two.p, o = F.px([0, 0]);
     const lab = (u, text) => labelAt(F.px(u), o, text);
     lab(M.corners[0], '$\\{' + p + '\\}$');
@@ -1519,19 +1555,23 @@
       return flap >= 0 ? reflect(P, flap) : P;
     };
     const flapCorner = [0, 1, 2].map((k) => reflect(A[k], k));
-    // fitted to C and the near half of each chamber beside it (their far tips may be cut off)
-    const halfway = [0, 1, 2].map((k) => { const m = [(A[(k + 1) % 3][0] + A[(k + 2) % 3][0]) / 2, (A[(k + 1) % 3][1] + A[(k + 2) % 3][1]) / 2]; return [m[0] + 0.55 * (flapCorner[k][0] - m[0]), m[1] + 0.55 * (flapCorner[k][1] - m[1])]; });
-    const F = fitTo(A.concat(halfway), 36);
+    // fitted to C and the three chambers beside it
+    const F = fitTo(A.concat(flapCorner), 48, 26);
     Object.assign(ch, { M, g, F, A, dist, reflect, posOf, px: F.px, toPx: (w, flap) => F.px(posOf(w, flap)) });
     // the ground: flaps grey, C light blue (and, with colours, each corner in its faces' colour)
     [0, 1, 2].forEach((k) => el('polygon', { points: ptsAttr([A[(k + 1) % 3], flapCorner[k], A[(k + 2) % 3]].map(F.px)), class: 'rp-ch-flap' }, ch.gShapes));
     el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-c' }, ch.gShapes);
     ch.cornerTint = el('g', {}, ch.gShapes);
     el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-side' }, ch.gShapes);
-    // the special points: the uniform points in C, the snub's in each flap
+    // the special points: the uniform points in C, the snub's in each flap, and the far corner of
+    // each flap (x there gives the same as at the corner of C it mirrors)
     const snubW = weights(M.walls(snubPoint(g)));
-    ch.specials = RINGS3.map((r) => ({ w: r.slice(), flap: -1 })).concat([0, 1, 2].map((i) => ({ w: snubW, flap: i })));
-    for (const sp of ch.specials) { const q = ch.toPx(sp.w, sp.flap); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: sp.flap < 0 ? 'rp-ch-dot' : 'rp-ch-dot snub' }, ch.gDots); }
+    ch.specials = RINGS3.map((r) => ({ w: r.slice(), flap: -1 })).concat([0, 1, 2].map((i) => ({ w: snubW, flap: i })), [0, 1, 2].map((k) => ({ w: [0, 1, 2].map((j) => +(j === k)), flap: k })));
+    for (const sp of ch.specials) { const q = ch.toPx(sp.w, sp.flap); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: sp.flap >= 0 && sp.w === snubW ? 'rp-ch-dot snub' : 'rp-ch-dot' }, ch.gDots); }
+    ch.same = {
+      w: ch.specials.map((sp) => sp.w), flap: ch.specials.map((sp) => sp.flap), at: (i) => ch.toPx(ch.specials[i].w, ch.specials[i].flap),
+      key: ch.specials.map((sp) => { const on = sp.w.map((v) => v === 0), c = P.vertexConfig(M, on, sp.flap >= 0 && !on.some(Boolean)); return P.confKey(c.sizes) + (c.ideal ? '|i' : ''); }),
+    };
     // the corners named by the regular polytopes there (for [p, q])
     if (s.r === 2) {
       const mid = F.px([(A[0][0] + A[1][0] + A[2][0]) / 3, (A[0][1] + A[1][1] + A[2][1]) / 3]), tx = (m) => (m === INF ? '\\infty' : m);
@@ -1569,13 +1609,15 @@
     ch.specials = [];
     for (let b = 1; b < 16; b++) { const r = [8, 4, 2, 1].map((m) => +!!(b & m)); ch.specials.push({ w: r }); }
     ch.u = ch.specials.map((sp) => tetraAt(sp.w));
+    ch.same = { w: ch.specials.map((sp) => sp.w), at: (i) => ch.px3(ch.u[i]), key: ch.specials.map((sp) => String(P.name4(state.four.ms, sp.w) || sp.w.join(''))) };
     placeTetra();
   }
   // the tetrahedron's picture for its present turn: edges, the corners' names, the dots
   function placeTetra() {
-    const R = state.four.wR, u = ch.corners3;
-    // fitted by the sphere round its corners (so that turning it does not change its size)
-    const s = Math.min(ch.W, ch.H) / 2 - 16, ox = ch.W / 2, oy = ch.H / 2;
+    const R = state.four.wR = tetraTurn(), u = ch.corners3;
+    // fitted by the sphere round its corners (so that turning it does not change its size), with
+    // room for the names beside them
+    const s = Math.min(ch.W / 2 - 46, ch.H / 2 - 28), ox = ch.W / 2, oy = ch.H / 2;
     ch.px3 = (p) => { const q = mv(R, p); return [ox + s * q[0], oy - s * q[1], q[2]]; };
     ch.s3 = s;
     ch.gShapes.textContent = '';
@@ -1599,6 +1641,25 @@
     const ms = state.four.ms, t = (m) => m, mid = [ch.W / 2, ch.H / 2];
     const names = ['$\\{' + ms.map(t).join(',') + '\\}$', '$\\mathrm r\\{' + ms.join(',') + '\\}$', '$\\mathrm r\\{' + ms.slice().reverse().join(',') + '\\}$', '$\\{' + ms.slice().reverse().join(',') + '\\}$'];
     u.forEach((p, k) => labelAt(ch.px3(p), mid, names[k]));
+    ringSame();
+  }
+  // The tetrahedron on a turntable, as the solids are: corner 0 (the regular polytope) up, turned
+  // about the upright by th and tipped by ph.
+  const TETRA_UP = (() => { const u = TETRA[0], d = dot(TETRA[1], u), f = norm(TETRA[1].map((x, i) => -(x - d * u[i]))); return [cross(u, f), u.slice(), f]; })();
+  const tetraTurn = () => mm(mm(rotX(state.four.wt.ph), rotY(state.four.wt.th)), TETRA_UP);
+  // The special points that give the same picture as the one x is at (the corners of C and of the
+  // chambers beside it that mirror each other, the ends of a symmetric diagram), ringed.
+  function ringSame() {
+    if (!ch || !ch.same || !ch.gRings) return;
+    ch.gRings.textContent = '';
+    const S = ch.same, w = ch.rank === 2 ? state.two.w : ch.rank === 3 ? state.three.w : state.four.w, flap = ch.rank === 3 ? state.three.flap : -1;
+    const at = S.w.findIndex((v, i) => (!S.flap || S.flap[i] === flap) && v.every((x, j) => Math.abs(x - w[j]) < 1e-6));
+    if (at < 0) return;
+    S.key.forEach((k, i) => {
+      if (i === at || k !== S.key[at]) return;
+      const q = S.at(i);
+      el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 6, class: 'rp-ch-ring' }, ch.gRings);
+    });
   }
   // the handle where x is
   function placeChamberHandle() {
@@ -1609,6 +1670,7 @@
     else q = ch.px3(tetraAt(state.four.w));
     ch.handle.setAttribute('transform', 'translate(' + q[0].toFixed(1) + ',' + q[1].toFixed(1) + ')');
     ch.handle.setAttribute('aria-valuetext', valueText());
+    ringSame();
   }
   function valueText() {
     const w = state.kind === 'polygon' ? state.two.w : state.kind === 'space' ? state.four.w : state.three.w;
@@ -1659,7 +1721,7 @@
     }
     // rank four: in the plane facing the eye through the handle, then into C (towards its middle
     // until every weight is ≥ 0), held at the special points
-    const f = state.four, R = f.wR, s3 = Math.min(ch.W, ch.H) / 2 - 16, ox = ch.W / 2, oy = ch.H / 2;
+    const f = state.four, R = f.wR, s3 = ch.s3, ox = ch.W / 2, oy = ch.H / 2;
     const cur = mv(R, tetraAt(f.w)), Pn = mv(tr(R), [(x - ox) / s3, (oy - y) / s3, cur[2]]), lam = tetraWeights(Pn);
     let t = 1;
     lam.forEach((l) => { if (l < 0) t = Math.min(t, 0.25 / (0.25 - l)); });
@@ -1694,7 +1756,8 @@
     if (chDrag.turn) {
       const dx = e.clientX - chDrag.x, dy = e.clientY - chDrag.y;
       chDrag.x = e.clientX; chDrag.y = e.clientY;
-      state.four.wR = ortho(mm(mm(rotY(dx / 80), rotX(dy / 80)), state.four.wR));
+      const wt = state.four.wt;
+      wt.th += dx / 80; wt.ph = clamp(wt.ph + dy / 80, -1.55, 1.55);
       placeTetra();
       placeChamberHandle();
       return;
@@ -1899,7 +1962,12 @@
       if (finite) rowsOut.push(['Faces', '$' + W.V + '$ ' + words], ['Edges', '$' + W.edges.length / 3 + '$'], ['Vertices', '$' + W.faces.length + '$']);
       else rowsOut.push(['Tiles', words]);
     }
-    rowsOut.push([s.dual ? 'Each face' : 'At each vertex', s.dual ? '$\\mathrm V' + confTex(conf).slice(1) : confTex(conf)]);
+    if (!conf.sizes.length && !c.special) {
+      // a hosohedron: n digons (lunes) between two opposite vertices, drawn as their n edges
+      const n = s.p === 2 ? s.q : s.p;
+      rowsOut.length = 0;
+      rowsOut.push(['Faces', '$' + n + '$ digons'], ['Edges', '$' + n + '$'], ['Vertices', '$2$'], ['At each vertex', '$2^{' + n + '}$']);
+    } else rowsOut.push([s.dual ? 'Each face' : 'At each vertex', s.dual ? '$\\mathrm V' + confTex(conf).slice(1) : confTex(conf)]);
     const degenerate = !c.special && (!conf.sizes.length || conf.sizes.length === 2);
     let dualWords = uni ? P.dualName(primal) : null;
     if (!dualWords && regular && kind === 'hyperbolic' && !generic) dualWords = P.regName(...dualPQ(conf));
@@ -1988,11 +2056,12 @@
     let html, leg = [], kv = [];
     if (state.kind === 'penrose') {
       const p3 = state.pen.tiles === 'p3';
-      html = 'Penrose tiling <span class="side-kind">' + (p3 ? 'rhombs' : 'kites and darts') + '</span>';
+      html = 'Penrose tiling <span class="side-kind">aperiodic tiling</span>';
       if (state.colours) leg = [['swatch', p3 ? 'tile-thick' : 'tile-kite', p3 ? 'thick rhombs' : 'kites'], ['swatch', p3 ? 'tile-thin' : 'tile-dart', p3 ? 'thin rhombs' : 'darts']];
       if (state.pen.arcs) leg.push(['arcs', '', 'arcs of the matching rules']);
       if (state.pen.larger) leg.push(['line', 'edge', 'tiles two and four deflations larger']);
-      kv = [[p3 ? 'Thick to thin' : 'Kites to darts', '$\\varphi = \\tfrac{1+\\sqrt5}2$'], ['Periods', 'none']];
+      kv = [['Tiles', p3 ? 'thick and thin rhombs' : 'kites and darts']];
+      if (state.pen.larger) kv.push([p3 ? 'Thick to thin' : 'Kites to darts', '$\\varphi = \\tfrac{1+\\sqrt5}2$']);
     } else {
       const a = about();
       html = MM.rich(a.name) + ' <span class="side-kind">' + a.what + '</span>';
@@ -2123,6 +2192,13 @@
     $('zoom').hidden = !(k === 'plane' || k === 'penrose');
     $('pq').hidden = !three || !!state.three.special;
     $('p2-c').hidden = k !== 'polygon';
+    // what the sliders set: the Schläfli symbol, or for r > 2 the triangle group
+    const sch = $('sch'), tx = (m) => (m === INF ? '\\infty' : m), t3 = state.three;
+    sch.hidden = $('pq').hidden && $('p2-c').hidden;
+    const schText = k === 'polygon' ? 'Schläfli symbol $\\{p\\} = \\{' + state.two.p + '\\}$'
+      : t3.r === 2 ? 'Schläfli symbol $\\{p,q\\} = \\{' + tx(t3.p) + ',' + tx(t3.q) + '\\}$'
+        : 'Triangle group $(p\\;q\\;r) = (' + [t3.p, t3.q, t3.r].map(tx).join('\\;') + ')$';
+    if (!sch.hidden && sch.dataset.text !== schText) { sch.dataset.text = schText; MM.setHTML(sch, schText); }
     $('rotate').hidden = !((k === 'sphere' && state.view3 === 'solid') || k === 'space');
     canvas.setAttribute('aria-label', {
       polygon: 'The polygon', sphere: state.view3 === 'stereo' ? 'The tiling of the sphere, projected stereographically to the plane' : 'The polyhedron, turning in space',
@@ -2161,7 +2237,7 @@
     if (turning() && dt && !dragging && !(drag && drag.active)) {
       // (about the screen's upright axis: the picture turns level, whatever the drags have done)
       if (state.kind === 'sphere') state.turn.th += 0.16 * dt;
-      else state.four.R3 = ortho(mm(rotY(0.1 * dt), state.four.R3));
+      else state.four.turn.th += 0.1 * dt;
     }
     draw();
     if (animating()) tick(); else lastT = 0;
@@ -2492,8 +2568,8 @@
       const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
       if (state.kind === 'sphere' && state.view3 === 'solid') { const K = Math.min(r.width, r.height) / 2; turnBy(dx / K, dy / K); }
       else if (state.kind === 'space') {
-        const K = Math.min(r.width, r.height) / 2, f = state.four;
-        f.R3 = ortho(mm(mm(rotY(dx / K), rotX(dy / K)), f.R3));
+        const K = Math.min(r.width, r.height) / 2;
+        turnBy4(dx / K, dy / K);
       } else if (state.kind === 'sphere') moveSphere(x - dx, y - dy, x, y);
       else if (state.kind === 'hyperbolic') moveDisc(x - dx, y - dy, x, y);
       else if (state.kind === 'plane') pan(dx, dy);
@@ -2503,7 +2579,7 @@
     keys: {
       turn(a, b) {
         if (state.kind === 'sphere' && state.view3 === 'solid') turnBy(a, b);
-        else if (state.kind === 'space') state.four.R3 = ortho(mm(mm(rotY(a), rotX(b)), state.four.R3));
+        else if (state.kind === 'space') turnBy4(a, b);
         else if (state.kind === 'sphere') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2; moveSphere(w, h, w + a * 60, h + b * 60); }
         else if (state.kind === 'hyperbolic') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2, k = 60; moveDisc(w, h, w + a * k, h + b * k); }
         else if (state.kind === 'plane') pan(a * 60, b * 60);
@@ -2746,7 +2822,7 @@
       state.rotate = x.r && !MM.reduceMotion();
       if (k === 'sphere') state.view3 = x.j === 'stereo' ? 'stereo' : 'solid';
       if (k === 'space') state.four.proj = ['stereo', 'persp', 'parallel'].includes(x.j) ? x.j : 'stereo';
-      if (named.has('v')) { if (k === 'space') state.four.R3 = x.v; else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
+      if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
       if (named.has('z')) { if (k === 'plane') { state.span = clamp(x.z, PLANE_SPAN.min, PLANE_SPAN.max); state.V = null; } else if (k === 'penrose') state.pen.span = clamp(x.z, PEN_SPAN.min, PEN_SPAN.max); }
       syncControls();
@@ -2757,11 +2833,11 @@
     pictures: () => [{ label: 'The picture', element: stage }].concat(ch ? [{ label: 'The chamber', element: chamberSvg }] : []),
     // for Save image: the views the link does not name
     scene: {
-      get: () => ({ L: state.L, V: state.V, span: state.span, c: state.pen.c, wR: state.four.wR }),
+      get: () => ({ L: state.L, V: state.V, span: state.span, c: state.pen.c, wt: Object.assign({}, state.four.wt) }),
       set(sc) {
         Object.assign(state, { L: sc.L, V: sc.V, span: sc.span });
         state.pen.c = sc.c;
-        state.four.wR = sc.wR;
+        state.four.wt = Object.assign({}, sc.wt);
         draw();
       },
     },

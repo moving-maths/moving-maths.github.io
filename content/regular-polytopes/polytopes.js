@@ -625,7 +625,10 @@
   // of its points.
   function faceMiddle(P, f) {
     const M = P.M, d = M.d;
-    if (P.T && f.e !== undefined && f.k >= 0 && f.k < 3 && M.n === 3) return apply(P.T.mat(f.e), M.corners[f.k], d);
+    if (P.T && f.e !== undefined && f.k >= 0 && f.k < 3 && M.n === 3) {
+      const c = apply(P.T.mat(f.e), M.corners[f.k], d);
+      return P.flip ? apply(P.flip, c, d) : c; // a snub shown across a wall: its points reflected in it
+    }
     const s = new Array(d).fill(0);
     for (const v of f.v) for (let i = 0; i < d; i++) s[i] += P.pos[d * v + i];
     return M.normalize(s);
