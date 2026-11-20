@@ -42,8 +42,9 @@
   }
 
   // p monic of degree mu + 1 with the given critical points (p' = (mu + 1)∏(x − c_k)), the constant
-  // chosen so that the critical values have mean 0. Also a_j = p''(c_j)/2, so p(c_j + t) ≈ z_j + a_j t².
-  function poly(crit) {
+  // chosen so that the critical values have mean shift (0 if not given). Also a_j = p''(c_j)/2, so
+  // p(c_j + t) ≈ z_j + a_j t².
+  function poly(crit, shift) {
     const mu = crit.length, m = mu + 1;
     let qr = [1], qi = [0];
     for (const c of crit) {
@@ -59,7 +60,7 @@
     const P = { mu, m, r, i, crit: crit.map((c) => [c[0], c[1]]) }, out = [0, 0, 0, 0];
     let sx = 0, sy = 0;
     const v = P.crit.map((c) => { evalPD(P, c[0], c[1], out); sx += out[0]; sy += out[1]; return [out[0], out[1]]; });
-    r[0] = -sx / mu; i[0] = -sy / mu;
+    r[0] = -sx / mu + (shift ? shift[0] : 0); i[0] = -sy / mu + (shift ? shift[1] : 0);
     P.vals = v.map((z) => [z[0] + r[0], z[1] + i[0]]);
     P.a = P.crit.map((c, j) => {
       let ar = m / 2, ai = 0;
@@ -71,6 +72,65 @@
       return [ar, ai];
     });
     return P;
+  }
+
+  // The critical points and the shift (the mean of the critical values) for which the critical
+  // values are vals, from crit and shift near them, with the critical points' mean kept: Newton's
+  // method on p(c_j) = vals_j, which are holomorphic in the critical points and the shift and, while
+  // they are distinct, coordinates on them up to a translation. Returns { crit, shift }, or null if
+  // it does not settle.
+  function critFor(crit, shift, vals) {
+    const mu = crit.length, n = mu + 1;
+    let c = crit.map((q) => [q[0], q[1]]), sh = [shift[0], shift[1]], scale = 0;
+    vals.forEach((v) => { scale = Math.max(scale, Math.hypot(v[0], v[1])); });
+    for (let it = 0; it < 40; it++) {
+      const P = poly(c, sh);
+      let err = 0;
+      const F = P.vals.map((v, j) => { const e = [v[0] - vals[j][0], v[1] - vals[j][1]]; err = Math.max(err, Math.hypot(e[0], e[1])); return e; });
+      if (err <= 1e-12 * (1 + scale)) return { crit: c, shift: sh };
+      // the system [J 1; 1…1 0] (dc, dsh) = (−F, 0), J the derivatives of the values by the
+      // critical points (by differences: they are holomorphic)
+      const A = [];
+      for (let j = 0; j < n; j++) A.push(new Array(2 * n + 2).fill(0));
+      for (let k = 0; k < mu; k++) {
+        let sep = Infinity;
+        c.forEach((q, l) => { if (l !== k) sep = Math.min(sep, Math.hypot(q[0] - c[k][0], q[1] - c[k][1])); });
+        const h = 1e-6 * Math.min(1, sep), cc = c.map((q) => q.slice());
+        cc[k][0] += h;
+        const Q = poly(cc, sh);
+        for (let j = 0; j < mu; j++) { A[j][2 * k] = (Q.vals[j][0] - P.vals[j][0]) / h; A[j][2 * k + 1] = (Q.vals[j][1] - P.vals[j][1]) / h; }
+      }
+      for (let j = 0; j < mu; j++) { A[j][2 * mu] = 1; A[j][2 * n] = -F[j][0]; A[j][2 * n + 1] = -F[j][1]; }
+      for (let k = 0; k < mu; k++) A[mu][2 * k] = 1;
+      const x = csolve(A, n);
+      if (!x) return null;
+      // (a step at most a third of the distance between the critical points)
+      let sep = Infinity, big = 0;
+      c.forEach((q, k) => { big = Math.max(big, Math.hypot(x[k][0], x[k][1])); c.forEach((r, l) => { if (k < l) sep = Math.min(sep, Math.hypot(q[0] - r[0], q[1] - r[1])); }); });
+      const f = big > sep / 3 ? sep / 3 / big : 1;
+      c = c.map((q, k) => [q[0] + f * x[k][0], q[1] + f * x[k][1]]);
+      sh = [sh[0] + f * x[mu][0], sh[1] + f * x[mu][1]];
+    }
+    return null;
+  }
+  // a complex linear system of n equations, rows [re, im of each coefficient …, re, im of the
+  // right side]: Gaussian elimination with pivoting; the solution as pairs, or null
+  function csolve(A, n) {
+    const get = (r, k) => [A[r][2 * k], A[r][2 * k + 1]];
+    for (let col = 0; col < n; col++) {
+      let p = col, best = 0;
+      for (let r = col; r < n; r++) { const v = get(r, col), m = Math.hypot(v[0], v[1]); if (m > best) { best = m; p = r; } }
+      if (!(best > 1e-300)) return null;
+      [A[col], A[p]] = [A[p], A[col]];
+      const [pr, pi] = get(col, col), q = pr * pr + pi * pi;
+      for (let r = 0; r < n; r++) {
+        if (r === col) continue;
+        const [ar, ai] = get(r, col), fr = (ar * pr + ai * pi) / q, fi = (ai * pr - ar * pi) / q;
+        if (!fr && !fi) continue;
+        for (let k = col; k <= n; k++) { const [br, bi] = get(col, k); A[r][2 * k] -= fr * br - fi * bi; A[r][2 * k + 1] -= fr * bi + fi * br; }
+      }
+    }
+    return Array.from({ length: n }, (_, k) => { const [pr, pi] = get(k, k), [br, bi] = get(k, n), q = pr * pr + pi * pi; return [(br * pr + bi * pi) / q, (bi * pr - br * pi) / q]; });
   }
 
   // The roots of p(x) = w (Aberth's method), from guess (the roots for a nearby w) if given.
@@ -458,22 +518,32 @@
     return arcs;
   }
   // The arcs pulled tight, like ropes round pegs at the roots: iters steps of smoothing (each point
-  // towards the middle of its neighbours) in which no point comes nearer than a margin to a root
-  // other than its arc's ends, the points spread evenly along each arc now and then. The margin is
-  // 12 unit, or less where roots are close; as no point jumps over a margin and segments stay
-  // shorter than it, no arc crosses a root, and each keeps its class.
+  // towards the middle of its neighbours) in which no point comes nearer than a margin to a root,
+  // the arc's own ends included but for the point next to each (a strand passing an end root must
+  // not slide over it), the points spread evenly along each arc now and then. The margin is 12
+  // unit, or less where roots are close; as no point jumps over a margin and segments stay shorter
+  // than it, no arc crosses a root, and each keeps its class.
   function tighten(arcs, ends, roots, unit, iters) {
     let sep = Infinity;
     roots.forEach((a, k) => roots.forEach((b, l) => { if (k < l) sep = Math.min(sep, Math.hypot(a[0] - b[0], a[1] - b[1])); }));
     const mg = Math.min(12 * unit, 0.35 * sep), sp = 0.8 * mg;
     arcs.forEach((A, a) => {
       const [e0, e1] = ends[a];
-      const push = (p) => roots.forEach((r, k) => {
-        if (k === e0 || k === e1) return;
+      // (free0, free1: the point is on the strand that ends at e0, at e1)
+      const push = (p, free0, free1) => roots.forEach((r, k) => {
+        if ((k === e0 && free0) || (k === e1 && free1)) return;
         const dx = p[0] - r[0], dy = p[1] - r[1], d = Math.hypot(dx, dy);
         if (d < mg) { const f = d > 0 ? mg / d : 1; p[0] = r[0] + (d > 0 ? dx * f : mg); p[1] = r[1] + dy * f; }
       });
-      A.slice(1, -1).forEach(push);
+      for (let i = 1; i < A.length - 1; i++) {
+        // (the dragged arc: points near their own end roots, but on the strands that end there,
+        // stay)
+        const p = A[i], d0 = Math.hypot(p[0] - roots[e0][0], p[1] - roots[e0][1]), d1 = Math.hypot(p[0] - roots[e1][0], p[1] - roots[e1][1]);
+        let along0 = 0, along1 = 0;
+        for (let k = 1; k <= i; k++) along0 += Math.hypot(A[k][0] - A[k - 1][0], A[k][1] - A[k - 1][1]);
+        for (let k = i + 1; k < A.length; k++) along1 += Math.hypot(A[k][0] - A[k - 1][0], A[k][1] - A[k - 1][1]);
+        push(p, along0 <= 1.05 * d0 + 0.5 * mg, along1 <= 1.05 * d1 + 0.5 * mg);
+      }
       let B = resample(A, sp);
       for (let it = 0; it < iters; it++) {
         if (it && it % 40 === 0) B = resample(B, sp);
@@ -483,7 +553,7 @@
           const l = Math.hypot(dx, dy);
           if (l > 0.4 * mg) { dx *= 0.4 * mg / l; dy *= 0.4 * mg / l; }
           p[0] += dx; p[1] += dy;
-          push(p);
+          push(p, i <= 1, i >= B.length - 2);
         }
       }
       A.length = 0;
@@ -551,5 +621,5 @@
   const matmul = (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((s, x, k) => s + x * B[k][j], 0) || 0));
   const transpose = (A) => A[0].map((_, j) => A.map((r) => r[j]));
 
-  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, teardrop, dragArcs, tighten, eye, inverse, matmul, transpose };
+  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, critFor, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, teardrop, dragArcs, tighten, eye, inverse, matmul, transpose };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

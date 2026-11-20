@@ -74,12 +74,11 @@ body {
 .pl-pair { align-items: center; }
 .pl-v3 { position: relative; }
 #v3-cv { display: block; width: 100%; aspect-ratio: 4 / 3; }
-.pl-tw { position: relative; }
-#tw-cv { display: block; width: 100%; aspect-ratio: 4 / 3; }
 .pl-dialbox { position: relative; width: 170px; margin: 0 auto; }
 .pl-dialbox canvas { display: block; width: 170px; height: 170px; }
 .pl-dialh { --handle-size: 36px; cursor: grab; }
 .pl-dialval { margin: 2px 0 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .pl-twval { margin-top: 6px; }
+.pl-zblock .legend { margin-top: 10px; }
 .pl-dynbox { display: flex; justify-content: center; }
 .pl-eigbox { display: flex; justify-content: center; }

@@ -1,6 +1,5 @@
 // The figures in the text: the level set near a critical point in 3D as z comes to z_i (the
-// cycle vanishing), the half-twist of the roots as z goes once round z_i, the Dynkin diagram of the
-// basis in the main picture, and the eigenvalues of its classical monodromy. They read the main
+// cycle vanishing), the Dynkin diagram of the basis in the main picture, and the eigenvalues of its classical monodromy. They read the main
 // picture's state from window.PLMain.
 (function () {
   'use strict';
@@ -294,114 +293,6 @@
 
 
   /* =====================================================================
-     The half-twist. Near c_i the roots of p(x) = z are c_i ± √((z − z_i)/a_i); as z goes round z_i
-     by an angle φ they turn by φ/2 round c_i, and the arcs that end at them are dragged along.
-     The model: p(x) = x² (c_i = 0, z_i = 0), the roots ±√ε of x² = ε with |ε| fixed, and two roots A
-     and B further out that hardly move; the picture of x is carried by the map that turns the disc
-     |x| ≤ r1 by φ/2, the ring r1 ≤ |x| ≤ r2 less and less, and leaves the rest, which takes the
-     roots where they go. The arc a from A, and the arc b from B, are the images of segments.
-     ===================================================================== */
-  const tw = { cv: $('tw-cv'), dial: $('tw-dial'), phi: 0, drag: null, last: null };
-  const TW = { e0: 0.36, r1: 0.78, r2: 1.65, A: [-1.8, 0.45], B: [1.8, -0.45], R: 2.05 };
-  function twist(p, phi) {
-    const r = Math.hypot(p[0], p[1]), f = r <= TW.r1 ? 1 : r >= TW.r2 ? 0 : (TW.r2 - r) / (TW.r2 - TW.r1);
-    const a = f * phi / 2, c = Math.cos(a), s = Math.sin(a);
-    return [p[0] * c - p[1] * s, p[0] * s + p[1] * c];
-  }
-  const segment = (a, b, m) => Array.from({ length: m + 1 }, (_, k) => [a[0] + (b[0] - a[0]) * k / m, a[1] + (b[1] - a[1]) * k / m]);
-  function drawTwist() {
-    if (!tw.cv) return;
-    const { ctx, w: W, h: H } = MM.fitCanvas(tw.cv), k = Math.min(W, H) / (2 * TW.R), X = (x) => W / 2 + x * k, Y = (y) => H / 2 - y * k;
-    const phi = tw.phi, s = Math.sqrt(TW.e0), rp = [s * Math.cos(phi / 2), s * Math.sin(phi / 2)], rm = [-rp[0], -rp[1]];
-    // the phase of x² − ε, with ε = e0 e^{iφ}: its zeros are the two roots
-    const sc = 0.5, w = Math.max(1, Math.round(W * sc)), h = Math.max(1, Math.round(H * sc)), ph = new Float32Array(w * h), lm = new Float32Array(w * h), kind = new Uint8Array(w * h).fill(1);
-    const er = TW.e0 * Math.cos(phi), ei = TW.e0 * Math.sin(phi);
-    for (let py = 0, q = 0; py < h; py++) for (let px = 0; px < w; px++, q++) {
-      const x = (px / sc - W / 2) / k, y = -(py / sc - H / 2) / k;
-      // (x − A)(x − B)(x² − ε), so that A and B are roots too
-      let ar = x * x - y * y - er, ai = 2 * x * y - ei;
-      for (const Q of [TW.A, TW.B]) { const ur = x - Q[0], ui = y - Q[1], t = ar * ur - ai * ui; ai = ar * ui + ai * ur; ar = t; }
-      ph[q] = Math.atan2(ai, ar); lm[q] = 0.5 * Math.log(ar * ar + ai * ai + 1e-300);
-    }
-    const off = document.createElement('canvas'); off.width = w; off.height = h;
-    off.getContext('2d').putImageData(MM.phase.paint(new ImageData(w, h), { w, h, dpr: sc, ph, lm, kind, step: Math.PI / 6, lines: false }), 0, 0);
-    ctx.globalAlpha = 0.55; ctx.drawImage(off, 0, 0, W, H); ctx.globalAlpha = 1;
-    const line = (pts, col, width, dash) => {
-      ctx.strokeStyle = col; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])))); ctx.stroke(); ctx.setLineDash([]);
-    };
-    // before: the arcs as they were, dashed
-    const a0 = segment(TW.A, [-s, 0], 160), b0 = segment(TW.B, [s, 0], 160);
-    if (Math.abs(phi) > 1e-3) { line(a0, MM.color('ink-3'), 1.4, [5, 4]); line(b0, MM.color('ink-3'), 1.4, [5, 4]); line([[-s, 0], [s, 0]], MM.color('ink-3'), 1.4, [5, 4]); }
-    // now: Δ_i between the two roots, a and b carried along
-    line(a0.map((p) => twist(p, phi)), MM.color('cy-2-line'), 2.6);
-    line(b0.map((p) => twist(p, phi)), MM.color('cy-3-line'), 2.6);
-    line([rm, rp], MM.color('cy-1-line'), 2.6);
-    ctx.fillStyle = MM.color('ink');
-    [rp, rm, TW.A, TW.B].forEach((p) => { ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 4, 0, TAU); ctx.fill(); });
-    const lab = (t, p, col, dx, dy) => MM.canvasLabel(ctx, t, X(p[0]) + dx, Y(p[1]) + dy, { size: 15, align: 'center', baseline: 'middle', color: col });
-    lab('$a$', twist(a0[40], phi), MM.color('cy-2-text'), 0, -13);
-    lab('$b$', twist(b0[40], phi), MM.color('cy-3-text'), 0, -13);
-    lab('$\\Delta_i$', [0, 0], MM.color('cy-1-text'), 0, 16);
-    const turns = phi / TAU, n = nNow(), kk = Math.round(turns);
-    let txt;
-    if (Math.abs(turns - kk) > 0.02) txt = '$\\arg(z-z_i)$ has turned by $' + Math.round(phi * 180 / Math.PI) + '^\\circ$.';
-    else if (kk === 0) txt = '$z$ has not gone round $z_i$.';
-    else if (n % 2) txt = kk % 2 ? '$a\\mapsto a-\\Delta_i$, $b\\mapsto b+\\Delta_i$, $\\Delta_i\\mapsto-\\Delta_i$: the reflection $h_i$' + (Math.abs(kk) > 1 ? ', ' + Math.abs(kk) + ' times' : '') + '.' : '$a$, $b$ and $\\Delta_i$ are back as they were, as $h_i^2=1$, though the arcs are not.';
-    else txt = '$a\\mapsto a' + (kk > 0 ? '-' : '+') + (Math.abs(kk) === 1 ? '' : Math.abs(kk)) + '\\Delta_i$, $b\\mapsto b' + (kk > 0 ? '+' : '-') + (Math.abs(kk) === 1 ? '' : Math.abs(kk)) + '\\Delta_i$, $\\Delta_i\\mapsto\\Delta_i$: $h_i^{' + kk + '}$, a power of a Dehn twist.';
-    MM.setHTML($('tw-val'), txt);
-  }
-  function drawTwDial() {
-    const cv = tw.dial;
-    if (!cv) return;
-    const { ctx, w: W, h: H } = MM.fitCanvas(cv), R = Math.min(W, H) / 2 - 16, cx = W / 2, cy = H / 2;
-    ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
-    // the angle travelled, as an arc
-    ctx.strokeStyle = MM.color('ink-2'); ctx.lineWidth = 2.5;
-    if (Math.abs(tw.phi) > 1e-3) {
-      ctx.beginPath();
-      const turns = Math.min(3, Math.abs(tw.phi) / TAU);
-      for (let q = 0; q <= 200; q++) { const t = q / 200 * tw.phi, rr = R - 7 * (Math.abs(t) / TAU) * (turns > 1 ? 1 : 0); const x = cx + rr * Math.cos(t), y = cy - rr * Math.sin(t); if (q) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
-      ctx.stroke();
-    }
-    ctx.fillStyle = MM.color('cy-1');
-    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, TAU); ctx.fill();
-    MM.canvasLabel(ctx, '$z_i$', cx + 8, cy - 8, { size: 14, align: 'left', baseline: 'bottom', color: MM.color('cy-1-text') });
-    const zx = cx + R * Math.cos(tw.phi), zy = cy - R * Math.sin(tw.phi);
-    const hEl = $('tw-z');
-    if (hEl) hEl.style.transform = 'translate(' + zx.toFixed(1) + 'px,' + zy.toFixed(1) + 'px)';
-    MM.canvasLabel(ctx, '$z$', zx + 12, zy - 12, { size: 14, align: 'left', baseline: 'bottom', color: MM.color('ink') });
-  }
-  function twFromDial(e) {
-    const cv = tw.dial, [px, py] = localXY(e, cv), a = Math.atan2(-(py - cv.clientHeight / 2), px - cv.clientWidth / 2);
-    // unwrapped, so that z can go round more than once; held at whole turns
-    let phi = a + TAU * Math.round((tw.phi - a) / TAU);
-    phi = clamp(phi, -2 * TAU, 2 * TAU);
-    const kk = Math.round(phi / TAU);
-    if (Math.abs(phi - kk * TAU) < 0.12) phi = kk * TAU;
-    tw.phi = phi;
-    drawTwDial(); drawTwist();
-  }
-  if (tw.dial) {
-    MM.handle($('tw-z'));
-    const down = (e) => { if (e.button || (e.pointerType === 'touch' && !$('tw-z').contains(e.target))) return; e.preventDefault(); capture(e.currentTarget, e); tw.drag = true; twFromDial(e); };
-    [tw.dial, $('tw-z')].forEach((elm) => {
-      elm.addEventListener('pointerdown', down);
-      elm.addEventListener('pointermove', (e) => { if (tw.drag) twFromDial(e); });
-      elm.addEventListener('pointerup', () => { tw.drag = false; });
-      elm.addEventListener('pointercancel', () => { tw.drag = false; });
-    });
-    $('tw-z').addEventListener('keydown', (e) => {
-      const d = { ArrowLeft: 1, ArrowUp: 1, ArrowRight: -1, ArrowDown: -1 }[e.key];
-      if (!d) return;
-      e.preventDefault();
-      tw.phi = clamp(tw.phi + d * (e.shiftKey ? 1 : 15) * Math.PI / 180, -2 * TAU, 2 * TAU);
-      drawTwDial(); drawTwist();
-    });
-  }
-
-  /* =====================================================================
      The Dynkin diagram of the basis in the main picture: a node for each Δ_i, where its critical
      value is, and an edge for each ⟨Δ_i, Δ_j⟩ ≠ 0: for odd n solid where it is positive and dashed
      where negative (the convention of [AGZV] for n = 3), for n = 2 an arrow from i to j where
@@ -510,7 +401,7 @@
   /* ---------- the whole ---------- */
   function update() {
     ['dyn', 'eig'].forEach((id) => { if ($(id)) delete $(id).dataset.key; });
-    draw3(); drawDial(); drawTwist(); drawTwDial(); drawDynkin(); drawEigen();
+    draw3(); drawDial(); drawDynkin(); drawEigen();
   }
   window.PLFigures = {
     // (after each drawing of the main picture: the figures that show its basis)
@@ -518,13 +409,12 @@
     redraw: update,
     pictures: () => [
       { label: 'Near a critical point', element: $('v3-box'), selected: false },
-      { label: 'The half-twist', element: $('tw-box'), selected: false },
       { label: 'Dynkin diagram', element: $('dyn'), selected: false },
       { label: 'Eigenvalues', element: $('eig'), selected: false },
     ].filter((p) => p.element),
   };
-  window.addEventListener('pl:n', () => { redraw3(); drawTwist(); drawDynkin(); drawEigen(); });
+  window.addEventListener('pl:n', () => { redraw3(); drawDynkin(); drawEigen(); });
   const ro = new ResizeObserver(() => update());
-  [v3.cv, v3.dial, tw.cv, tw.dial, $('dyn') && $('dyn').parentNode].forEach((e) => { if (e) ro.observe(e); });
+  [v3.cv, v3.dial, $('dyn') && $('dyn').parentNode].forEach((e) => { if (e) ro.observe(e); });
   MM.onFonts(update);
 })();

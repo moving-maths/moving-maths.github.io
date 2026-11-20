@@ -21,9 +21,10 @@
     4: [[-0.968, 0.263], [-0.444, -0.263], [0.444, -0.263], [0.968, 0.263]],
     5: [[-0.826, 0.596], [-0.709, 0.029], [-0.107, -0.399], [0.628, -0.33], [1.013, 0.103]],
   };
+  // shift: the mean of the critical values (it changes when one of them is dragged)
   // view: the plane of x shaded ('plane'), coloured by phase ('phase'), or in 3D ('3d', n ≥ 2);
   // carried: the picture shows the cycles carried along with z, h(Δ_i), rather than the basis at z
-  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), z: null, view: 'plane', arcs: false, carried: false };
+  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), shift: [0, 0], z: null, view: 'plane', arcs: false, carried: true };
   let shapeT = 1;   // the cycles drawn as their arcs (0) or as what they are (1), and in between
   let frame = null;   // the windows of the two planes
   let model = null;   // what follows from the critical points and z
@@ -35,14 +36,15 @@
   /* ---------- the windows ----------
    * The plane of values round the critical values and z; the plane of x round the roots of
    * p(x) = z for every z in it, and the critical points. They are fitted when the page opens, when
-   * μ changes and when a critical point is let go, and stay put meanwhile. */
+   * μ changes and when a critical point or value is let go, and stay put meanwhile. */
+  const poly = () => PL.poly(state.crit, state.shift);
   function fit() {
-    const P = PL.poly(state.crit);
+    const P = poly(), m = state.shift;
     let Rc = 1e-3;
-    P.vals.forEach((v) => { Rc = Math.max(Rc, Math.hypot(v[0], v[1])); });
+    P.vals.forEach((v) => { Rc = Math.max(Rc, Math.hypot(v[0] - m[0], v[1] - m[1])); });
     let R = 1.6 * Rc;
-    if (state.z) R = Math.max(R, 1.2 * Math.hypot(state.z[0], state.z[1] + 0.15 * Rc));
-    const zv = { cx: 0, cy: -0.15 * Rc, R };
+    if (state.z) R = Math.max(R, 1.2 * Math.hypot(state.z[0] - m[0], state.z[1] - m[1] + 0.15 * Rc));
+    const zv = { cx: m[0], cy: m[1] - 0.15 * Rc, R };
     let Rx = 0, guess = null;
     for (let k = 0; k < 96; k++) {
       const t = k / 96 * TAU, w = [zv.cx + 1.2 * R * Math.cos(t), zv.cy + 1.2 * R * Math.sin(t)];
@@ -97,7 +99,7 @@
   // Everything from the critical points, with the cycles taken afresh at z (z0 = z). keep: the model
   // before the critical points moved, to follow its roots and orientations.
   function build(keep) {
-    const P = PL.poly(state.crit);
+    const P = poly();
     // (a z sitting on a critical value moves off it, to where it arrived)
     if (keep && keep.atVal !== null) state.z = keep.zi.slice();
     const wi = state.z;
@@ -241,7 +243,7 @@
   let sharpTimer = 0;
   function phaseImage(V, coarse) {
     const s = coarse ? 0.5 : Math.min(2, MM.pixelRatio()), w = Math.max(1, Math.round(V.W * s)), h = Math.max(1, Math.round(V.H * s));
-    const z = state.z, key = [w, h, z[0], z[1], state.crit.flat().join(','), frame.xv.R].join('|');
+    const z = state.z, key = [w, h, z[0], z[1], state.crit.flat().join(','), state.shift.join(','), frame.xv.R].join('|');
     if (phase.key === key) return phase.cv;
     const P = model.P, m = P.m, cr = P.r, ci = P.i, ph = new Float32Array(w * h), lm = new Float32Array(w * h), kind = new Uint8Array(w * h).fill(1);
     for (let py = 0, q = 0; py < h; py++) {
@@ -272,7 +274,7 @@
   const rgbOf = (name) => MM.color(name).match(/[\d.]+/g).slice(0, 3).map(Number);
   function landImage(V) {
     const dpr = Math.min(2, MM.pixelRatio()), z = state.z, P = model.P;
-    const key = [V.W, V.H, dpr, z[0], z[1], state.crit.flat().join(','), frame.xv.R].join('|');
+    const key = [V.W, V.H, dpr, z[0], z[1], state.crit.flat().join(','), state.shift.join(','), frame.xv.R].join('|');
     if (land.key === key) return land.cv;
     const sig = 0.4 * frame.Rc, m = P.m, cr = P.r, ci = P.i;
     const g = (x, y) => {
@@ -337,7 +339,7 @@
   // vanished), with the size of the fibre's sphere, √|z − p(x)|, at each point.
   let arcsKept = { key: '', arcs: null };
   function cycleArcs(V) {
-    const key = JSON.stringify([state.z, state.crit, model.atVal, model.onRay, model.B[1], model.rts, V.W, V.H, frame.xv.R]);
+    const key = JSON.stringify([state.z, state.crit, state.shift, model.atVal, model.onRay, model.B[1], model.rts, V.W, V.H, frame.xv.R]);
     if (arcsKept.key === key) return arcsKept.arcs;
     arcsKept = { key, arcs: arcsNow(V) };
     return arcsKept.arcs;
@@ -398,12 +400,27 @@
     return { xs, scr, fib };
   };
 
+  // The cycles the picture shows: the basis at z, or the cycles carried along with z, where each
+  // that is ±Δ_j (as all are when h is the identity) is drawn as Δ_j itself.
+  function shownArcs(V) {
+    const basis = cycleArcs(V);
+    if (!state.carried) return basis;
+    const H = PL.inverse(model.B[state.n]), car = carriedArcs(V);
+    return car.map((a, j) => {
+      const col = H.map((r) => r[j]), s = col[j];
+      if (Math.abs(s) !== 1 || col.some((x, k) => k !== j && x)) return a;
+      const b = basis[j];
+      if (!b || s > 0) return b;
+      return Object.assign({}, b, { xs: b.xs.slice().reverse(), scr: b.scr.slice().reverse(), fib: b.fib.slice().reverse(), minus: b.plus, plus: b.minus });
+    });
+  }
   // The arcs of the cycles carried along with z, as cycleArcs gives them. With z on a critical
   // value z_k they are carried on from where z arrived to a hair's breadth from z_k (as there the
   // roots meet); an arc that has shrunk to a point there is the cycle that has vanished.
   let carriedKept = { key: '', arcs: null };
   function carriedArcs(V) {
-    const key = JSON.stringify([ver, state.z, state.crit, model.atVal, V.W, V.H, frame.xv.R]);
+    // (the strands counted only once z rests)
+    const rest = !drag && !anim && !settleReq, key = JSON.stringify([ver, state.z, state.crit, state.shift, model.atVal, V.W, V.H, frame.xv.R, rest]);
     if (carriedKept.key === key) return carriedKept.arcs;
     const P = model.P, c = carry(), unit = 1 / V.k;
     let lines = c.arcs;
@@ -420,10 +437,44 @@
     const arcs = lines.map((xs, j) => {
       const a = Object.assign(onScreen(V, xs), { minus: c.ends[j][0], plus: c.ends[j][1], cut: null });
       if (model.atVal !== null && arcLength(a.scr) < 4) a.vanish = P.crit[model.atVal];
+      else if (rest) a.mult = multiplicity(a.scr, model.rts.map((q) => [V.X(q[0]), V.Y(q[1])]));
       return a;
     });
     carriedKept = { key, arcs };
     return arcs;
+  }
+  // Where an arc, pulled tight, runs over itself (as when it wraps round a root more than once): the
+  // most strands of it that pass through one point, side by side, and that point, the one furthest
+  // from the roots of those where it is most (its index i, and the normal there). Strands count
+  // where they come within 3 px of the point running the same way.
+  function multiplicity(scr, roots) {
+    const n = scr.length;
+    if (n < 4) return null;
+    const tan = (k) => { const a = scr[Math.max(0, k - 1)], b = scr[Math.min(n - 1, k + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l]; };
+    let best = { m: 1 };
+    for (let i = 1; i < n - 1; i++) {
+      const p = scr[i], t = tan(i);
+      let m = 1, run = false;
+      for (let k = 0; k < n - 1; k++) {
+        if (Math.abs(k - i) <= 1 || Math.abs(k + 1 - i) <= 1) { run = true; continue; }
+        const a = scr[k], b = scr[k + 1], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+        const u = clamp(((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2, 0, 1), d = Math.hypot(a[0] + u * dx - p[0], a[1] + u * dy - p[1]);
+        const near = d < 3 && Math.abs((dx * t[0] + dy * t[1]) / Math.sqrt(L2)) > 0.9;
+        if (near && !run) m++;
+        run = near;
+      }
+      if (m < best.m) continue;
+      let far = Infinity;
+      roots.forEach((r) => { far = Math.min(far, Math.hypot(r[0] - p[0], r[1] - p[1])); });
+      if (m > best.m || far > best.far) best = { m, i, far, nx: -t[1], ny: t[0] };
+    }
+    return best.m > 1 ? best : null;
+  }
+  // the number of strands, beside them in the cycle's colour
+  function multLabel(ctx, j, x, y, m) {
+    ctx.fillStyle = MM.rgba('surface', 0.9);
+    ctx.beginPath(); ctx.arc(x, y, 8.5, 0, TAU); ctx.fill();
+    MM.canvasLabel(ctx, '$' + m + '$', x, y, { size: 14, align: 'center', baseline: 'middle', color: cyc(j, 'text') });
   }
   const reverse = (s) => { const o = []; for (let k = s.length - 2; k >= 0; k -= 2) o.push(s[k], s[k + 1]); return o; };
   // the roots at the ends of Δ_j in the basis, from its class for n = 1
@@ -561,8 +612,17 @@
         ctx.strokeStyle = MM.rgba('cy-' + (j + 1), 0.4); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
         smooth(ctx, a.scr); ctx.stroke();
       });
-      drawCycles(ctx, V, carriedArcs(V), shapeT);
-    } else drawCycles(ctx, V, cycleArcs(V), shapeT);
+    }
+    const shown = shownArcs(V);
+    drawCycles(ctx, V, shown, shapeT);
+    // (beside the strands, beyond the sphere round them)
+    let big = 1e-12;
+    shown.forEach((a) => { if (a && !a.vanish) a.fib.forEach((f) => { big = Math.max(big, f); }); });
+    shown.forEach((a, j) => {
+      if (!a || !a.mult) return;
+      const q = a.scr[a.mult.i], off = 12 + (state.n > 1 ? 13 * shapeT * a.fib[a.mult.i] / big : 0);
+      multLabel(ctx, j, q[0] + a.mult.nx * off, q[1] + a.mult.ny * off, a.mult.m);
+    });
     // the roots of p(x) = z
     ctx.fillStyle = MM.color('ink');
     rootsNow().forEach((q) => { ctx.beginPath(); ctx.arc(V.X(q[0]), V.Y(q[1]), 3.8, 0, TAU); ctx.fill(); });
@@ -606,11 +666,13 @@
     if (xcv.width !== Math.round(W * dpr) || xcv.height !== Math.round(H * dpr)) { xcv.width = Math.round(W * dpr); xcv.height = Math.round(H * dpr); }
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, xcv.width, xcv.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cam = cam3(), P = model.P, z = state.z, S = window.PLSurface, R = frame.xv.R;
-    const NR = coarse ? 14 : 24, NA = coarse ? 44 : 72, rts = rootsNow();
-    const key = [z[0], z[1], state.crit.flat().join(','), R, NR].join('|');
+    // (coarse while z or a critical point moves, with the grid lines in the same places: rings at
+    // every sixth of the radius, spokes every 30°)
+    const rough = coarse && (drag || anim), NR = rough ? 12 : 24, NA = rough ? 36 : 72, rts = rootsNow();
+    const key = [z[0], z[1], state.crit.flat().join(','), state.shift.join(','), R, NR].join('|');
     if (v3d.key !== key) {
       v3d.field = S.field(P, z, rts, SHEET * R, RISE * R);
-      v3d.mesh = S.mesh(P, z, { cx: frame.xv.cx, cy: frame.xv.cy, R, NR, NA, RG: 4, AG: 6, rts, F: v3d.field });
+      v3d.mesh = S.mesh(P, z, { cx: frame.xv.cx, cy: frame.xv.cy, R, NR, NA, RG: NR / 6, AG: NA / 12, rts, F: v3d.field });
       v3d.key = key;
     }
     // the axes of the plane of x, beyond the disc
@@ -634,9 +696,9 @@
     // the cycles: for n = 3 the discs their circles bound, tinted; the hidden halves dashed, the
     // seen halves solid
     const V = view(frame.xv, xcv), n = state.n, vanished = [], loops = [];
-    (state.carried ? carriedArcs(V) : cycleArcs(V)).forEach((a, j) => {
+    shownArcs(V).forEach((a, j) => {
       if (!a || a.vanish) { vanished.push(a ? a.vanish : P.crit[j]); return; }
-      if (a.xs.length >= 2) loops.push(Object.assign(circle3(v3d.field, cam, a.xs, shapeT), { j }));
+      if (a.xs.length >= 2) loops.push(Object.assign(circle3(v3d.field, cam, a.xs, shapeT), { j, mult: a.mult }));
     });
     const path = (pts, back) => { (back ? pts.slice().reverse() : pts).forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); };
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -645,6 +707,11 @@
       if (shapeT > 0.01) { ctx.strokeStyle = cyc(L.j, 'line'); ctx.lineWidth = 1.4; ctx.setLineDash([4, 3.5]); ctx.beginPath(); path(L.bot); ctx.stroke(); ctx.setLineDash([]); }
     });
     loops.forEach((L) => { ctx.strokeStyle = cyc(L.j, 'line'); ctx.lineWidth = 2.6; ctx.beginPath(); path(L.top); ctx.stroke(); });
+    loops.forEach((L) => {
+      if (!L.mult) return;
+      const i = L.mult.i, a = L.top[Math.max(0, i - 1)], b = L.top[Math.min(L.top.length - 1, i + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      multLabel(ctx, L.j, L.top[i][0] - (b[1] - a[1]) / l * 12, L.top[i][1] + (b[0] - a[0]) / l * 12, L.mult.m);
+    });
     // the roots, where the sheets meet, and a cycle that has vanished: the singular point
     ctx.fillStyle = MM.color('ink');
     rts.forEach((q) => { const p = cam.proj(q[0], q[1], 0); ctx.beginPath(); ctx.arc(p[0], p[1], 3.6, 0, TAU); ctx.fill(); });
@@ -724,15 +791,35 @@
         if (trail.done) requestAnimationFrame(() => { if (trail && !anim) drawZ(); });
       }
     }
-    vals.forEach((v, j) => {
-      ctx.fillStyle = cyc(j);
-      ctx.beginPath(); ctx.arc(V.X(v[0]), V.Y(v[1]), 5, 0, TAU); ctx.fill();
-      MM.canvasLabel(ctx, '$z_{' + (j + 1) + '}$', V.X(v[0]), V.Y(v[1]) - 11, { size: 14, align: 'center', baseline: 'bottom', color: cyc(j, 'text') });
-    });
+    vals.forEach((v, j) => MM.canvasLabel(ctx, '$z_{' + (j + 1) + '}$', V.X(v[0]), V.Y(v[1]) - 11, { size: 14, align: 'center', baseline: 'bottom', color: cyc(j, 'text') }));
+    placeVals(V);
     const zx = V.X(z[0]), zy = V.Y(z[1]);
     zh.style.transform = 'translate(' + zx.toFixed(1) + 'px,' + zy.toFixed(1) + 'px)';
     MM.canvasLabel(ctx, '$z$', zx + 13, zy + 13, { size: 15, align: 'left', baseline: 'top', color: MM.color('ink') });
     zh.setAttribute('aria-valuetext', 'z = ' + fmtC(z) + (model.atVal !== null ? ', at z' + (model.atVal + 1) : ''));
+  }
+
+  // the critical values: handle points over the plane of values, ringed in their cycles' colours
+  const zsvg = $('zsvg');
+  let valEls = [];
+  function buildVals() {
+    zsvg.textContent = '';
+    valEls = state.crit.map((c, i) => {
+      const g = el('g', { class: 'pl-pt draggable', tabindex: 0, role: 'button', 'data-i': i }, zsvg);
+      el('circle', { class: 'pl-pad', r: 16 }, g);
+      el('circle', { class: 'focus-ring', r: 11 }, g);
+      el('circle', { class: 'handle-point', r: 6.5 }, g);
+      return g;
+    });
+  }
+  function placeVals(V) {
+    if (valEls.length !== state.crit.length) buildVals();
+    valEls.forEach((g, i) => {
+      const v = model.P.vals[i];
+      g.setAttribute('transform', 'translate(' + V.X(v[0]).toFixed(1) + ',' + V.Y(v[1]).toFixed(1) + ')');
+      g.querySelector('.handle-point').style.stroke = cycVar(i, 'text');
+      g.setAttribute('aria-label', 'Critical value z' + (i + 1) + ' at ' + fmtC(v) + '. The arrow keys move it.');
+    });
   }
 
   /* ---------- readouts ---------- */
@@ -750,7 +837,7 @@
   const fTex = () => 'f=p(x)' + ['', '+y_2^2', '+y_2^2+y_3^2'][state.n - 1];
   const SUB = [
     'For $n=1$, $V_z$ is the roots of $p(x)=z$, and a vanishing cycle is the difference of two of them.',
-    'For $n=2$, $V_z$ is a curve, a double cover of the plane of $x$ branched at the roots of $p(x)=z$, with the two points $\\pm y$, $y^2=z-p(x)$, over each other point; a vanishing cycle is the circle over an arc.',
+    'For $n=2$, $V_z$ is a curve, a double cover of the plane of $x$ branched at the roots of $p(x)=z$, with the two points $y=\\pm\\sqrt{z-p(x)}$ over each other point; a vanishing cycle is the circle over an arc.',
     'For $n=3$, $V_z$ is a surface fibred over the plane of $x$ by the conics $y_2^2+y_3^2=z-p(x)$, which degenerate at the roots of $p(x)=z$; a vanishing cycle is the sphere made of their circles over an arc.',
   ];
   const SUB3 = [
@@ -759,9 +846,10 @@
   ];
   function drawReadouts() {
     const n = state.n, mu = state.mu, S0 = model.ref.S[n], B = model.B[n];
-    MM.setHTML($('title'), '$' + fTex() + '$ <span class="side-kind">near $\\mathrm{A}_{' + mu + '}$</span>');
-    MM.setHTML($('sub'), '$p\'(x)=' + (mu + 1) + state.crit.map((_, i) => '(x-c_{' + (i + 1) + '})').join('') + '$. ' + SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
+    MM.setHTML($('title'), '$' + fTex() + '$');
+    MM.setHTML($('sub'), SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
     MM.setHTML($('legend'), legendHTML());
+    if (!$('zlegend').dataset.done) { MM.setHTML($('zlegend'), zLegendHTML()); $('zlegend').dataset.done = '1'; }
     // where z is: on a critical value, on a Stokes ray, or just across one
     let note = '';
     if (model.atVal !== null) note = '$z=z_{' + (model.atVal + 1) + '}$: ' + D(model.atVal) + ' has shrunk to the point $c_{' + (model.atVal + 1) + '}$, where $V_z$ is singular.';
@@ -800,12 +888,16 @@
     ][state.n - 1];
     const what = state.carried ? 'the cycles $h(\\Delta_i)$ carried along with $z$' : 'vanishing cycles $\\Delta_i$';
     return item(cyclesMark, state.arcs ? 'the arcs of ' + what.replace(/^the /, '') : what)
-      + (state.carried && !is3d() ? item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--cy-1);--line-width:1.4;opacity:.4"><path d="M1 5H21"/></svg>', 'the arcs of the basis $\\Delta_i$ at $z$') : '')
+      + (state.carried && !is3d() ? item(three('<path d="M1 9H25" style="stroke:var(--cy-1);stroke-width:1.4;opacity:.4"/><circle class="handle-point" cx="13" cy="9" r="4.6" style="stroke:var(--cy-1-text);stroke-width:1.6"/>'), 'the basis $\\Delta_i$ at $z$, through the $c_i$') : '')
       + (is3d() ? item('<span class="pl-sheets"></span>', state.n === 2 ? 'the curve $V_z$' : 'the circles of $V_z$ over the plane of $x$, edge on')
         : state.view === 'phase' ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $V_z$' : 'the roots of $p(x)=z$')
-      + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $c_i$')
-      + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="5" style="fill:var(--cy-1)"/></svg>', 'critical values $z_i=p(c_i)$')
+      + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $c_i$');
+  }
+  // the key to the plane of values, under it
+  function zLegendHTML() {
+    const item = (mark, text) => '<span class="legend-item">' + mark + text + '</span>';
+    return item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="6.5" style="stroke:var(--cy-1-text);stroke-width:2.2"/></svg>', 'critical values $z_i=p(c_i)$')
       + item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--cy-1-line);--line-width:2.2"><path d="M1 5H21"/></svg>', 'paths from $z$')
       + item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--red);--line-width:1.4"><path d="M1 5H21"/></svg>', 'Stokes rays');
   }
@@ -838,14 +930,16 @@
     if (!model.carry || !model.loose || !state.carried) return;
     const unit = 1 / view(frame.xv, xcv).k, rts = model.rts, C = model.carry;
     model.loose = false;
-    if (MM.reduceMotion()) { PL.tighten(C.arcs, C.ends, rts, unit, 1200); ver++; now = snap(); drawX(false); return; }
+    if (MM.reduceMotion()) { PL.tighten(C.arcs, C.ends, rts, unit, 3600); ver++; now = snap(); drawX(false); return; }
     let left = 24;
     const tick = () => {
-      PL.tighten(C.arcs, C.ends, rts, unit, 50);
+      PL.tighten(C.arcs, C.ends, rts, unit, 150);
       ver++;
+      // (the last frame drawn at rest, with the strands counted)
+      if (--left <= 0) settleReq = 0;
       drawX(false);
-      if (--left > 0) settleReq = requestAnimationFrame(tick);
-      else { settleReq = 0; now = snap(); }
+      if (left > 0) settleReq = requestAnimationFrame(tick);
+      else now = snap();
     };
     settleReq = requestAnimationFrame(tick);
   }
@@ -878,10 +972,10 @@
     if (!drag) return;
     const was = drag;
     drag = null;
-    if (was.kind === 'crit') {
+    if (was.kind === 'crit' || was.kind === 'val') {
       // the windows refitted round the new critical values, if they have left them
-      const P = PL.poly(state.crit), v = frame.zv;
-      if (P.vals.some((q) => Math.abs(q[0] - v.cx) > 0.92 * v.R || Math.abs(q[1] - v.cy) > 0.92 * v.R)) { fit(); phase.key = ''; }
+      const P = poly(), v = frame.zv, xv = frame.xv;
+      if (P.vals.some((q) => Math.abs(q[0] - v.cx) > 0.92 * v.R || Math.abs(q[1] - v.cy) > 0.92 * v.R) || P.crit.some((c) => Math.hypot(c[0] - xv.cx, c[1] - xv.cy) > 0.95 * xv.R)) { fit(); phase.key = ''; }
       build(model);
     }
     keep();
@@ -971,10 +1065,10 @@
   };
   const turner = MM.turnDrag(xcv, {
     when: () => is3d(),
-    move(dx, dy) { v3d.yaw -= dx * 0.008; v3d.pitch = clamp(v3d.pitch + dy * 0.006, 0.3, 1.45); turnLater(); },
+    move(dx, dy) { v3d.yaw += dx * 0.008; v3d.pitch = clamp(v3d.pitch + dy * 0.006, 0.3, 1.45); turnLater(); },
     end() { if (example) example.changed(); },
     keys: {
-      turn(a, b) { v3d.yaw -= a; v3d.pitch = clamp(v3d.pitch - b, 0.3, 1.45); turnLater(); if (example) example.changed(); },
+      turn(a, b) { v3d.yaw += a; v3d.pitch = clamp(v3d.pitch - b, 0.3, 1.45); turnLater(); if (example) example.changed(); },
       home() { v3d.yaw = YAW0; v3d.pitch = PITCH0; turnLater(); if (example) example.changed(); },
     },
   });
@@ -987,6 +1081,61 @@
     stopTravel();
     const i = +g.dataset.i, st = (e.shiftKey ? 1 : 4) / view(frame.xv, xcv).k;
     setCrit(i, [state.crit[i][0] + k[0] * st, state.crit[i][1] + k[1] * st]);
+    keep();
+    draw();
+  });
+
+  // A critical value moves (only not onto another, nor onto z): the critical points follow, with
+  // their mean kept (lefschetz.js, critFor), in steps short next to the distances between the
+  // values; the cycles are taken afresh at z.
+  function setVal(i, t) {
+    const u = zUnit(), vals = () => poly().vals;
+    for (const [j, v] of vals().entries()) {
+      if (j === i) continue;
+      const d = dist(t, v), m = 10 * u;
+      if (d < m) { const e = d > 0 ? [(t[0] - v[0]) / d, (t[1] - v[1]) / d] : [1, 0]; t = [v[0] + e[0] * m, v[1] + e[1] * m]; }
+    }
+    { const d = dist(t, state.z), m = (SNAP_VAL + 6) * u; if (d < m) { const e = d > 0 ? [(t[0] - state.z[0]) / d, (t[1] - state.z[1]) / d] : [1, 0]; t = [state.z[0] + e[0] * m, state.z[1] + e[1] * m]; } }
+    const v0 = vals()[i];
+    let sep = Infinity;
+    vals().forEach((v, j) => { if (j !== i) sep = Math.min(sep, dist(v, v0)); });
+    const k = Math.min(40, Math.max(1, Math.ceil(dist(t, v0) / (0.15 * sep))));
+    for (let q = 1; q <= k; q++) {
+      const goal = vals();
+      goal[i] = [v0[0] + (t[0] - v0[0]) * q / k, v0[1] + (t[1] - v0[1]) * q / k];
+      const r = PL.critFor(state.crit, state.shift, goal);
+      if (!r) break;
+      state.crit = r.crit; state.shift = r.shift;
+    }
+    build(model);
+  }
+  zsvg.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('.pl-pt');
+    if (!g || e.button) return;
+    e.preventDefault();
+    stopTravel();
+    capture(g, e);
+    g.focus({ preventScroll: true });
+    const i = +g.dataset.i, V = view(frame.zv, zcv), [px, py] = localXY(e, zcv), v = model.P.vals[i];
+    trail = null;
+    drag = { kind: 'val', i, off: [V.x(px) - v[0], V.y(py) - v[1]] };
+  });
+  zsvg.addEventListener('pointermove', (e) => {
+    if (!drag || drag.kind !== 'val') return;
+    const V = view(frame.zv, zcv), [px, py] = localXY(e, zcv);
+    setVal(drag.i, [V.x(px) - drag.off[0], V.y(py) - drag.off[1]]);
+    coarse = true;
+    later();
+  });
+  zsvg.addEventListener('pointerup', endDrag);
+  zsvg.addEventListener('pointercancel', endDrag);
+  zsvg.addEventListener('keydown', (e) => {
+    const g = e.target.closest('.pl-pt'), k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+    if (!g || !k) return;
+    e.preventDefault();
+    stopTravel();
+    const i = +g.dataset.i, st = (e.shiftKey ? 1 : 4) * zUnit(), v = model.P.vals[i];
+    setVal(i, [v[0] + k[0] * st, v[1] + k[1] * st]);
     keep();
     draw();
   });
@@ -1063,10 +1212,10 @@
   let back = [], forth = [], now = null;
   const copyB = (B) => ({ 1: B[1].map((r) => r.slice()), 2: B[2].map((r) => r.slice()), 3: B[3].map((r) => r.slice()) });
   const copyCarry = (c) => (c ? { arcs: c.arcs.map((A) => A.map((q) => q.slice())), ends: c.ends.map((e) => e.slice()) } : null);
-  const snap = () => ({ crit: state.crit.map((c) => c.slice()), z: state.z.slice(), z0: model.z0.slice(), zi: model.zi.slice(), rts: model.rts.map((q) => q.slice()), ref: model.ref, B: copyB(model.B), atVal: model.atVal, onRay: model.onRay, carry: copyCarry(model.carry) });
+  const snap = () => ({ crit: state.crit.map((c) => c.slice()), shift: state.shift.slice(), z: state.z.slice(), z0: model.z0.slice(), zi: model.zi.slice(), rts: model.rts.map((q) => q.slice()), ref: model.ref, B: copyB(model.B), atVal: model.atVal, onRay: model.onRay, carry: copyCarry(model.carry) });
   function restore(s) {
-    state.crit = s.crit.map((c) => c.slice()); state.z = s.z.slice();
-    model = { P: PL.poly(state.crit), rts: s.rts.map((q) => q.slice()), ref: s.ref, zi: s.zi.slice(), z0: s.z0.slice(), B: copyB(s.B), atVal: s.atVal, onRay: s.onRay, flash: null, carry: copyCarry(s.carry) };
+    state.crit = s.crit.map((c) => c.slice()); state.shift = s.shift.slice(); state.z = s.z.slice();
+    model = { P: poly(), rts: s.rts.map((q) => q.slice()), ref: s.ref, zi: s.zi.slice(), z0: s.z0.slice(), B: copyB(s.B), atVal: s.atVal, onRay: s.onRay, flash: null, carry: copyCarry(s.carry) };
     trail = null;
     model.loose = !!model.carry;
     ver++;
@@ -1123,17 +1272,19 @@
   $('shape').addEventListener('change', (e) => setShape(e.detail.value === 'arc'));
   $('view').addEventListener('change', (e) => setView(e.detail.value));
   $('which').addEventListener('change', (e) => { state.carried = e.detail.value === 'carried'; draw(); if (!drag && !anim) settle(); });
-  function chooseMu(mu, crit, z) {
+  function chooseMu(mu, crit, z, shift) {
     stopTravel();
     state.mu = mu;
     state.crit = (crit || DEFAULTS[mu]).map((c) => c.slice());
+    state.shift = shift ? shift.slice() : [0, 0];
     state.z = null;
     trail = null;
     fit();
-    state.z = z ? z.slice() : [0, -1.25 * frame.Rc];
+    state.z = z ? z.slice() : [state.shift[0], state.shift[1] - 1.25 * frame.Rc];
     fit();
     build();
     buildCrit();
+    buildVals();
     setMenu();
     phase.key = '';
   }
@@ -1144,8 +1295,8 @@
   now = snap();
   draw();
   example = MM.example({
-    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), z: MM.example.numbers(3), a: 'int', h: 'int', v: 'int', t: MM.example.numbers(2) },
-    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), z: state.z.slice(), a: state.arcs ? 1 : 0, h: state.carried ? 1 : 0, v: VIEWS.indexOf(state.view), t: [v3d.yaw, v3d.pitch] }),
+    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), s: MM.example.numbers(3), z: MM.example.numbers(3), a: 'int', h: 'int', v: 'int', t: MM.example.numbers(2) },
+    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), s: state.shift.slice(), z: state.z.slice(), a: state.arcs ? 1 : 0, h: state.carried ? 1 : 0, v: VIEWS.indexOf(state.view), t: [v3d.yaw, v3d.pitch] }),
     set(x, named) {
       if (![1, 2, 3].includes(x.n) || !DEFAULTS[x.m]) return false;
       let crit = DEFAULTS[x.m];
@@ -1155,6 +1306,7 @@
         for (let k = 0; k < x.m; k++) crit.push([x.c[2 * k], x.c[2 * k + 1]]);
       }
       if (named.has('z') && (!Array.isArray(x.z) || x.z.length !== 2 || x.z.some((v) => !isFinite(v)))) return false;
+      if (named.has('s') && (!Array.isArray(x.s) || x.s.length !== 2 || x.s.some((v) => !isFinite(v)))) return false;
       if (named.has('t') && (!Array.isArray(x.t) || x.t.length !== 2 || x.t.some((v) => !isFinite(v)))) return false;
       state.view = VIEWS[x.v] || 'plane';
       $('view').value = state.view;
@@ -1166,7 +1318,7 @@
       $('shape').value = x.a === 1 ? 'arc' : 'sphere';
       setShape(x.a === 1, true);
       $('mu').value = String(x.m);
-      chooseMu(x.m, crit, named.has('z') ? x.z : null);
+      chooseMu(x.m, crit, named.has('z') ? x.z : null, named.has('s') ? x.s : null);
       forget();
       draw();
       window.dispatchEvent(new CustomEvent('pl:n', { detail: state.n }));

@@ -50,7 +50,9 @@
   // The surface over the disc |x − (cx, cy)| ≤ R, for the polynomial P and the value z.
   //   F  the field; NR, NA  rings and spokes of the grid; RG, AG  every RG-th ring and AG-th spoke
   //   a grid line; rts  the roots of p(x) = z
-  // Returns { faces: [{ p: [x, y, h, …], c (the tint, −1 to 1), nz (the slope), lines: [[x, y, h, x, y, h], …] }] }.
+  // Returns { faces: [{ p: [x, y, h, …], c (1 on the upper sheet, −1 on the lower), nz (the slope),
+  // lines: [[[x, y, h], …], …] }] }. The grid lines follow the surface between the faces' corners,
+  // so that they are smooth, and the same whatever the number of faces.
   function mesh(P, z, o) {
     const { cx, cy, R, NR, NA, RG, AG, F } = o;
     const at = (rho, phi) => F.at(cx + rho * Math.cos(phi), cy + rho * Math.sin(phi));
@@ -62,13 +64,13 @@
     // the roots, in polar coordinates
     const rp = o.rts.map((r) => ({ r, rho: Math.hypot(r[0] - cx, r[1] - cy), phi: ((Math.atan2(r[1] - cy, r[0] - cx) % TAU) + TAU) % TAU }));
     const faces = [];
-    // a polygon of lifted points [x, y, h, c], with the edges that are grid lines (pairs of indices),
-    // cut where h changes sign
+    // a polygon of lifted points [x, y, h, ±1], with its grid lines (polylines of [x, y, h]), cut
+    // where h changes sign
     function addFace(pts, lines) {
       let pos = false, neg = false;
       const tiny = 1e-12 * R;
       pts.forEach((q) => { if (q[2] > tiny) pos = true; else if (q[2] < -tiny) neg = true; });
-      if (!(pos && neg)) { push(pts, lines.map(([i, j]) => pts[i].slice(0, 3).concat(pts[j].slice(0, 3)))); return; }
+      if (!(pos && neg)) { push(pts, lines); return; }
       for (const sg of [1, -1]) {
         const poly = [], segs = [];
         for (let i = 0; i < pts.length; i++) {
@@ -76,26 +78,42 @@
           if (h0 >= 0) poly.push(P0);
           if ((h0 > 0 && h1 < 0) || (h0 < 0 && h1 > 0)) { const t = h0 / (h0 - h1); poly.push(P0.map((v, k) => v + (P1[k] - v) * t)); }
         }
-        lines.forEach(([i, j]) => {
-          const P0 = pts[i], P1 = pts[j], h0 = sg * P0[2], h1 = sg * P1[2];
-          if (h0 < 0 && h1 < 0) return;
-          let a = P0, b = P1;
-          if (h0 < 0 || h1 < 0) { const t = h0 / (h0 - h1), m = P0.map((v, k) => v + (P1[k] - v) * t); if (h0 < 0) a = m; else b = m; }
-          segs.push(a.slice(0, 3).concat(b.slice(0, 3)));
+        // the parts of the grid lines on this side
+        lines.forEach((L) => {
+          let cur = null;
+          for (let i = 0; i < L.length; i++) {
+            const h = sg * L[i][2];
+            if (h >= 0) { if (!cur) { cur = []; if (i) { const h0 = sg * L[i - 1][2], t = h0 / (h0 - h); cur.push(L[i - 1].map((v, k) => v + (L[i][k] - v) * t)); } } cur.push(L[i]); }
+            else if (cur) { const h0 = sg * L[i - 1][2], t = h0 / (h0 - h); cur.push(L[i - 1].map((v, k) => v + (L[i][k] - v) * t)); segs.push(cur); cur = null; }
+          }
+          if (cur && cur.length > 1) segs.push(cur);
         });
         if (poly.length >= 3) push(poly, segs);
       }
     }
+    // a grid line along a side of a cell, from (f0, r0) to (f1, r1) in polar coordinates, on the sheet
+    // through the point q0 with y = w0 (the side's first point): K points, y followed along it
+    const K = 4;
+    function gridLine(f0, r0, f1, r1, w0, s) {
+      const out = [];
+      let w = w0;
+      for (let k = 0; k <= K; k++) {
+        const q = at(r0 + (r1 - r0) * k / K, f0 + (f1 - f0) * k / K);
+        w = align(q.w, w);
+        out.push(lift(q, w, s).slice(0, 3));
+      }
+      return out;
+    }
     function push(pts, segs) {
       const p = [];
       let c = 0;
-      pts.forEach((q) => { p.push(q[0], q[1], q[2]); c += q[3]; });
+      pts.forEach((q) => { p.push(q[0], q[1], q[2]); c += q[2]; });
       // the slope, from the diagonals (or two edges)
       const n = pts.length, A0 = pts[0], B0 = pts[Math.min(1, n - 1)], C0 = pts[Math.min(2, n - 1)], D0 = pts[n - 1];
       const d1 = n >= 4 ? [C0[0] - A0[0], C0[1] - A0[1], C0[2] - A0[2]] : [B0[0] - A0[0], B0[1] - A0[1], B0[2] - A0[2]];
       const d2 = n >= 4 ? [D0[0] - B0[0], D0[1] - B0[1], D0[2] - B0[2]] : [C0[0] - A0[0], C0[1] - A0[1], C0[2] - A0[2]];
       const nx = d1[1] * d2[2] - d1[2] * d2[1], ny = d1[2] * d2[0] - d1[0] * d2[2], nz = d1[0] * d2[1] - d1[1] * d2[0];
-      faces.push({ p, c: c / n, nz: Math.abs(nz) / (Math.hypot(nx, ny, nz) || 1), lines: segs });
+      faces.push({ p, c: c >= 0 ? 1 : -1, nz: Math.abs(nz) / (Math.hypot(nx, ny, nz) || 1), lines: segs });
     }
     // a cell of the grid, angles f0 to f1 and radii r0 to r1, with its corners (points of `at`) and
     // which of its sides are grid lines: [inner, outer, f0, f1]
@@ -113,12 +131,15 @@
       }
       if (!inside.length) {
         // two faces, the lifts of the cell to the two sheets
-        const w0 = Q[0].w, ws = Q.map((q) => align(q.w, w0)), lines = [];
-        if (grid[0]) lines.push([0, 1]);
-        if (grid[1]) lines.push([3, 2]);
-        if (grid[2]) lines.push([0, 3]);
-        if (grid[3]) lines.push([1, 2]);
-        for (const s of [1, -1]) addFace(Q.map((q, k) => lift(q, ws[k], s)), lines);
+        const w0 = Q[0].w, ws = Q.map((q) => align(q.w, w0));
+        for (const s of [1, -1]) {
+          const lines = [];
+          if (grid[0]) lines.push(gridLine(f0, r0, f1, r0, ws[0], s));
+          if (grid[1]) lines.push(gridLine(f0, r1, f1, r1, ws[3], s));
+          if (grid[2]) lines.push(gridLine(f0, r0, f0, r1, ws[0], s));
+          if (grid[3]) lines.push(gridLine(f1, r0, f1, r1, ws[1], s));
+          addFace(Q.map((q, k) => lift(q, ws[k], s)), lines);
+        }
         return;
       }
       // a fan from the root (or from the middle of two that are too close, as at a node), its rim
@@ -137,7 +158,7 @@
         for (let k = 1; k < laps * N; k++) { w = align(rim[k % N].w, w); ys.push(w); }
         for (let k = 0; k < laps * N; k++) {
           const a = lift(rim[k % N], ys[k], s), b = lift(rim[(k + 1) % N], k + 1 < laps * N ? ys[k + 1] : align(rim[0].w, ys[k]), s);
-          addFace([ctr, a, b], onGrid[k % N] ? [[1, 2]] : []);
+          addFace([ctr, a, b], onGrid[k % N] ? [[a.slice(0, 3), b.slice(0, 3)]] : []);
         }
       }
     }
@@ -199,7 +220,7 @@
       ctx.fill();
       if (it.f.lines.length) {
         ctx.strokeStyle = col.grid; ctx.lineWidth = 0.8; ctx.beginPath();
-        it.f.lines.forEach((L) => { const a = cam.proj(L[0], L[1], L[2]), b = cam.proj(L[3], L[4], L[5]); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); });
+        it.f.lines.forEach((L) => L.forEach((q, i) => { const a = cam.proj(q[0], q[1], q[2]); if (i) ctx.lineTo(a[0], a[1]); else ctx.moveTo(a[0], a[1]); }));
         ctx.stroke();
       }
     });

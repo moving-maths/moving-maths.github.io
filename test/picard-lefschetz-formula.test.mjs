@@ -357,10 +357,12 @@ test('carried round z_k, the arcs dragged along with the roots are the cycles h_
     arcs.forEach((line, j) => line.slice(1, -1).forEach((q) => W.rts.forEach((r, i) => {
       if (i !== ends[j][0] && i !== ends[j][1]) assert.ok(Math.hypot(q[0] - r[0], q[1] - r[1]) > 1e-3, 'an arc ran into a root');
     })));
-    // ⟨carried Δ_j, Δ_i⟩ on the curve against the formula, up to the sign of the carried cycle
+    // ⟨carried Δ_j, Δ_i⟩ on the curve against the formula, up to the sign of the carried cycle; and
+    // again with the arcs pulled tight
     const S2 = W.S[2], H = L.monodromy(S2, 2, [[k, s]]);
     const straight = W.cyc.map((c, i) => thinLoop(W.P, W.z0, c.flip ? { ...c.A, plus: c.A.minus, minus: c.A.plus } : c.A, 0.0031 * (1 + 0.21 * i), c.f2));
-    arcs.forEach((line, j) => {
+    const tight = L.tighten(arcs.map((A) => A.map((q) => q.slice())), ends, W.rts, 0.004, 1500);
+    for (const lines of [arcs, tight]) lines.forEach((line, j) => {
       const y0 = L.csqrt(W.z0[0] - pAt(W.P, line[1])[0], W.z0[1] - pAt(W.P, line[1])[1]);
       const loop = thinLoopArc(W.P, W.z0, polyArc(W.P, W.z0, line, y0), 0.0023);
       const got = straight.map((Lp) => meetLoops(loop, Lp)), want = S2.map((_, i) => H.reduce((t, row, l) => t + row[j] * S2[l][i], 0));
@@ -384,5 +386,52 @@ test('the basis at z oriented along the segment from z0 (odd n: −Δ_i where th
     for (const n of [1, 2, 3]) assert.deepEqual(L.inverse(W.B[n]), L.monodromy(W.S[n], n, [[k, s]]), `μ = ${mu}, n = ${n}, round z${k + 1} ${s > 0 ? '+' : '−'}, ending at z0 + ${end}`);
     // and its arcs end where its classes say
     for (let j = 0; j < mu; j++) { const e = classEnds(W, j), ends = arcEnds(W, j); assert.ok(e && ends.has(e.plus) && ends.has(e.minus)); }
+  }
+});
+
+test('critFor: the critical points for given critical values, by small moves of one of them', () => {
+  for (const mu of [2, 3, 4, 5]) {
+    let crit = DEFAULTS[mu].map((c) => c.slice()), shift = [0, 0];
+    const mean = (cs) => [cs.reduce((t, c) => t + c[0], 0) / mu, cs.reduce((t, c) => t + c[1], 0) / mu];
+    const m0 = mean(crit);
+    for (let j = 0; j < mu; j++) {
+      const target = L.poly(crit, shift).vals.map((v) => v.slice());
+      for (let k = 0; k < 10; k++) {
+        target[j] = [target[j][0] + 0.02, target[j][1] - 0.015];
+        const r = L.critFor(crit, shift, target);
+        assert.ok(r, `μ = ${mu}, moving z${j + 1}`);
+        crit = r.crit; shift = r.shift;
+      }
+      const P = L.poly(crit, shift);
+      P.vals.forEach((v, i) => assert.ok(Math.hypot(v[0] - target[i][0], v[1] - target[i][1]) < 1e-10, 'the values are where they were sent'));
+      P.crit.forEach((c) => { L.evalPD(P, c[0], c[1], out); assert.ok(Math.hypot(out[2], out[3]) < 1e-9); });
+      const m = mean(crit);
+      assert.ok(Math.hypot(m[0] - m0[0], m[1] - m0[1]) < 1e-12, 'the mean of the critical points is kept');
+    }
+  }
+});
+
+test('three times round z_k: the arcs dragged and pulled tight are h_k³(Δ_j) (n = 2, counted on the curve)', () => {
+  for (const [mu, k] of [[2, 0], [3, 1], [4, 2]]) {
+    const W = walker(mu), v = W.P.vals[k];
+    const arcs = W.cyc.map((c) => {
+      const a = L.arcOf(c.A).pts, line = [];
+      for (let i = 0; i < a.length; i += 2) line.push([a[i], a[i + 1]]);
+      if (c.flip) line.reverse();
+      line[0] = W.rts[c.q].slice(); line[line.length - 1] = W.rts[c.p].slice();
+      return line;
+    });
+    const ends = W.cyc.map((c) => [c.q, c.p]), one = L.teardrop(W.z0, v, W.P.vals.filter((_, j) => j !== k), 0.4, 0.02, 0.05).slice(1);
+    for (const b of one.concat(one, one)) { const old = W.rts.map((q) => q.slice()); step(W, b); L.dragArcs(arcs, ends, old, W.rts, 0.002); }
+    const S2 = W.S[2], H = L.monodromy(S2, 2, [[k, 1], [k, 1], [k, 1]]);
+    const straight = W.cyc.map((c, i) => thinLoop(W.P, W.z0, c.flip ? { ...c.A, plus: c.A.minus, minus: c.A.plus } : c.A, 0.0031 * (1 + 0.21 * i), c.f2));
+    const tight = L.tighten(arcs.map((A) => A.map((q) => q.slice())), ends, W.rts, 0.004, 3000);
+    for (const lines of [arcs, tight]) lines.forEach((line, j) => {
+      const y0 = L.csqrt(W.z0[0] - pAt(W.P, line[1])[0], W.z0[1] - pAt(W.P, line[1])[1]);
+      const loop = thinLoopArc(W.P, W.z0, polyArc(W.P, W.z0, line, y0), 0.0017);
+      const got = straight.map((Lp) => meetLoops(loop, Lp)), want = S2.map((_, i) => H.reduce((t, row, l) => t + row[j] * S2[l][i], 0));
+      const neg = want.map((x) => -x || 0);
+      assert.ok(JSON.stringify(got) === JSON.stringify(want) || JSON.stringify(got) === JSON.stringify(neg), `μ = ${mu}, three times round z${k + 1} (${lines === arcs ? 'dragged' : 'tight'}): Δ${j + 1} meets the basis ${got}, want ±${want}`);
+    });
   }
 });
