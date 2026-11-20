@@ -373,6 +373,167 @@
     B.forEach((r, a) => { r[j] = col[a] + c * t * ck[a]; });
     return B;
   }
+  /* ---------- loops round a critical value ----------
+   * teardrop(z, v, others, r, step): the loop from z once round v counterclockwise, as a teardrop:
+   * along the tangent from z to the circle of radius r round v, round the circle's far side, and
+   * back along the other tangent; r made smaller (to rMin = r/16 at least) until none of the points
+   * others lies inside it or within margin of it. Points at most step apart, from z to z. */
+  function teardrop(z, v, others, r, step, margin) {
+    const dx = z[0] - v[0], dy = z[1] - v[1], d = Math.hypot(dx, dy), a0 = Math.atan2(dy, dx);
+    const inside = (q, rr) => {
+      const R = rr + margin;
+      if (Math.hypot(q[0] - v[0], q[1] - v[1]) < R) return true;
+      // the cone from z to the circle of radius R: the angle at z within asin(R/d), nearer than
+      // the tangent points
+      if (R >= d) return true;
+      const ux = -dx / d, uy = -dy / d, qx = q[0] - z[0], qy = q[1] - z[1], along = qx * ux + qy * uy;
+      if (along <= -margin || along > d) return false;
+      return Math.abs(qx * uy - qy * ux) < Math.max(0, along) * R / Math.sqrt(d * d - R * R) + margin;
+    };
+    let rr = Math.min(r, 0.8 * d);
+    for (let k = 0; k < 4 && others.some((q) => inside(q, rr)); k++) rr *= 0.5;
+    const g = Math.acos(rr / d), out = [[z[0], z[1]]];
+    const at = (t) => [v[0] + rr * Math.cos(t), v[1] + rr * Math.sin(t)];
+    const line = (A, B) => {
+      const m = Math.max(1, Math.ceil(Math.hypot(B[0] - A[0], B[1] - A[1]) / step));
+      for (let k = 1; k <= m; k++) out.push([A[0] + (B[0] - A[0]) * k / m, A[1] + (B[1] - A[1]) * k / m]);
+    };
+    line(z, at(a0 + g));
+    const sw = TAU - 2 * g, m = Math.max(12, Math.ceil(sw * rr / step));
+    for (let k = 1; k <= m; k++) out.push(at(a0 + g + sw * k / m));
+    line(out[out.length - 1], z);
+    out[out.length - 1] = [z[0], z[1]];
+    return out;
+  }
+
+  /* ---------- cycles carried along with z ----------
+   * As z moves, the roots of p(x) = z move, and a cycle carried along with z lies over an arc that
+   * the plane of x drags along with them. dragArcs moves the polylines arcs[a] (arrays of [x, y],
+   * from the root ends[a][0] to the root ends[a][1]) by an isotopy of the plane that takes the roots
+   * from to the roots to, in steps short next to the distances between the roots. In each step a
+   * point x moves by the similarity x ↦ αx + β that best takes the roots where they go, weighted by
+   * 1/|x − root|⁴ (moving least squares): near a root it moves with it, and round two roots that
+   * turn about each other (as when z goes round a critical value) the plane turns with them, so that
+   * arcs are carried round without twisting. The polylines are refined where they stretch, so that
+   * each segment stays short next to its distance from the roots (and at most 8 unit long), and
+   * thinned where they crowd (below unit/2). */
+  function dragArcs(arcs, ends, from, to, unit) {
+    const m = from.length;
+    let disp = 0, sep = Infinity;
+    for (let k = 0; k < m; k++) {
+      disp = Math.max(disp, Math.hypot(to[k][0] - from[k][0], to[k][1] - from[k][1]));
+      for (let l = k + 1; l < m; l++) sep = Math.min(sep, Math.hypot(from[k][0] - from[l][0], from[k][1] - from[l][1]), Math.hypot(to[k][0] - to[l][0], to[k][1] - to[l][1]));
+    }
+    if (!(disp > 0)) return arcs;
+    const steps = Math.min(400, Math.max(1, Math.ceil(disp / (0.12 * sep))));
+    const r = from.map((q) => [q[0], q[1]]);
+    for (let s = 1; s <= steps; s++) {
+      const d = r.map((q, k) => { const t = [from[k][0] + (to[k][0] - from[k][0]) * s / steps, from[k][1] + (to[k][1] - from[k][1]) * s / steps]; return [t[0] - q[0], t[1] - q[1]]; });
+      const w = new Float64Array(m);
+      for (const A of arcs) for (let i = 1; i < A.length - 1; i++) {
+        const p = A[i];
+        let W = 0, px = 0, py = 0, qx = 0, qy = 0, hit = -1;
+        for (let k = 0; k < m; k++) {
+          const dx = p[0] - r[k][0], dy = p[1] - r[k][1], q = dx * dx + dy * dy;
+          if (q < 1e-300) { hit = k; break; }
+          w[k] = 1 / (q * q); W += w[k];
+          px += w[k] * r[k][0]; py += w[k] * r[k][1]; qx += w[k] * (r[k][0] + d[k][0]); qy += w[k] * (r[k][1] + d[k][1]);
+        }
+        if (hit >= 0) { p[0] += d[hit][0]; p[1] += d[hit][1]; continue; }
+        px /= W; py /= W; qx /= W; qy /= W;
+        // α = Σ w q̂ conj(p̂) / Σ w |p̂|², with p̂, q̂ the roots before and after less their centres
+        let ar = 0, ai = 0, den = 0;
+        for (let k = 0; k < m; k++) {
+          const ux = r[k][0] - px, uy = r[k][1] - py, vx = r[k][0] + d[k][0] - qx, vy = r[k][1] + d[k][1] - qy;
+          ar += w[k] * (vx * ux + vy * uy); ai += w[k] * (vy * ux - vx * uy); den += w[k] * (ux * ux + uy * uy);
+        }
+        if (den > 0) { ar /= den; ai /= den; } else { ar = 1; ai = 0; }
+        const ex = p[0] - px, ey = p[1] - py;
+        p[0] = qx + ar * ex - ai * ey; p[1] = qy + ar * ey + ai * ex;
+      }
+      r.forEach((q, k) => { q[0] += d[k][0]; q[1] += d[k][1]; });
+      arcs.forEach((A, a) => { A[0] = r[ends[a][0]].slice(); A[A.length - 1] = r[ends[a][1]].slice(); });
+      arcs.forEach((A, a) => tidyArc(A, ends[a], r, unit));
+    }
+    return arcs;
+  }
+  // The arcs pulled tight, like ropes round pegs at the roots: iters steps of smoothing (each point
+  // towards the middle of its neighbours) in which no point comes nearer than a margin to a root
+  // other than its arc's ends, the points spread evenly along each arc now and then. The margin is
+  // 12 unit, or less where roots are close; as no point jumps over a margin and segments stay
+  // shorter than it, no arc crosses a root, and each keeps its class.
+  function tighten(arcs, ends, roots, unit, iters) {
+    let sep = Infinity;
+    roots.forEach((a, k) => roots.forEach((b, l) => { if (k < l) sep = Math.min(sep, Math.hypot(a[0] - b[0], a[1] - b[1])); }));
+    const mg = Math.min(12 * unit, 0.35 * sep), sp = 0.8 * mg;
+    arcs.forEach((A, a) => {
+      const [e0, e1] = ends[a];
+      const push = (p) => roots.forEach((r, k) => {
+        if (k === e0 || k === e1) return;
+        const dx = p[0] - r[0], dy = p[1] - r[1], d = Math.hypot(dx, dy);
+        if (d < mg) { const f = d > 0 ? mg / d : 1; p[0] = r[0] + (d > 0 ? dx * f : mg); p[1] = r[1] + dy * f; }
+      });
+      A.slice(1, -1).forEach(push);
+      let B = resample(A, sp);
+      for (let it = 0; it < iters; it++) {
+        if (it && it % 40 === 0) B = resample(B, sp);
+        for (let i = 1; i < B.length - 1; i++) {
+          const p = B[i];
+          let dx = 0.5 * ((B[i - 1][0] + B[i + 1][0]) / 2 - p[0]), dy = 0.5 * ((B[i - 1][1] + B[i + 1][1]) / 2 - p[1]);
+          const l = Math.hypot(dx, dy);
+          if (l > 0.4 * mg) { dx *= 0.4 * mg / l; dy *= 0.4 * mg / l; }
+          p[0] += dx; p[1] += dy;
+          push(p);
+        }
+      }
+      A.length = 0;
+      B.forEach((q) => A.push(q));
+    });
+    return arcs;
+  }
+  // the polyline A with its points spread evenly, at most sp apart, ends kept
+  function resample(A, sp) {
+    let L = 0;
+    for (let i = 1; i < A.length; i++) L += Math.hypot(A[i][0] - A[i - 1][0], A[i][1] - A[i - 1][1]);
+    const n = Math.max(2, Math.min(400, Math.ceil(L / sp))), out = [A[0].slice()];
+    let i = 1, acc = 0, prev = A[0];
+    for (let k = 1; k < n; k++) {
+      const want = L * k / n;
+      while (i < A.length) {
+        const seg = Math.hypot(A[i][0] - prev[0], A[i][1] - prev[1]);
+        if (acc + seg >= want) { const t = seg > 0 ? (want - acc) / seg : 0; out.push([prev[0] + (A[i][0] - prev[0]) * t, prev[1] + (A[i][1] - prev[1]) * t]); break; }
+        acc += seg; prev = A[i]; i++;
+      }
+    }
+    out.push(A[A.length - 1].slice());
+    return out;
+  }
+  // the length a segment of an arc may have at the point q: short next to its distance from the
+  // roots (other than the arc's own ends, near them), between unit/2 and 8 unit
+  function segLimit(q, roots, skip, unit) {
+    let dm = Infinity;
+    roots.forEach((r, k) => { if (k !== skip) dm = Math.min(dm, Math.hypot(q[0] - r[0], q[1] - r[1])); });
+    return Math.max(0.5 * unit, Math.min(8 * unit, 0.3 * dm));
+  }
+  function tidyArc(A, ends, roots, unit) {
+    const out = [A[0]];
+    for (let i = 1; i < A.length && out.length < 6000; i++) {
+      const a = out[out.length - 1], b = A[i], mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      const skip = i === 1 ? ends[0] : i === A.length - 1 ? ends[1] : -1;
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]), lim = segLimit(mid, roots, skip, unit);
+      if (L > lim) {
+        const n = Math.min(64, Math.ceil(L / lim));
+        for (let k = 1; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+        out.push(b);
+      } else if (i < A.length - 1 && out.length > 1 && Math.hypot(A[i + 1][0] - a[0], A[i + 1][1] - a[1]) < 0.5 * lim) {
+        // (b dropped: its neighbours are close enough)
+      } else out.push(b);
+    }
+    A.length = 0;
+    out.forEach((q) => A.push(q));
+    return A;
+  }
+
   const eye = (m) => Array.from({ length: m }, (_, i) => Array.from({ length: m }, (_, j) => +(i === j)));
   // the inverse of an integer matrix of determinant ±1 (Gauss–Jordan, rounded)
   function inverse(M) {
@@ -390,5 +551,5 @@
   const matmul = (A, B) => A.map((r) => B[0].map((_, j) => r.reduce((s, x, k) => s + x * B[k][j], 0) || 0));
   const transpose = (A) => A[0].map((_, j) => A.map((r) => r[j]));
 
-  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, eye, inverse, matmul, transpose };
+  root.Lefschetz = { TAU, cdiv, csqrt, turn, evalPD, poly, roots, newton, lift, arcOf, nearest, unit, gram, niceSigns, eps, plApply, monodromy, sweep, append, crossings, jump, teardrop, dragArcs, tighten, eye, inverse, matmul, transpose };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

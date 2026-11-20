@@ -233,8 +233,9 @@ test('once round z_k and back: the cycles carried are h_k of those taken, for n 
 // The cycle over an arc pushed off the branch points: the lift of a thin loop round the arc (out
 // along its left side on the outgoing sheet, round the + end, back along the right side) with the
 // values of y along it; two such loops meet where they cross on a common sheet.
-function thinLoop(P, z, A, delta, sign = 1) {
-  const arc = L.arcOf(A), a = arc.pts, n = a.length / 2, pts = [];
+function thinLoop(P, z, A, delta, sign = 1) { return thinLoopOf(P, z, L.arcOf(A), delta, sign); }
+function thinLoopOf(P, z, arc, delta, sign = 1) {
+  const a = arc.pts, n = a.length / 2, pts = [];
   const nrm = (k) => { const i = Math.max(0, k - 1), j = Math.min(n - 1, k + 1), dx = a[2 * j] - a[2 * i], dy = a[2 * j + 1] - a[2 * i + 1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
   const cap = (k, from) => { for (let q = 1; q < 24; q++) { const t = from - Math.PI * q / 24; pts.push([a[2 * k] + delta * Math.cos(t), a[2 * k + 1] + delta * Math.sin(t)]); } };
   for (let k = 1; k < n - 1; k++) { const [x, y] = nrm(k); pts.push([a[2 * k] + delta * x, a[2 * k + 1] + delta * y]); }
@@ -303,4 +304,85 @@ test('n = 2: across a Stokes ray the arc that jumps is h_k^{∓1} of the old one
   // ⟨new, Δ_2⟩ = ⟨old, Δ_2⟩ (S2[1][1] = 0), ⟨new, old⟩ = c S2[0][1] S2[1][0]
   const pred = [want[0] * S2[0][1] + want[1] * S2[1][1], want[0] * S2[0][0] + want[1] * S2[1][0]];
   assert.ok((got[0] === pred[0] && got[1] === pred[1]) || (got[0] === -pred[0] && got[1] === -pred[1]), `got ${got}, want ±${pred}`);
+});
+
+test('teardrop: from z once round v counterclockwise, round no other critical value', () => {
+  for (const mu of [2, 3, 4, 5]) {
+    const P = L.poly(DEFAULTS[mu]), z0 = base(P);
+    P.vals.forEach((v, k) => {
+      const others = P.vals.filter((_, j) => j !== k), pts = L.teardrop(z0, v, others, 0.5, 0.01, 0.05);
+      assert.deepEqual(pts[0], z0);
+      assert.deepEqual(pts[pts.length - 1], z0);
+      const wind = (q) => { let t = 0; for (let i = 1; i < pts.length; i++) t += L.turn(pts[i - 1][0] - q[0], pts[i - 1][1] - q[1], pts[i][0] - q[0], pts[i][1] - q[1]); return Math.round(t / TAU) || 0; };
+      P.vals.forEach((w, j) => assert.equal(wind(w), j === k ? 1 : 0, `μ = ${mu}, round z${k + 1}: winding round z${j + 1}`));
+    });
+  }
+});
+
+// a polyline arc (array of [x, y]) with the values of y = √(z − p(x)) along it, continued from
+// the branch nearest y0 at its second point, as arcOf gives them
+function polyArc(P, z, line, y0) {
+  const pts = [], ys = [];
+  let y = y0;
+  line.forEach((q, i) => {
+    const w = pAt(P, q), [qr, qi] = L.csqrt(z[0] - w[0], z[1] - w[1]);
+    if (i === 0) { pts.push(q[0], q[1]); ys.push(0, 0); return; }
+    y = !y || qr * y[0] + qi * y[1] >= 0 ? [qr, qi] : [-qr, -qi];
+    pts.push(q[0], q[1]); ys.push(y[0], y[1]);
+  });
+  return { pts, ys };
+}
+const thinLoopArc = (P, z, arc, delta) => thinLoopOf(P, z, arc, delta, 1);
+
+test('carried round z_k, the arcs dragged along with the roots are the cycles h_k(Δ_j) (n = 2, counted on the curve)', () => {
+  for (const mu of [2, 3, 4]) for (let k = 0; k < mu; k++) for (const s of [1, -1]) {
+    const W = walker(mu), v = W.P.vals[k];
+    // the arcs of the basis at z0, from their − ends to their + ends
+    const arcs = W.cyc.map((c) => {
+      const a = L.arcOf(c.A).pts, line = [];
+      for (let i = 0; i < a.length; i += 2) line.push([a[i], a[i + 1]]);
+      if (c.flip) line.reverse();
+      line[0] = W.rts[c.q].slice(); line[line.length - 1] = W.rts[c.p].slice();
+      return line;
+    });
+    const ends = W.cyc.map((c) => [c.q, c.p]);
+    let pts = L.teardrop(W.z0, v, W.P.vals.filter((_, j) => j !== k), 0.4, 0.02, 0.05);
+    if (s < 0) pts = pts.reverse();
+    for (const b of pts.slice(1)) {
+      const old = W.rts.map((q) => q.slice());
+      step(W, b);
+      L.dragArcs(arcs, ends, old, W.rts, 0.002);
+    }
+    // each dragged arc keeps away from the roots other than its ends
+    arcs.forEach((line, j) => line.slice(1, -1).forEach((q) => W.rts.forEach((r, i) => {
+      if (i !== ends[j][0] && i !== ends[j][1]) assert.ok(Math.hypot(q[0] - r[0], q[1] - r[1]) > 1e-3, 'an arc ran into a root');
+    })));
+    // ⟨carried Δ_j, Δ_i⟩ on the curve against the formula, up to the sign of the carried cycle
+    const S2 = W.S[2], H = L.monodromy(S2, 2, [[k, s]]);
+    const straight = W.cyc.map((c, i) => thinLoop(W.P, W.z0, c.flip ? { ...c.A, plus: c.A.minus, minus: c.A.plus } : c.A, 0.0031 * (1 + 0.21 * i), c.f2));
+    arcs.forEach((line, j) => {
+      const y0 = L.csqrt(W.z0[0] - pAt(W.P, line[1])[0], W.z0[1] - pAt(W.P, line[1])[1]);
+      const loop = thinLoopArc(W.P, W.z0, polyArc(W.P, W.z0, line, y0), 0.0023);
+      const got = straight.map((Lp) => meetLoops(loop, Lp)), want = S2.map((_, i) => H.reduce((t, row, l) => t + row[j] * S2[l][i], 0));
+      const neg = want.map((x) => -x || 0);
+      assert.ok(JSON.stringify(got) === JSON.stringify(want) || JSON.stringify(got) === JSON.stringify(neg), `μ = ${mu}, round z${k + 1} ${s > 0 ? '+' : '−'}: Δ${j + 1} meets the basis ${got}, want ±${want}`);
+    });
+  }
+});
+
+test('the basis at z oriented along the segment from z0 (odd n: −Δ_i where the segment sweeps z_i): after a loop, B⁻¹ = h_k anywhere near z0', () => {
+  for (const mu of [2, 3, 4, 5]) for (let k = 0; k < mu; k++) for (const s of [1, -1]) for (const end of [[0, 0], [0.03, 0.02], [-0.04, -0.03]]) {
+    const W = walker(mu);
+    let pts = L.teardrop(W.z0, W.P.vals[k], W.P.vals.filter((_, j) => j !== k), 0.4, 0.02, 0.05);
+    if (s < 0) pts = pts.reverse();
+    pts.push([W.z0[0] + end[0], W.z0[1] + end[1]]);
+    for (const b of pts.slice(1)) {
+      const a = W.z.slice();
+      step(W, b);
+      for (const [i] of L.sweep(W.z0, a, b, W.P.vals)) for (const n of [1, 3]) W.B[n].forEach((r) => { r[i] = -r[i] || 0; });
+    }
+    for (const n of [1, 2, 3]) assert.deepEqual(L.inverse(W.B[n]), L.monodromy(W.S[n], n, [[k, s]]), `μ = ${mu}, n = ${n}, round z${k + 1} ${s > 0 ? '+' : '−'}, ending at z0 + ${end}`);
+    // and its arcs end where its classes say
+    for (let j = 0; j < mu; j++) { const e = classEnds(W, j), ends = arcEnds(W, j); assert.ok(e && ends.has(e.plus) && ends.has(e.minus)); }
+  }
 });

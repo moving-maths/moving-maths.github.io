@@ -29,8 +29,9 @@ body {
   /* the landscape of |p(x) − z|, light where it is small */
   --land: var(--c1);
 }
-/* its key in the legend */
+/* its key in the legend; and that of the curve in 3D, its upper sheet over its lower */
 .pl-shade { display: inline-block; width: 13px; height: 13px; border-radius: 3px; flex: none; background: color-mix(in srgb, var(--land) 22%, var(--surface)); }
+.pl-sheets { display: inline-block; width: 15px; height: 13px; border-radius: 3px; flex: none; border: 1px solid var(--rule); background: linear-gradient(var(--surface) 50%, color-mix(in srgb, var(--land) 20%, var(--surface)) 50%); }
 
 .pl { --split-main: 1.25fr; --split-below: 40px; }
 @media (max-width: 899.98px) {

@@ -21,16 +21,19 @@
     4: [[-0.968, 0.263], [-0.444, -0.263], [0.444, -0.263], [0.968, 0.263]],
     5: [[-0.826, 0.596], [-0.709, 0.029], [-0.107, -0.399], [0.628, -0.33], [1.013, 0.103]],
   };
-  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), z: null, z0: null, phase: false, arcs: false };
+  // view: the plane of x shaded ('plane'), coloured by phase ('phase'), or in 3D ('3d', n ≥ 2);
+  // carried: the picture shows the cycles carried along with z, h(Δ_i), rather than the basis at z
+  const state = { n: 3, mu: 3, crit: DEFAULTS[3].map((c) => c.slice()), z: null, view: 'plane', arcs: false, carried: false };
   let shapeT = 1;   // the cycles drawn as their arcs (0) or as what they are (1), and in between
   let frame = null;   // the windows of the two planes
   let model = null;   // what follows from the critical points and z
   let example = null;
+  let ver = 0;   // counts the changes of the cycles carried along with z
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
   /* ---------- the windows ----------
-   * The plane of values round the critical values, z and z0; the plane of x round the roots of
+   * The plane of values round the critical values and z; the plane of x round the roots of
    * p(x) = z for every z in it, and the critical points. They are fitted when the page opens, when
    * μ changes and when a critical point is let go, and stay put meanwhile. */
   function fit() {
@@ -38,7 +41,7 @@
     let Rc = 1e-3;
     P.vals.forEach((v) => { Rc = Math.max(Rc, Math.hypot(v[0], v[1])); });
     let R = 1.6 * Rc;
-    [state.z, state.z0].forEach((q) => { if (q) R = Math.max(R, 1.2 * Math.hypot(q[0], q[1] + 0.15 * Rc)); });
+    if (state.z) R = Math.max(R, 1.2 * Math.hypot(state.z[0], state.z[1] + 0.15 * Rc));
     const zv = { cx: 0, cy: -0.15 * Rc, R };
     let Rx = 0, guess = null;
     for (let k = 0; k < 96; k++) {
@@ -54,7 +57,7 @@
     return { W, H, k, X: (x) => W / 2 + (x - v.cx) * k, Y: (y) => H / 2 - (y - v.cy) * k, x: (px) => v.cx + (px - W / 2) / k, y: (py) => v.cy - (py - H / 2) / k };
   }
   const zUnit = () => 1 / view(frame.zv, zcv).k;   // a CSS pixel of the plane of values
-  const SNAP_VAL = 10, SNAP_RAY = 7, SNAP_BASE = 9;   // pixels
+  const SNAP_VAL = 10, SNAP_RAY = 7;   // pixels
 
   /* ---------- the roots and the basis ---------- */
   // the roots of p(x) = w, followed from old ones: each keeps its identity, at the nearest new root
@@ -100,40 +103,60 @@
     const wi = state.z;
     const rts = keep ? follow(P, wi, keep.rts) : PL.roots(P, wi[0], wi[1]);
     const ref = reference(P, wi, rts, keep ? keep.ref.cyc : null);
-    model = { P, rts, ref, zi: wi.slice(), B: { 1: PL.eye(P.mu), 2: PL.eye(P.mu), 3: PL.eye(P.mu) }, atVal: null, onRay: null, flash: null };
-    state.z0 = wi.slice();
+    model = { P, rts, ref, zi: wi.slice(), z0: wi.slice(), B: { 1: PL.eye(P.mu), 2: PL.eye(P.mu), 3: PL.eye(P.mu) }, atVal: null, onRay: null, flash: null, carry: null };
+    ver++;
   }
 
-  // The cycles taken afresh at z, as they are now (z0 = z): the basis at z becomes the reference.
+  // The cycles taken afresh where z is (z0), as they are now: the basis at z becomes the reference,
+  // and the cycles to carry are its cycles, over their arcs. Done when z is picked up, and when a
+  // loop from the bar starts.
   function rebase() {
     const mu = model.P.mu, S = {};
     for (const n of [1, 2, 3]) S[n] = PL.matmul(PL.transpose(model.B[n]), PL.matmul(model.ref.S[n], model.B[n]));
     const cyc = model.ref.cyc.map((c, j) => { const e = classEnds(j); return e ? { p: e.plus, q: e.minus } : c; });
-    model.ref = { cyc, S, pos: model.rts.map((q) => q.slice()) };
+    model.ref = { cyc, S };
     model.B = { 1: PL.eye(mu), 2: PL.eye(mu), 3: PL.eye(mu) };
-    state.z0 = (model.atVal !== null ? model.zi : state.z).slice();
+    model.z0 = model.zi.slice();
+    ver++;
   }
-  // Back at z0, each cycle of the basis is one of those taken there, or its negative: the arc is the
-  // same, but for odd n going round z_j turns Δ_j's ends round. They are taken with the signs they
-  // had at z0, so that what is carried reads in the basis as it was.
-  function normalise() {
-    if (dist(state.z, state.z0) > 1e-12 * (1 + Math.hypot(state.z0[0], state.z0[1]))) return;
-    model.ref.cyc.forEach((c, j) => {
-      const e = classEnds(j);
-      if (!e) return;
-      const at = model.rts[e.plus];
-      if (dist(at, model.ref.pos[c.q]) < dist(at, model.ref.pos[c.p])) for (const n of [1, 3]) model.B[n].forEach((r) => { r[j] = -r[j] || 0; });
-    });
+  // The arcs of the cycles of the basis at zi (where the roots are model.rts), to carry along with
+  // z: each from its − end to its + end. On a Stokes ray the arc that runs into a critical point is
+  // the one, of those just either side of the ray, that ends where the basis says.
+  // (taken when first needed: when z first moves, or the cycles carried are first drawn)
+  const carry = () => model.carry || (model.carry = takeCarry());
+  function takeCarry() {
+    const P = model.P, w = model.zi, rts = model.rts, h = 1.5 / view(frame.xv, xcv).k, arcs = [], ends = [];
+    for (let j = 0; j < P.mu; j++) {
+      const e = classEnds(j) || { plus: model.ref.cyc[j].p, minus: model.ref.cyc[j].q };
+      let tries = [w];
+      if (model.onRay && model.onRay.j === j) {
+        const zk = P.vals[model.onRay.k], zj = P.vals[j], L = dist(zk, zj), d = 1e-6 * frame.zv.R, nx = -(zk[1] - zj[1]) / L, ny = (zk[0] - zj[0]) / L;
+        tries = [[w[0] + nx * d, w[1] + ny * d], [w[0] - nx * d, w[1] - ny * d]];
+      }
+      let a = null;
+      for (const t of tries) { a = arcAt(P, t, j, rts, h); if ((a.p === e.plus && a.q === e.minus) || (a.p === e.minus && a.q === e.plus)) break; }
+      const pts = PL.arcOf(a.A).pts, line = [];
+      for (let k = 0; k < pts.length; k += 2) line.push([pts[k], pts[k + 1]]);
+      if (a.p !== e.plus) line.reverse();
+      line[0] = rts[e.minus].slice(); line[line.length - 1] = rts[e.plus].slice();
+      arcs.push(line); ends.push([e.minus, e.plus]);
+    }
+    return { arcs, ends };
   }
 
   /* ---------- moving z ----------
    * z moves in short steps (no z − z_j turning by more than π/6 in one). A step across the Stokes
    * ray of z_k for z_j changes Δ_j by the Picard–Lefschetz operator of z_k (lefschetz.js,
-   * crossings, jump), and the roots are followed. z may sit on a Stokes ray, and on a critical value:
+   * crossings, jump), and the roots are followed. The basis at z is oriented as it is carried along
+   * the segment from z0, where the cycles were taken: for odd n, Δ_k changes sign where that segment
+   * sweeps over z_k (sweep), so that it is the same at z whichever way z came, and what is carried
+   * reads in it as the monodromy of the path of z closed by the segment. The arcs of the cycles
+   * carried are dragged along with the roots. z may sit on a Stokes ray, and on a critical value:
    * there the cycles are kept as they were where z arrived (zi), and when z leaves it goes round the
    * critical value from that side to the side it leaves by. */
   function stepZ(b) {
-    const a = model.zi, vals = model.P.vals;
+    const a = model.zi, vals = model.P.vals, unit = 1 / view(frame.xv, xcv).k, C = carry();
+    model.loose = true;
     let k = Math.max(1, Math.ceil(dist(a, b) / (16 * zUnit())));
     vals.forEach((v) => { k = Math.max(k, Math.ceil(Math.abs(PL.turn(a[0] - v[0], a[1] - v[1], b[0] - v[0], b[1] - v[1])) / (Math.PI / 6))); });
     for (let q = 1; q <= k; q++) {
@@ -142,9 +165,13 @@
         for (const n of [1, 2, 3]) PL.jump(model.ref.S[n], n, model.B[n], x.j, x.k, x.s);
         model.flash = { j: x.j, k: x.k, s: x.s, at: performance.now() };
       }
+      for (const [i] of PL.sweep(model.z0, model.zi, c, vals)) for (const n of [1, 3]) model.B[n].forEach((r) => { r[i] = -r[i] || 0; });
+      const old = model.rts;
       model.zi = c;
       model.rts = follow(model.P, c, model.rts);
+      PL.dragArcs(C.arcs, C.ends, old, model.rts, unit);
     }
+    ver++;
   }
   // round the critical value v at radius r from the angle of a to the angle of b, the short way
   function roundTo(v, a, b) {
@@ -152,11 +179,10 @@
     const m = Math.max(1, Math.ceil(Math.abs(d) / (Math.PI / 12)));
     for (let q = 1; q <= m; q++) stepZ([v[0] + r * Math.cos(a0 + d * q / m), v[1] + r * Math.sin(a0 + d * q / m)]);
   }
-  // where z would go for the point t: held on a critical value, on a Stokes ray, or on z0
+  // where z would go for the point t: held on a critical value, or on a Stokes ray
   function snapped(t) {
     const u = zUnit(), vals = model.P.vals;
     for (let k = 0; k < vals.length; k++) if (dist(t, vals[k]) < SNAP_VAL * u) return { val: k, z: vals[k].slice() };
-    if (dist(t, state.z0) < SNAP_BASE * u) return { z: state.z0.slice() };
     let best = null;
     vals.forEach((zj, j) => vals.forEach((zk, k) => {
       if (j === k) return;
@@ -191,7 +217,6 @@
     stepZ(sn.z);
     model.onRay = sn.ray || null;
     state.z = sn.z;
-    normalise();
   }
 
   /* ---------- the plane of x ---------- */
@@ -356,15 +381,49 @@
         pts = side < 0 ? pts.slice(0, best + 2) : pts.slice(best);
         if (side < 0) plus = null; else minus = null;
       }
-      const scr = [], fib = [], o = [0, 0, 0, 0];
-      for (let k = 0; k < pts.length; k += 2) {
-        scr.push([V.X(pts[k]), V.Y(pts[k + 1])]);
-        PL.evalPD(P, pts[k], pts[k + 1], o);
-        fib.push(Math.sqrt(Math.hypot(z[0] - o[0], z[1] - o[1])));
-      }
-      out.push({ scr, fib, minus, plus, cut: cut ? [V.X(cut[0]), V.Y(cut[1])] : null });
+      const xs = [];
+      for (let k = 0; k < pts.length; k += 2) xs.push([pts[k], pts[k + 1]]);
+      out.push(Object.assign(onScreen(V, xs), { minus, plus, cut: cut ? [V.X(cut[0]), V.Y(cut[1])] : null, xcut: cut }));
     }
     return out;
+  }
+  // an arc's points on the screen (scr), and the size of the fibre's sphere, √|z − p(x)|, at each
+  const onScreen = (V, xs) => {
+    const P = model.P, z = state.z, scr = [], fib = [], o = [0, 0, 0, 0];
+    xs.forEach((q) => {
+      scr.push([V.X(q[0]), V.Y(q[1])]);
+      PL.evalPD(P, q[0], q[1], o);
+      fib.push(Math.sqrt(Math.hypot(z[0] - o[0], z[1] - o[1])));
+    });
+    return { xs, scr, fib };
+  };
+
+  // The arcs of the cycles carried along with z, as cycleArcs gives them. With z on a critical
+  // value z_k they are carried on from where z arrived to a hair's breadth from z_k (as there the
+  // roots meet); an arc that has shrunk to a point there is the cycle that has vanished.
+  let carriedKept = { key: '', arcs: null };
+  function carriedArcs(V) {
+    const key = JSON.stringify([ver, state.z, state.crit, model.atVal, V.W, V.H, frame.xv.R]);
+    if (carriedKept.key === key) return carriedKept.arcs;
+    const P = model.P, c = carry(), unit = 1 / V.k;
+    let lines = c.arcs;
+    if (model.atVal !== null) {
+      lines = c.arcs.map((A) => A.map((q) => q.slice()));
+      const vk = P.vals[model.atVal], hair = Math.hypot(P.a[model.atVal][0], P.a[model.atVal][1]) * Math.pow(0.2 / V.k, 2);
+      let w = model.zi.slice(), r = model.rts;
+      for (let it = 0; it < 80 && dist(w, vk) > 1.0001 * hair; it++) {
+        const d = dist(w, vk), f = Math.max(hair / d, 0.7), nw = [vk[0] + (w[0] - vk[0]) * f, vk[1] + (w[1] - vk[1]) * f], nr = follow(P, nw, r);
+        PL.dragArcs(lines, c.ends, r, nr, unit);
+        r = nr; w = nw;
+      }
+    }
+    const arcs = lines.map((xs, j) => {
+      const a = Object.assign(onScreen(V, xs), { minus: c.ends[j][0], plus: c.ends[j][1], cut: null });
+      if (model.atVal !== null && arcLength(a.scr) < 4) a.vanish = P.crit[model.atVal];
+      return a;
+    });
+    carriedKept = { key, arcs };
+    return arcs;
   }
   const reverse = (s) => { const o = []; for (let k = s.length - 2; k >= 0; k -= 2) o.push(s[k], s[k + 1]); return o; };
   // the roots at the ends of Δ_j in the basis, from its class for n = 1
@@ -420,9 +479,9 @@
     ctx.lineJoin = 'round';
     arcs.forEach((a, j) => {
       const P = model.P;
-      if (!a) {
+      if (!a || a.vanish) {
         // vanished: the singular point
-        const c = P.crit[j], X = V.X(c[0]), Y = V.Y(c[1]);
+        const c = a ? a.vanish : P.crit[j], X = V.X(c[0]), Y = V.Y(c[1]);
         ctx.strokeStyle = cyc(j, 'text'); ctx.lineWidth = 2.2;
         ctx.beginPath(); ctx.arc(X, Y, 6, 0, TAU); ctx.stroke();
         return;
@@ -459,8 +518,9 @@
           }
         }
       }
-      // its orientation: for n = 3 on the sphere, otherwise on the arc
-      const mid = along(scr, 0.62 * arcLength(scr), false), ca = n === 3 ? 1 : 1 - t;
+      // its orientation: for n = 3 on the sphere, for n = 1 on the arc (for n = 2 it is not the
+      // arc's direction alone, as the sheet that the circle leaves by matters too)
+      const mid = along(scr, 0.62 * arcLength(scr), false), ca = n === 3 ? 1 : n === 1 ? 1 - t : 0;
       if (mid && ca > 0.01) { ctx.globalAlpha = ca; ctx.strokeStyle = line; ctx.lineWidth = 2; chevron(ctx, mid, 5); ctx.globalAlpha = 1; }
       if (n === 1 && t > 0.01) {
         // the two points: + filled, − hollow, a little way along the arc from the roots
@@ -488,18 +548,115 @@
     });
   }
 
+  const is3d = () => state.view === '3d' && state.n > 1;
   function drawX(coarse) {
+    if (is3d()) { draw3d(coarse); return; }
     const { ctx } = MM.fitCanvas(xcv), V = view(frame.xv, xcv);
-    ctx.drawImage(state.phase ? phaseImage(V, coarse) : landImage(V), 0, 0, V.W, V.H);
+    ctx.drawImage(state.view === 'phase' ? phaseImage(V, coarse) : landImage(V), 0, 0, V.W, V.H);
     drawAxes(ctx, V, ['$\\mathrm{Re}\\,x$', '$\\mathrm{Im}\\,x$']);
-    drawCycles(ctx, V, cycleArcs(V), shapeT);
+    if (state.carried) {
+      // the basis at z, faint, under the cycles carried
+      cycleArcs(V).forEach((a, j) => {
+        if (!a || a.scr.length < 2) return;
+        ctx.strokeStyle = MM.rgba('cy-' + (j + 1), 0.4); ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+        smooth(ctx, a.scr); ctx.stroke();
+      });
+      drawCycles(ctx, V, carriedArcs(V), shapeT);
+    } else drawCycles(ctx, V, cycleArcs(V), shapeT);
     // the roots of p(x) = z
-    const rts = model.atVal !== null ? PL.roots(model.P, state.z[0], state.z[1], model.rts) : model.rts;
     ctx.fillStyle = MM.color('ink');
-    rts.forEach((q) => { ctx.beginPath(); ctx.arc(V.X(q[0]), V.Y(q[1]), 3.8, 0, TAU); ctx.fill(); });
-    if (state.phase) { const kr = Math.max(17, Math.min(24, V.W / 22)); MM.phase.key(ctx, V.W - kr - 18, V.H - kr - 18, kr); }
-    placeCrit(V);
+    rootsNow().forEach((q) => { ctx.beginPath(); ctx.arc(V.X(q[0]), V.Y(q[1]), 3.8, 0, TAU); ctx.fill(); });
+    if (state.view === 'phase') { const kr = Math.max(17, Math.min(24, V.W / 22)); MM.phase.key(ctx, V.W - kr - 18, V.H - kr - 18, kr); }
+    placeCrit((c) => [V.X(c[0]), V.Y(c[1])]);
   }
+  const rootsNow = () => (model.atVal !== null ? PL.roots(model.P, state.z[0], state.z[1], model.rts) : model.rts);
+
+  /* ---------- the plane of x in 3D ----------
+   * For n = 2 the curve V_z over the plane of x, a double cover branched at the roots, as two sheets
+   * that pass through each other along cuts from the roots (surface.js), with the vanishing cycles
+   * on it: over each point of an arc its two points, one on each sheet, so a circle through the
+   * roots at its ends. For n = 3 the same picture, the two points ±y over x standing for the circle
+   * y_2² + y_3² = z − p(x) seen edge on: the vanishing sphere is drawn as the disc that its circle of
+   * n = 2 bounds. */
+  const YAW0 = -0.5, PITCH0 = 0.62, VIEWS = ['plane', 'phase', '3d'];
+  const v3d = { yaw: YAW0, pitch: PITCH0, key: '', mesh: null, field: null };
+  const SHEET = 0.15, RISE = 0.16;   // the height of the sheets, and how far from a cut they rise to it, as fractions of the disc's radius
+  function cam3() {
+    const W = xcv.clientWidth || 400, H = xcv.clientHeight || W;
+    return window.PLSurface.camera(W, H, { cx: frame.xv.cx, cy: frame.xv.cy, R: frame.xv.R, yaw: v3d.yaw, pitch: v3d.pitch, hmax: SHEET * frame.xv.R });
+  }
+  // The circle over an arc (points xs of the plane, from root to root): over each point its two
+  // points, one on each sheet. On the screen: the half on the upper sheet, which is seen, and the
+  // half on the lower sheet, which is hidden; as t goes to 0 the hidden half comes up onto the seen
+  // one, and the circle is its arc, drawn on the upper sheet.
+  function circle3(F, cam, xs, t) {
+    const top = [], bot = [];
+    xs.forEach((q) => {
+      const h = F.lift(F.at(q[0], q[1]), [1, 0])[2], a = Math.abs(h);
+      top.push(cam.proj(q[0], q[1], a)); bot.push(cam.proj(q[0], q[1], a * (1 - 2 * t)));
+    });
+    return { top, bot };
+  }
+  const onTop = (c) => { const F = v3d.field; return Math.abs(F.lift(F.at(c[0], c[1]), [1, 0])[2]); };
+  // (at most twice the CSS resolution, as the phone's three times costs too much, but as asked for
+  // while Save image draws; at the CSS resolution while the picture moves)
+  const fullRes = () => { const pr = MM.pixelRatio(); return pr === (window.devicePixelRatio || 1) ? Math.min(pr, 2) : pr; };
+  function draw3d(coarse) {
+    const W = xcv.clientWidth, H = xcv.clientHeight, dpr = coarse ? 1 : fullRes(), ctx = xcv.getContext('2d');
+    if (xcv.width !== Math.round(W * dpr) || xcv.height !== Math.round(H * dpr)) { xcv.width = Math.round(W * dpr); xcv.height = Math.round(H * dpr); }
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, xcv.width, xcv.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cam = cam3(), P = model.P, z = state.z, S = window.PLSurface, R = frame.xv.R;
+    const NR = coarse ? 14 : 24, NA = coarse ? 44 : 72, rts = rootsNow();
+    const key = [z[0], z[1], state.crit.flat().join(','), R, NR].join('|');
+    if (v3d.key !== key) {
+      v3d.field = S.field(P, z, rts, SHEET * R, RISE * R);
+      v3d.mesh = S.mesh(P, z, { cx: frame.xv.cx, cy: frame.xv.cy, R, NR, NA, RG: 4, AG: 6, rts, F: v3d.field });
+      v3d.key = key;
+    }
+    // the axes of the plane of x, beyond the disc
+    const names = [['$\\mathrm{Re}\\,x$', 1, 0], ['$\\mathrm{Im}\\,x$', 0, 1]];
+    ctx.strokeStyle = MM.rgba('ink', 0.3); ctx.lineWidth = 1;
+    names.forEach(([, u, v]) => {
+      const a = cam.proj(frame.xv.cx + u * R, frame.xv.cy + v * R, 0), b = cam.proj(frame.xv.cx + 1.1 * u * R, frame.xv.cy + 1.1 * v * R, 0);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    });
+    const white = rgbOf('surface'), land = rgbOf('land'), blue = white.map((x, k) => x + (land[k] - x) * 0.2);
+    S.draw(ctx, cam, v3d.mesh, { white, blue, grid: MM.rgba('ink', 0.26) });
+    // the cuts, where the sheets pass through each other: from each root out to the rim
+    ctx.strokeStyle = MM.rgba('ink', 0.4); ctx.lineWidth = 1; ctx.beginPath();
+    v3d.field.rays.forEach((c) => {
+      const ox = c.r[0] - frame.xv.cx, oy = c.r[1] - frame.xv.cy, b = ox * c.ux + oy * c.uy, t = -b + Math.sqrt(Math.max(0, b * b - (ox * ox + oy * oy - R * R)));
+      if (!(t > 0)) return;
+      const a = cam.proj(c.r[0], c.r[1], 0), e = cam.proj(c.r[0] + c.ux * t, c.r[1] + c.uy * t, 0);
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]);
+    });
+    ctx.stroke();
+    // the cycles: for n = 3 the discs their circles bound, tinted; the hidden halves dashed, the
+    // seen halves solid
+    const V = view(frame.xv, xcv), n = state.n, vanished = [], loops = [];
+    (state.carried ? carriedArcs(V) : cycleArcs(V)).forEach((a, j) => {
+      if (!a || a.vanish) { vanished.push(a ? a.vanish : P.crit[j]); return; }
+      if (a.xs.length >= 2) loops.push(Object.assign(circle3(v3d.field, cam, a.xs, shapeT), { j }));
+    });
+    const path = (pts, back) => { (back ? pts.slice().reverse() : pts).forEach((q, i) => (i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]))); };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    loops.forEach((L) => {
+      if (n === 3 && shapeT > 0.01) { ctx.fillStyle = MM.rgba('cy-' + (L.j + 1) + '-soft', 0.55); ctx.beginPath(); path(L.top); path(L.bot, true); ctx.fill(); }
+      if (shapeT > 0.01) { ctx.strokeStyle = cyc(L.j, 'line'); ctx.lineWidth = 1.4; ctx.setLineDash([4, 3.5]); ctx.beginPath(); path(L.bot); ctx.stroke(); ctx.setLineDash([]); }
+    });
+    loops.forEach((L) => { ctx.strokeStyle = cyc(L.j, 'line'); ctx.lineWidth = 2.6; ctx.beginPath(); path(L.top); ctx.stroke(); });
+    // the roots, where the sheets meet, and a cycle that has vanished: the singular point
+    ctx.fillStyle = MM.color('ink');
+    rts.forEach((q) => { const p = cam.proj(q[0], q[1], 0); ctx.beginPath(); ctx.arc(p[0], p[1], 3.6, 0, TAU); ctx.fill(); });
+    vanished.forEach((c) => { const p = cam.proj(c[0], c[1], 0); ctx.strokeStyle = MM.color('red'); ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, TAU); ctx.stroke(); });
+    names.forEach(([name, u, v]) => {
+      const b = cam.proj(frame.xv.cx + 1.16 * u * R, frame.xv.cy + 1.16 * v * R, 0);
+      MM.canvasLabel(ctx, name, b[0], b[1], { size: 13, align: 'center', baseline: 'middle', color: MM.color('ink-3') });
+    });
+    // the critical points on the upper sheet, where the circles over their arcs are highest
+    placeCrit((c) => { const p = cam.proj(c[0], c[1], onTop(c)); return [p[0], p[1]]; });
+  }
+
 
   // the critical points: handle points over the picture, ringed in their cycles' colours
   let ptEls = [];
@@ -516,17 +673,19 @@
   }
   const fmt = (x) => (Math.abs(x) < 5e-3 ? '0' : x.toFixed(2).replace('-', '−'));
   const fmtC = (q) => fmt(q[0]) + (q[1] < 0 ? ' − ' : ' + ') + fmt(Math.abs(q[1])) + 'i';
-  function placeCrit(V) {
+  function placeCrit(toScreen) {
     if (ptEls.length !== state.crit.length) buildCrit();
     ptEls.forEach((g, i) => {
-      const c = state.crit[i];
-      g.setAttribute('transform', 'translate(' + V.X(c[0]).toFixed(1) + ',' + V.Y(c[1]).toFixed(1) + ')');
+      const c = state.crit[i], p = toScreen(c);
+      g.setAttribute('transform', 'translate(' + p[0].toFixed(1) + ',' + p[1].toFixed(1) + ')');
       g.querySelector('.handle-point').style.stroke = cycVar(i, 'text');
       g.setAttribute('aria-label', 'Critical point c' + (i + 1) + ' at ' + fmtC(c) + '. The arrow keys move it.');
     });
   }
 
   /* ---------- the plane of values ---------- */
+  let trail = null;   // { pts, at (how far z has come along them), done (when z got back) }
+  const TRAIL_HOLD = 2500, TRAIL_FADE = 900;
   function drawZ() {
     const { ctx } = MM.fitCanvas(zcv), V = view(frame.zv, zcv), vals = model.P.vals, z = state.z, red = MM.color('red');
     drawAxes(ctx, V, ['$\\mathrm{Re}\\,z$', '$\\mathrm{Im}\\,z$']);
@@ -548,11 +707,22 @@
       ctx.strokeStyle = cyc(j, 'line'); ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.moveTo(V.X(z[0]), V.Y(z[1])); ctx.lineTo(V.X(v[0]), V.Y(v[1])); ctx.stroke();
     });
-    // z0, where the cycles were taken
-    if (dist(z, state.z0) > 1e-9) {
-      ctx.strokeStyle = MM.color('ink-2'); ctx.fillStyle = MM.color('surface'); ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(V.X(state.z0[0]), V.Y(state.z0[1]), 4, 0, TAU); ctx.fill(); ctx.stroke();
-      MM.canvasLabel(ctx, '$z_0$', V.X(state.z0[0]) - 8, V.Y(state.z0[1]) + 3, { size: 14, align: 'right', baseline: 'top', color: MM.color('ink-2') });
+    // the loop z travels when one is chosen in the bar: faint ahead, darker where z has been, with
+    // its direction; it fades a few seconds after z is back
+    if (trail) {
+      const age = trail.done ? performance.now() - trail.done : 0, al = clamp(1 - (age - TRAIL_HOLD) / TRAIL_FADE, 0, 1);
+      if (al <= 0) trail = null;
+      else {
+        const scr = trail.pts.map((q) => [V.X(q[0]), V.Y(q[1])]), k = trail.done ? scr.length : Math.min(scr.length, trail.at + 1);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = MM.rgba('ink-2', 0.3 * al); ctx.lineWidth = 1.6;
+        smooth(ctx, scr); ctx.stroke();
+        ctx.strokeStyle = MM.rgba('ink-2', 0.8 * al); ctx.lineWidth = 2;
+        if (k > 1) { smooth(ctx, scr.slice(0, k)); ctx.stroke(); }
+        const a = along(scr, 0.55 * arcLength(scr), false);
+        if (a) { ctx.strokeStyle = MM.rgba('ink-2', 0.8 * al); ctx.lineWidth = 2; chevron(ctx, a, 5.5); }
+        if (trail.done) requestAnimationFrame(() => { if (trail && !anim) drawZ(); });
+      }
     }
     vals.forEach((v, j) => {
       ctx.fillStyle = cyc(j);
@@ -583,10 +753,14 @@
     'For $n=2$, $V_z$ is a curve, a double cover of the plane of $x$ branched at the roots of $p(x)=z$, with the two points $\\pm y$, $y^2=z-p(x)$, over each other point; a vanishing cycle is the circle over an arc.',
     'For $n=3$, $V_z$ is a surface fibred over the plane of $x$ by the conics $y_2^2+y_3^2=z-p(x)$, which degenerate at the roots of $p(x)=z$; a vanishing cycle is the sphere made of their circles over an arc.',
   ];
+  const SUB3 = [
+    'In 3D its two sheets are drawn one over the other (the heights are not to scale), meeting at the roots and passing through each other along a cut from each root.',
+    'In 3D the picture is the curve of $n=2$, its two sheets one over the other: the two points $\\pm y$ over $x$ stand for the circle $y_2^2+y_3^2=z-p(x)$ seen edge on, and a vanishing sphere for the disc that its circle of $n=2$ bounds.',
+  ];
   function drawReadouts() {
     const n = state.n, mu = state.mu, S0 = model.ref.S[n], B = model.B[n];
     MM.setHTML($('title'), '$' + fTex() + '$ <span class="side-kind">near $\\mathrm{A}_{' + mu + '}$</span>');
-    MM.setHTML($('sub'), '$p\'(x)=' + (mu + 1) + state.crit.map((_, i) => '(x-c_{' + (i + 1) + '})').join('') + '$. ' + SUB[n - 1]);
+    MM.setHTML($('sub'), '$p\'(x)=' + (mu + 1) + state.crit.map((_, i) => '(x-c_{' + (i + 1) + '})').join('') + '$. ' + SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
     MM.setHTML($('legend'), legendHTML());
     // where z is: on a critical value, on a Stokes ray, or just across one
     let note = '';
@@ -601,7 +775,8 @@
     }
     MM.setHTML($('note'), note);
     $('note-block').hidden = !note;
-    // the cycles taken at z0, carried along with z, in the basis at z
+    // the cycles carried along with z since it was picked up (or since the loop started), in the
+    // basis at z
     const Hinv = PL.inverse(B), triv = Hinv.every((r, i) => r.every((x, j) => x === +(i === j)));
     const rows = [];
     for (let j = 0; j < mu; j++) rows.push('<p>$h($' + D(j) + '$)=$ ' + combo(Hinv.map((r) => r[j])) + '</p>');
@@ -623,8 +798,11 @@
       three('<path d="M2 9Q13 1 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><path d="M2 9Q13 17 24 9" style="fill:none;stroke:var(--cy-1-line);stroke-width:2;stroke-dasharray:4 3"/>'),
       three('<path d="M2 9Q13 0 24 9Q13 18 2 9Z" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><ellipse cx="13" cy="9" rx="2.2" ry="4.5" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.1"/>'),
     ][state.n - 1];
-    return item(cyclesMark, state.arcs ? 'the arcs of the vanishing cycles $\\Delta_i$' : 'vanishing cycles $\\Delta_i$')
-      + (state.phase ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
+    const what = state.carried ? 'the cycles $h(\\Delta_i)$ carried along with $z$' : 'vanishing cycles $\\Delta_i$';
+    return item(cyclesMark, state.arcs ? 'the arcs of ' + what.replace(/^the /, '') : what)
+      + (state.carried && !is3d() ? item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--cy-1);--line-width:1.4;opacity:.4"><path d="M1 5H21"/></svg>', 'the arcs of the basis $\\Delta_i$ at $z$') : '')
+      + (is3d() ? item('<span class="pl-sheets"></span>', state.n === 2 ? 'the curve $V_z$' : 'the circles of $V_z$ over the plane of $x$, edge on')
+        : state.view === 'phase' ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $V_z$' : 'the roots of $p(x)=z$')
       + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $c_i$')
       + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="5" style="fill:var(--cy-1)"/></svg>', 'critical values $z_i=p(c_i)$')
@@ -642,7 +820,7 @@
     if (window.PLFigures && window.PLFigures.update) window.PLFigures.update();
     // sharpen once things rest
     clearTimeout(sharpTimer);
-    if (coarse) sharpTimer = setTimeout(() => { coarse = false; if (state.phase) drawX(false); }, 180);
+    if (coarse) sharpTimer = setTimeout(() => { coarse = false; if (state.view !== 'plane') drawX(false); }, 180);
   }
   const later = () => { if (!frameReq) frameReq = requestAnimationFrame(draw); };
 
@@ -651,8 +829,40 @@
   const localXY = (e, elm) => { const r = elm.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const capture = (elm, e) => { try { elm.setPointerCapture(e.pointerId); } catch (err) { /* the pointer is already gone */ } };
   MM.handle(zh);
-  function startZ(e, onHandle) {
+  // Once z rests, the arcs of the cycles carried are pulled tight round the roots, over half a second
+  // (at once if they are not in the picture, or under reduced motion).
+  let settleReq = 0;
+  // (the arcs are left loose while they are not drawn, and pulled tight when they are)
+  function settle() {
+    cancelAnimationFrame(settleReq);
+    if (!model.carry || !model.loose || !state.carried) return;
+    const unit = 1 / view(frame.xv, xcv).k, rts = model.rts, C = model.carry;
+    model.loose = false;
+    if (MM.reduceMotion()) { PL.tighten(C.arcs, C.ends, rts, unit, 1200); ver++; now = snap(); drawX(false); return; }
+    let left = 24;
+    const tick = () => {
+      PL.tighten(C.arcs, C.ends, rts, unit, 50);
+      ver++;
+      drawX(false);
+      if (--left > 0) settleReq = requestAnimationFrame(tick);
+      else { settleReq = 0; now = snap(); }
+    };
+    settleReq = requestAnimationFrame(tick);
+  }
+  const unsettle = () => { if (settleReq) model.loose = true; cancelAnimationFrame(settleReq); settleReq = 0; };
+
+  // z picked up: the cycles to carry are taken afresh where it is
+  let lastKey = 0;
+  function pickUp() {
     stopTravel();
+    unsettle();
+    trail = null;
+    model.onRay = null;
+    rebase();
+  }
+  function startZ(e, onHandle) {
+    pickUp();
+    lastKey = 0;
     const V = view(frame.zv, zcv), [px, py] = localXY(e, zcv);
     drag = { kind: 'z', off: onHandle ? [V.x(px) - state.z[0], V.y(py) - state.z[1]] : [0, 0] };
     coarse = true;
@@ -677,6 +887,7 @@
     keep();
     coarse = false;
     draw();
+    if (was.kind === 'z') settle();
   }
   zh.addEventListener('pointerdown', (e) => {
     if (e.button) return;
@@ -698,15 +909,20 @@
     elm.addEventListener('pointerup', endDrag);
     elm.addEventListener('pointercancel', endDrag);
   });
+  // (keys move z on from where the last key left it, as one move, until a pause)
   zh.addEventListener('keydown', (e) => {
     const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
-    if (!k && e.key !== 'Home') return;
+    if (!k) return;
     e.preventDefault();
-    stopTravel();
-    if (k) { const st = (e.shiftKey ? 2 : 8) * zUnit(); moveZ([state.z[0] + k[0] * st, state.z[1] + k[1] * st]); }
-    else moveZ(state.z0.slice());
+    const t = performance.now();
+    if (t - lastKey > 2000) pickUp();
+    lastKey = t;
+    const st = (e.shiftKey ? 2 : 8) * zUnit();
+    unsettle();
+    moveZ([state.z[0] + k[0] * st, state.z[1] + k[1] * st]);
     keep();
     draw();
+    settle();
   });
 
   // the critical points move freely (only not onto one another); the cycles are taken afresh at z
@@ -728,15 +944,39 @@
     stopTravel();
     capture(g, e);
     g.focus({ preventScroll: true });
-    const i = +g.dataset.i, V = view(frame.xv, xcv), [px, py] = localXY(e, xcv);
-    drag = { kind: 'crit', i, off: [V.x(px) - state.crit[i][0], V.y(py) - state.crit[i][1]] };
+    const i = +g.dataset.i, h = is3d() ? onTop(state.crit[i]) : 0, q = fromScreen(localXY(e, xcv), h);
+    trail = null;
+    drag = { kind: 'crit', i, h, off: [q[0] - state.crit[i][0], q[1] - state.crit[i][1]] };
   });
   xsvg.addEventListener('pointermove', (e) => {
     if (!drag || drag.kind !== 'crit') return;
-    const V = view(frame.xv, xcv), [px, py] = localXY(e, xcv);
-    setCrit(drag.i, [V.x(px) - drag.off[0], V.y(py) - drag.off[1]]);
+    const q = fromScreen(localXY(e, xcv), drag.h);
+    setCrit(drag.i, [q[0] - drag.off[0], q[1] - drag.off[1]]);
     coarse = true;
     later();
+  });
+  // the point of the plane of x under a point of the picture (in 3D, of the plane under the surface)
+  function fromScreen(p, h) {
+    if (is3d()) return cam3().unproj(p[0], p[1], h);
+    const V = view(frame.xv, xcv);
+    return [V.x(p[0]), V.y(p[1])];
+  }
+
+  // turning the picture in 3D: a drag across it, or the arrow keys
+  let turnReq = 0;
+  const turnLater = () => {
+    if (!turnReq) turnReq = requestAnimationFrame(() => { turnReq = 0; drawX(true); });
+    clearTimeout(sharpTimer);
+    sharpTimer = setTimeout(() => { coarse = false; drawX(false); }, 180);
+  };
+  const turner = MM.turnDrag(xcv, {
+    when: () => is3d(),
+    move(dx, dy) { v3d.yaw -= dx * 0.008; v3d.pitch = clamp(v3d.pitch + dy * 0.006, 0.3, 1.45); turnLater(); },
+    end() { if (example) example.changed(); },
+    keys: {
+      turn(a, b) { v3d.yaw -= a; v3d.pitch = clamp(v3d.pitch - b, 0.3, 1.45); turnLater(); if (example) example.changed(); },
+      home() { v3d.yaw = YAW0; v3d.pitch = PITCH0; turnLater(); if (example) example.changed(); },
+    },
   });
   xsvg.addEventListener('pointerup', endDrag);
   xsvg.addEventListener('pointercancel', endDrag);
@@ -758,38 +998,34 @@
     stepZ(t);
     model.onRay = null;
     state.z = t.slice();
-    normalise();
   }
-  // The loop τ_i from z: straight towards z_i, once round it counterclockwise, and back; or a circle
-  // round all the critical values, counterclockwise, through z.
+  // The loop τ_i from z, a teardrop: along a tangent from z to a circle round z_i, once round it
+  // counterclockwise, and back along the other tangent. Round all the critical values: a teardrop
+  // round a circle that holds them all, or, if z is inside it, out to the circle, round it, and back.
   function loopPath(i) {
-    const z = model.atVal !== null ? model.zi : state.z, vals = model.P.vals, pts = [];
+    const z = model.zi, vals = model.P.vals, u = zUnit();
     if (i === 'all') {
       let cx = 0, cy = 0;
       vals.forEach((v) => { cx += v[0] / vals.length; cy += v[1] / vals.length; });
-      let R = dist(z, [cx, cy]);
-      const out = R;
-      vals.forEach((v) => { R = Math.max(R, dist(v, [cx, cy]) + 14 * zUnit()); });
-      const a0 = Math.atan2(z[1] - cy, z[0] - cx);
-      if (R > out) pts.push([cx + R * Math.cos(a0), cy + R * Math.sin(a0)]);
-      for (let q = 1; q <= 96; q++) pts.push([cx + R * Math.cos(a0 + TAU * q / 96), cy + R * Math.sin(a0 + TAU * q / 96)]);
+      let R = 0;
+      vals.forEach((v) => { R = Math.max(R, dist(v, [cx, cy]) + 16 * u); });
+      if (dist(z, [cx, cy]) > 1.25 * R) return PL.teardrop(z, [cx, cy], [], R, 3 * u, 0);
+      const a0 = Math.atan2(z[1] - cy, z[0] - cx), pts = [z.slice()];
+      R = Math.max(R, dist(z, [cx, cy]));
+      for (let q = 0; q <= 120; q++) pts.push([cx + R * Math.cos(a0 + TAU * q / 120), cy + R * Math.sin(a0 + TAU * q / 120)]);
       pts.push(z.slice());
       return pts;
     }
-    const v = vals[i], d = dist(v, z);
-    let r = Math.min(0.5 * d, 40 * zUnit());
-    vals.forEach((w, j) => { if (j !== i) r = Math.min(r, 0.45 * dist(w, v)); });
-    r = Math.max(r, 4 * zUnit());
-    const ux = (z[0] - v[0]) / d, uy = (z[1] - v[1]) / d, a0 = Math.atan2(uy, ux);
-    if (d > r) pts.push([v[0] + ux * r, v[1] + uy * r]);
-    for (let q = 1; q <= 48; q++) pts.push([v[0] + r * Math.cos(a0 + TAU * q / 48), v[1] + r * Math.sin(a0 + TAU * q / 48)]);
-    pts.push(z.slice());
-    return pts;
+    const v = vals[i], others = vals.filter((_, j) => j !== i);
+    let r = Math.min(0.42 * dist(v, z), 46 * u);
+    others.forEach((w) => { r = Math.min(r, 0.45 * dist(w, v)); });
+    return PL.teardrop(z, v, others, Math.max(r, 5 * u), 3 * u, 6 * u);
   }
   let anim = null;
   function travel(pts, done) {
     stopTravel();
-    if (MM.reduceMotion()) { pts.forEach(rawMove); if (done) done(); draw(); return; }
+    trail = { pts, at: 0, done: null };
+    if (MM.reduceMotion()) { pts.forEach(rawMove); trail.done = performance.now(); if (done) done(); draw(); return; }
     const speed = 1.8 * frame.Rc / 1000;
     anim = { pts, i: 0, t: performance.now(), done };
     const tick = (now) => {
@@ -801,14 +1037,15 @@
         if (d <= budget) { rawMove(p); budget -= d; anim.i++; }
         else { const f = budget / d; rawMove([state.z[0] + (p[0] - state.z[0]) * f, state.z[1] + (p[1] - state.z[1]) * f]); budget = 0; }
       }
+      if (trail) trail.at = anim.i;
       coarse = true;
       draw();
-      if (anim.i >= anim.pts.length) { const fin = anim.done; anim = null; if (fin) fin(); coarse = false; draw(); }
+      if (anim.i >= anim.pts.length) { const fin = anim.done; anim = null; if (trail) trail.done = performance.now(); if (fin) fin(); coarse = false; draw(); }
       else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }
-  function stopTravel() { if (anim) { const fin = anim.done; anim = null; if (fin) fin(); } }
+  function stopTravel() { if (anim) { const fin = anim.done; anim = null; if (trail) trail.done = performance.now() - TRAIL_HOLD; if (fin) fin(); } }
   const menu = $('round');
   function setMenu() {
     menu.items = model.P.vals.map((_, i) => ({ value: String(i), label: 'Once round $z_{' + (i + 1) + '}$' })).concat([{ value: 'all', label: 'Once round all of them' }]);
@@ -819,16 +1056,20 @@
     if (model.atVal !== null) { state.z = model.zi.slice(); model.atVal = null; }
     model.onRay = null;
     rebase();
-    travel(loopPath(i), () => { keep(); });
+    travel(loopPath(i), () => { keep(); settle(); });
   });
 
   /* ---------- undo ---------- */
   let back = [], forth = [], now = null;
   const copyB = (B) => ({ 1: B[1].map((r) => r.slice()), 2: B[2].map((r) => r.slice()), 3: B[3].map((r) => r.slice()) });
-  const snap = () => ({ crit: state.crit.map((c) => c.slice()), z: state.z.slice(), z0: state.z0.slice(), zi: model.zi.slice(), rts: model.rts.map((q) => q.slice()), ref: model.ref, B: copyB(model.B), atVal: model.atVal, onRay: model.onRay });
+  const copyCarry = (c) => (c ? { arcs: c.arcs.map((A) => A.map((q) => q.slice())), ends: c.ends.map((e) => e.slice()) } : null);
+  const snap = () => ({ crit: state.crit.map((c) => c.slice()), z: state.z.slice(), z0: model.z0.slice(), zi: model.zi.slice(), rts: model.rts.map((q) => q.slice()), ref: model.ref, B: copyB(model.B), atVal: model.atVal, onRay: model.onRay, carry: copyCarry(model.carry) });
   function restore(s) {
-    state.crit = s.crit.map((c) => c.slice()); state.z = s.z.slice(); state.z0 = s.z0.slice();
-    model = { P: PL.poly(state.crit), rts: s.rts.map((q) => q.slice()), ref: s.ref, zi: s.zi.slice(), B: copyB(s.B), atVal: s.atVal, onRay: s.onRay, flash: null };
+    state.crit = s.crit.map((c) => c.slice()); state.z = s.z.slice();
+    model = { P: PL.poly(state.crit), rts: s.rts.map((q) => q.slice()), ref: s.ref, zi: s.zi.slice(), z0: s.z0.slice(), B: copyB(s.B), atVal: s.atVal, onRay: s.onRay, flash: null, carry: copyCarry(s.carry) };
+    trail = null;
+    model.loose = !!model.carry;
+    ver++;
     draw();
   }
   function keep() { undoButtons.keep(back, now); now = snap(); forth.length = 0; undoButtons.update(); }
@@ -845,6 +1086,21 @@
   function setN(n) {
     state.n = n;
     $('shape-sphere').textContent = SHAPE[n - 1];
+    // (no 3D picture for n = 1)
+    $('view-3d').disabled = n === 1;
+    if (n === 1 && state.view === '3d') { state.view = 'plane'; $('view').value = 'plane'; }
+    viewChanged();
+  }
+  function setView(v) {
+    state.view = v;
+    viewChanged();
+    draw();
+  }
+  // in 3D the picture turns, from the keyboard too, and the hint says so
+  function viewChanged() {
+    if (is3d()) xcv.setAttribute('tabindex', '0'); else xcv.removeAttribute('tabindex');
+    turner.update();
+    $('hint').textContent = is3d() ? 'Drag critical points to move them, and the picture to turn it.' : 'Drag critical points to move them.';
   }
   $('n').addEventListener('change', (e) => { setN(+e.detail.value); draw(); window.dispatchEvent(new CustomEvent('pl:n', { detail: state.n })); });
   // the cycles as their arcs or as what they are: the spheres shrink onto their arcs, or grow
@@ -865,12 +1121,14 @@
     shapeReq = requestAnimationFrame(tick);
   }
   $('shape').addEventListener('change', (e) => setShape(e.detail.value === 'arc'));
-  $('phase').addEventListener('change', (e) => { state.phase = e.detail.pressed; draw(); });
+  $('view').addEventListener('change', (e) => setView(e.detail.value));
+  $('which').addEventListener('change', (e) => { state.carried = e.detail.value === 'carried'; draw(); if (!drag && !anim) settle(); });
   function chooseMu(mu, crit, z) {
     stopTravel();
     state.mu = mu;
     state.crit = (crit || DEFAULTS[mu]).map((c) => c.slice());
-    state.z = null; state.z0 = null;
+    state.z = null;
+    trail = null;
     fit();
     state.z = z ? z.slice() : [0, -1.25 * frame.Rc];
     fit();
@@ -886,8 +1144,8 @@
   now = snap();
   draw();
   example = MM.example({
-    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), z: MM.example.numbers(3), a: 'int', ph: 'int' },
-    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), z: state.z.slice(), a: state.arcs ? 1 : 0, ph: state.phase ? 1 : 0 }),
+    fields: { n: 'int', m: 'int', c: MM.example.numbers(3), z: MM.example.numbers(3), a: 'int', h: 'int', v: 'int', t: MM.example.numbers(2) },
+    get: () => ({ n: state.n, m: state.mu, c: state.crit.flat(), z: state.z.slice(), a: state.arcs ? 1 : 0, h: state.carried ? 1 : 0, v: VIEWS.indexOf(state.view), t: [v3d.yaw, v3d.pitch] }),
     set(x, named) {
       if (![1, 2, 3].includes(x.n) || !DEFAULTS[x.m]) return false;
       let crit = DEFAULTS[x.m];
@@ -897,10 +1155,14 @@
         for (let k = 0; k < x.m; k++) crit.push([x.c[2 * k], x.c[2 * k + 1]]);
       }
       if (named.has('z') && (!Array.isArray(x.z) || x.z.length !== 2 || x.z.some((v) => !isFinite(v)))) return false;
+      if (named.has('t') && (!Array.isArray(x.t) || x.t.length !== 2 || x.t.some((v) => !isFinite(v)))) return false;
+      state.view = VIEWS[x.v] || 'plane';
+      $('view').value = state.view;
+      state.carried = x.h === 1;
+      $('which').value = state.carried ? 'carried' : 'basis';
+      if (named.has('t')) { v3d.yaw = x.t[0]; v3d.pitch = clamp(x.t[1], 0.3, 1.45); }
       setN(x.n);
       $('n').value = String(x.n);
-      state.phase = x.ph === 1;
-      $('phase').pressed = state.phase;
       $('shape').value = x.a === 1 ? 'arc' : 'sphere';
       setShape(x.a === 1, true);
       $('mu').value = String(x.m);
@@ -912,10 +1174,11 @@
     pictures: () => [{ label: 'Plane of x', element: $('xplane') }, { label: 'Plane of values', element: $('zplane'), selected: false }].concat(window.PLFigures ? window.PLFigures.pictures() : []),
     redraw: () => { phase.key = ''; draw(); if (window.PLFigures) window.PLFigures.redraw(); },
     scene: {
-      get: () => ({ z0: state.z0, zi: model.zi, rts: model.rts, B: model.B, atVal: model.atVal, onRay: model.onRay }),
+      get: () => ({ z0: model.z0, zi: model.zi, rts: model.rts, B: model.B, atVal: model.atVal, onRay: model.onRay, carry: model.carry, ref: model.ref }),
       set(s) {
-        state.z0 = s.z0.slice(); model.zi = s.zi.slice(); model.rts = s.rts.map((q) => q.slice()); model.B = copyB(s.B);
-        model.atVal = s.atVal; model.onRay = s.onRay;
+        model.z0 = s.z0.slice(); model.zi = s.zi.slice(); model.rts = s.rts.map((q) => q.slice()); model.B = copyB(s.B);
+        model.atVal = s.atVal; model.onRay = s.onRay; model.carry = copyCarry(s.carry); model.ref = s.ref;
+        ver++;
         draw();
       },
     },
