@@ -255,9 +255,11 @@
   /* ---------- the chambers ---------- */
   // The elements g of the group, as matrices, with gC near C: all of them for a finite group;
   // else those with the middle of gC within R of the middle of the model (in the Euclidean or the
-  // hyperbolic metric). Found by crossing walls from C: right[e·n + i] is the element g_e s_i (−1
-  // if it is not among them), whose chamber is across wall i of g_e C.
-  function chambers(M, R, limit) {
+  // hyperbolic metric), and in the hyperbolic plane also those whose picture in the Poincaré disc
+  // is at least `minSize` across (so that the chambers run on into the corners at infinity, where
+  // they shrink slowly). Found by crossing walls from C: right[e·n + i] is the element g_e s_i
+  // (−1 if it is not among them), whose chamber is across wall i of g_e C.
+  function chambers(M, R, limit, minSize) {
     const { n, d, S, kind } = M, rho = M.rho, last = d - 1;
     const cap = limit || 400000;
     let mats = new Float64Array(64 * d * d), right = new Int32Array(64 * n).fill(-1), parity = new Uint8Array(64);
@@ -270,10 +272,18 @@
       return s;
     };
     const coshR = Math.cosh(R || 0);
-    const keep = (c) => {
+    // the size of the chamber of H in the Poincaré disc: the farthest apart of its corners there
+    const disc = (v) => { const q = v[last] * v[last] - v[0] * v[0] - v[1] * v[1], k = 1 / (v[last] + Math.sqrt(q > 0 ? q : 0)); return [v[0] * k, v[1] * k]; };
+    const size = (H) => {
+      const ps = M.corners.map((cn) => disc(apply(H, cn, d)));
+      let s = 0;
+      for (let a = 0; a < ps.length; a++) for (let b = a + 1; b < ps.length; b++) s = Math.max(s, Math.hypot(ps[a][0] - ps[b][0], ps[a][1] - ps[b][1]));
+      return s;
+    };
+    const keep = (c, H) => {
       if (kind === 'sphere') return true;
       if (kind === 'plane') { let s = 0; for (let i = 0; i < last; i++) s += c[i] * c[i]; return s <= R * R; }
-      return c[last] <= coshR;
+      return c[last] <= coshR || (minSize && d === 3 && size(H) >= minSize);
     };
     let N = 0;
     function add(G, par) {
@@ -296,7 +306,7 @@
         const Hm = mul(G, S[i], d), c = apply(Hm, rho, d), k = keyOf(c);
         let j = at.get(k);
         if (j === undefined) {
-          if (!keep(c) || N >= cap) continue;
+          if (!keep(c, Hm) || N >= cap) continue;
           j = add(Hm, parity[e] ^ 1);
           at.set(k, j);
           centre.push(c);
@@ -712,6 +722,7 @@
     'Truncated square tiling': 'Tetrakis square tiling', 'Snub square tiling': 'Cairo pentagonal tiling',
     'Trihexagonal tiling': 'Rhombille tiling', 'Truncated hexagonal tiling': 'Triakis triangular tiling', 'Rhombitrihexagonal tiling': 'Deltoidal trihexagonal tiling',
     'Truncated trihexagonal tiling': 'Kisrhombille tiling', 'Snub trihexagonal tiling': 'Floret pentagonal tiling', 'Elongated triangular tiling': 'Prismatic pentagonal tiling',
+    'Bitruncated cubic honeycomb': 'Disphenoid tetrahedral honeycomb',
   };
   const REGULAR = new Set(['Tetrahedron', 'Cube', 'Octahedron', 'Dodecahedron', 'Icosahedron', 'Square tiling', 'Triangular tiling', 'Hexagonal tiling']);
   // the hyperbolic tilings of [p, q], named as is usual: {7,3} the heptagonal tiling, {3,7} the

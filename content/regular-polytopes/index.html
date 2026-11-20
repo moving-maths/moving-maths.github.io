@@ -46,6 +46,7 @@ references:
   </div>
   <mm-toggle id="colours">Colours</mm-toggle>
   <mm-toggle id="mirrors">Mirrors</mm-toggle>
+  <mm-toggle id="rotate" pressed hidden>Rotate</mm-toggle>
   <mm-toggle id="arcs" hidden>Arcs</mm-toggle>
   <mm-toggle id="larger" hidden>Larger tiles</mm-toggle>
   <mm-zoom id="zoom" min="1" max="12" aria-label="Zoom the tiling" hidden></mm-zoom>
@@ -58,19 +59,24 @@ references:
         <canvas id="flat" role="img" aria-label="The polyhedron, turning in space"></canvas>
         <div class="handle draggable rp-handle" id="handle" role="slider" tabindex="0" aria-label="A point of the space: moving it moves the space" hidden></div>
       </div>
-      <p class="hint" id="hint"></p>
-      <section class="strip-block" aria-labelledby="list-h">
+      <section class="strip-block" aria-label="Regular polytopes and their relatives">
         <div class="strip-head">
-          <h3 class="label" id="list-h">Regular polytopes and their relatives</h3>
-          <mm-seg id="family" value="polyhedra" aria-label="Which of them the list shows">
-            <button value="polygons">Polygons</button><button value="polyhedra">Polyhedra</button><button value="plane">Plane</button><button value="hyperbolic">Hyperbolic</button><button value="space">4D</button>
+          <mm-seg id="dim" value="3" aria-label="Dimension">
+            <button value="2">2D</button><button value="3">3D</button><button value="4">4D</button>
+          </mm-seg>
+          <mm-seg id="geo" value="sphere" aria-label="Which of them the list shows">
+            <button value="sphere">Polyhedra</button><button value="plane">Tilings</button><button value="hyperbolic">Hyperbolic</button>
           </mm-seg>
         </div>
-        <div class="strip" id="strip" role="toolbar" aria-labelledby="list-h"></div>
+        <div class="strip" id="strip" role="toolbar" aria-label="Regular polytopes and their relatives"></div>
       </section>
     </div>
     <div class="split-side">
-      <section class="side-block side-head rp-chamber-block" id="chamber-block" aria-label="The point x in the chamber">
+      <section class="side-block side-head rp-name" id="name-block" aria-labelledby="name">
+        <h2 class="side-title" id="name"></h2>
+        <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block side-more rp-chamber-block" id="chamber-block" aria-label="The point x in the chamber">
         <div class="rp-chamber-row">
           <svg id="chamber" class="rp-chamber" role="group" aria-label="The chamber, with the point x"></svg>
           <svg id="coxeter" class="rp-coxeter" role="group" aria-label="The Coxeter diagram: a node for each wall, ringed where x is off it"></svg>
@@ -83,10 +89,6 @@ references:
         <div class="slider-pair rp-sliders" id="p2-c">
           <mm-slider id="p2" plain min="2" max="12" step="1" value="5">$p$</mm-slider>
         </div>
-      </section>
-      <section class="side-block side-more rp-name" aria-labelledby="name">
-        <h2 class="side-title" id="name"></h2>
-        <div class="legend" id="legend"></div>
       </section>
       <section class="side-block side-more" aria-label="About it">
         <dl class="kv" id="about"></dl>
