@@ -140,7 +140,7 @@
     // rank four: the group, x, the dual or the honeycomb that is not Wythoff's; the view: a map
     // of the space (a rotation of R⁴, an affine map, a Lorentz map), the turn of the picture in
     // space, the projection of the 3-sphere, and the turn of the chamber's picture
-    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: I(3), turn: { th: -0.45, ph: 0.3 }, m: null, proj: 'stereo', wR: I(3), wt: { th: 1, ph: 0.3 } },
+    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: I(3), turn: { th: -0.45, ph: 0.3 }, m: null, proj: 'stereo', wR: I(3), wt: { th: 1, ph: 0.3 }, zoom: 1 },
     colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(),
     // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
     // tipping it towards the eye
@@ -254,17 +254,30 @@
     if (!g) {
       const M = P.model(ms);
       const R = M.kind === 'sphere' ? 0 : M.kind === 'plane' ? 9 : HYP4_R[key] || 4;
-      g = { key, ms, M, T: P.chambers(M, R, 220000) };
+      g = { key, ms, M, R, T: P.chambers(M, R, 220000), Ts: [] };
       groups4.set(key, g);
     }
     return g;
+  }
+  // A honeycomb of hyperbolic space drawn only so deep that it has at most EDGE_BUDGET edges: with
+  // x off more walls each chamber gives more edges (inside C, 16 times those of the regular one),
+  // and the number of chambers within R grows like e^{2R}. The chambers within R less `level`
+  // steps; the deepest level whose edges, estimated from a shallow one (edges per chamber stay
+  // nearly the same), are within the budget.
+  const HYP4_STEP = 0.35, HYP4_LEVELS = 5, EDGE_BUDGET = 12000;
+  const chambers4 = (g, level) => (level ? g.Ts[level] || (g.Ts[level] = P.chambers(g.M, g.R - level * HYP4_STEP, 220000)) : g.T);
+  function budgeted(g, x) {
+    const top = HYP4_LEVELS - 1, Ws = P.wythoff(chambers4(g, top), x), per = Ws.edges.length / 3 / chambers4(g, top).N;
+    let level = top;
+    while (level > 0 && per * chambers4(g, level - 1).N <= EDGE_BUDGET) level--;
+    return { W: level === top ? Ws : P.wythoff(chambers4(g, level), x), level };
   }
   let s4 = null, s4s = null; // what is drawn, and its structure, kept while x moves on the same walls
   // The polytope or honeycomb of rank four, as drawn: its points (the dual's, if shown), edges,
   // and cells (each with its vertices and middle), and how large it is.
   function space4() {
     const f = state.four;
-    let key, W, M, g = null, x = null, shape;
+    let key, W, M, g = null, x = null, shape, level = 0;
     if (f.special) {
       shape = 'special|' + f.special;
       key = shape + '|' + f.dual;
@@ -278,7 +291,9 @@
       shape = g.key + '|' + P.wallsOf(M, x).map(Number).join('');
       key = shape + '|' + f.w.map((v) => v.toFixed(13)).join(',') + '|' + f.dual;
       if (s4 && s4.key === key) return s4;
-      W = s4 && s4.shape === shape && s4.g === g ? P.place(s4.W, x) : P.wythoff(g.T, x);
+      if (s4 && s4.shape === shape && s4.g === g) { W = P.place(s4.W, x); level = s4.level; }
+      else if (M.kind === 'hyperbolic') ({ W, level } = budgeted(g, x));
+      else W = P.wythoff(g.T, x);
     }
     const d = M.d, kind = M.kind;
     // the structure: each cell's vertices; for the dual, a vertex for each cell, an edge for each
@@ -356,7 +371,9 @@
       }
       return (cell.faces = out);
     };
-    s4 = { key, shape, g, M, W, x, d, kind, adj, pos, V: S.V, edges: S.edges, cells: S.cells, cellEdges, cellFaces };
+    // (the ball's fade: from the middle out to where the chambers drawn end)
+    const lose = level * HYP4_STEP, fade = [Math.tanh((1.9 - 0.6 * lose) / 2), Math.tanh((3.9 - lose) / 2)];
+    s4 = { key, shape, g, M, W, x, d, kind, adj, pos, V: S.V, edges: S.edges, cells: S.cells, cellEdges, cellFaces, level, fade };
     return s4;
   }
   // how near a point of the space is to the middle of the picture, before the view (larger: nearer)
@@ -1184,6 +1201,7 @@
     const { ctx, w, h } = frameCanvas(), X = space4(), f = state.four, V = X.V, pos = X.pos, edges = X.edges;
     f.R3 = turnR3_4();
     const frame = frameOf(X), C = cam3 = camera(f.R3, frame, w, h), Rv = f.rot, view = viewOf(X);
+    C.s *= f.zoom; // (the zoom: the 3D picture larger, seen from where it was)
     const [r0, r1, r2, r3] = Rv, cr = C.R, Dc = C.D, F = C.f * C.s, w2 = w / 2, h2 = h / 2, K2 = D4 + 1;
     // 0: as it is (parallel, the Euclidean honeycomb), 1: stereographic, 2: perspective, 3: the ball
     const mode = X.kind === 'plane' ? 0 : X.kind === 'hyperbolic' ? 3 : f.proj === 'stereo' ? 1 : f.proj === 'persp' ? 2 : 0;
@@ -1216,7 +1234,7 @@
     const at = (oa, ob, u) => scr(Q[oa] + u * (Q[ob] - Q[oa]), Q[oa + 1] + u * (Q[ob + 1] - Q[oa + 1]), Q[oa + 2] + u * (Q[ob + 2] - Q[oa + 2]), Q[oa + 3] + u * (Q[ob + 3] - Q[oa + 3]), tmp, 0);
     // how strongly a point shows: nearer the eye darker; far out (in the stereographic picture, the
     // Euclidean honeycomb, the ball) fading away
-    const near = Dc - frame, radial = mode === 3 ? [0.74, 0.96] : X.kind === 'plane' ? [0.7 * frame, 1.25 * frame] : mode === 1 ? [1.15 * frame, 2.4 * frame] : null;
+    const near = Dc - frame, radial = mode === 3 ? X.fade : X.kind === 'plane' ? [0.7 * frame, 1.25 * frame] : mode === 1 ? [1.15 * frame, 2.4 * frame] : null;
     const alpha = (depth, r) => (1 - 0.62 * clamp((depth - near) / (2 * frame), 0, 1)) * (radial ? 1 - smooth(radial[0], radial[1], r) : 1);
     // the points of the edge from a to b on the canvas, into pts (a polyline along it where it is
     // curved, finer where it is long; out to the edge of the picture towards a point at infinity)
@@ -2189,7 +2207,7 @@
     $('mirrors').hidden = k === 'penrose' || k === 'space' || (three && state.three.special);
     $('colours').hidden = k === 'space';
     $('arcs').hidden = $('larger').hidden = k !== 'penrose';
-    $('zoom').hidden = !(k === 'plane' || k === 'penrose');
+    $('zoom').hidden = !(k === 'plane' || k === 'penrose' || k === 'space');
     $('pq').hidden = !three || !!state.three.special;
     $('p2-c').hidden = k !== 'polygon';
     // what the sliders set: the Schläfli symbol, or for r > 2 the triangle group
@@ -2648,9 +2666,10 @@
     pen.c = [clamp(pen.c[0] - dx / s, -lim, lim), clamp(pen.c[1] + dy / s, -lim, lim)];
   }
   // zoom by f about the point (x, y) of the canvas
-  const PLANE_SPAN = { min: 1.2, max: 14 }, PEN_SPAN = { min: 11, max: 6e4 };
+  const PLANE_SPAN = { min: 1.2, max: 14 }, PEN_SPAN = { min: 11, max: 6e4 }, ZOOM4 = 6;
   function zoomAt(f, x, y) {
-    if (state.kind === 'plane') {
+    if (state.kind === 'space') state.four.zoom = clamp(state.four.zoom * f, 1, ZOOM4); // (about the middle)
+    else if (state.kind === 'plane') {
       const V = state.V || baseView(stage.clientWidth, stage.clientHeight), span = clamp(state.span / f, PLANE_SPAN.min, PLANE_SPAN.max), k = state.span / span;
       state.span = span;
       state.V = mm([[k, 0, x - k * x], [0, k, y - k * y], [0, 0, 1]], V);
@@ -2667,6 +2686,7 @@
   }
   // the zoom slider: a magnification, 1 at the farthest the picture goes out
   function syncZoom() {
+    if (state.kind === 'space') { const z = $('zoom'); z.setAttribute('min', '1'); z.setAttribute('max', String(ZOOM4)); z.value = state.four.zoom; return; }
     if (state.kind !== 'plane' && state.kind !== 'penrose') return;
     const z = $('zoom'), R = state.kind === 'plane' ? PLANE_SPAN : PEN_SPAN, span = state.kind === 'plane' ? state.span : state.pen.span;
     z.setAttribute('min', '1');
@@ -2674,6 +2694,7 @@
     z.value = R.max / span;
   }
   $('zoom').addEventListener('input', () => {
+    if (state.kind === 'space') { state.four.zoom = clamp(+$('zoom').value, 1, ZOOM4); draw(); return; }
     const z = $('zoom'), span = state.kind === 'plane' ? PLANE_SPAN.max / z.value : PEN_SPAN.max / z.value, now = state.kind === 'plane' ? state.span : state.pen.span;
     zoomAt(now / span, stage.clientWidth / 2, stage.clientHeight / 2);
   });
@@ -2776,7 +2797,7 @@
         t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate,
         j: k === 'sphere' ? state.view3 : k === 'space' ? state.four.proj : 'solid',
         v: k === 'space' ? state.four.R3 : state.R3, u: state.four.rot,
-        z: k === 'plane' ? state.span : k === 'penrose' ? state.pen.span : 3.2,
+        z: k === 'plane' ? state.span : k === 'penrose' ? state.pen.span : k === 'space' ? 3.2 * state.four.zoom : 3.2,
       };
     },
     set(x, named) {
@@ -2824,6 +2845,7 @@
       if (k === 'space') state.four.proj = ['stereo', 'persp', 'parallel'].includes(x.j) ? x.j : 'stereo';
       if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
+      if (k === 'space') state.four.zoom = named.has('z') ? clamp(x.z / 3.2, 1, ZOOM4) : 1;
       if (named.has('z')) { if (k === 'plane') { state.span = clamp(x.z, PLANE_SPAN.min, PLANE_SPAN.max); state.V = null; } else if (k === 'penrose') state.pen.span = clamp(x.z, PEN_SPAN.min, PEN_SPAN.max); }
       syncControls();
       syncZoom();
