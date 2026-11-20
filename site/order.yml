@@ -17,3 +17,4 @@ topics:
   representation-theory: [root-systems, dynkin-diagrams, highest-weight-representations]
   topology: [knots, configuration-spaces]
   complex-analysis: [stokes-phenomenon]
+  combinatorics: [regular-polytopes]

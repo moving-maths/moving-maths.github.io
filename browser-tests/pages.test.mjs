@@ -73,6 +73,8 @@ const CHANGES = {
   // a quartic, with the sign of a term changed
   amoebas: async (page) => { await page.locator('#degree button[value="4"]').click(); await page.locator('.am-sign').nth(2).click(); },
   knots: (page) => page.locator('#strip .strip-item[data-name="5_2"]').click(),
+  // the 120-cell, from the list of four dimensions, then the point x moved to a corner by its diagram
+  'regular-polytopes': async (page) => { await page.locator('#family button[value="space"]').click(); await page.locator('#strip .strip-item[data-key="120-cell"]').click(); await page.locator('#coxeter .cx-node[data-i="1"]').click(); },
   // the quartic, with ħ turned a step from the keyboard
   'stokes-phenomenon': async (page) => { await page.locator('#degree button[value="4"]').click(); await page.locator('#hbar').press('ArrowLeft'); },
   // a point dragged onto another, which collide into a double point
