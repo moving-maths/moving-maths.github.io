@@ -892,7 +892,144 @@
     return S;
   }
 
+  /* ---------- Petrie polygons and the Coxeter plane ---------- */
+  // The product of the generating reflections of a finite group, from one end of the diagram: k = 0,
+  // s_0 s_1 ⋯ s_{n−1}; k = n − 1, the other way round (its inverse). For the regular polytope with
+  // its vertices at the corner k of C it takes the vertex v one step along a Petrie polygon, a skew
+  // polygon v, cv, c²v, … any n − 1 consecutive sides of which, but no n, lie in a Petrie polygon
+  // of a cell (of a face, for a polyhedron) [Coxeter, §2.6, §5.9, §12.4]. Its order h is the number of
+  // sides.
+  function coxeterElement(M, k) {
+    const n = M.n, d = M.d;
+    let C = identity(d);
+    for (let t = 0; t < n; t++) C = mul(C, M.S[k === 0 ? t : n - 1 - t], d);
+    return C;
+  }
+  // The Petrie polygon through v (by default the corner k of C, as a unit vector): its vertices.
+  function petrie(M, k, v) {
+    const d = M.d, C = coxeterElement(M, k), pts = [];
+    let u = Array.from(v || M.corners[k]);
+    const l = Math.sqrt(dotN(u, u));
+    for (let t = 0; t < 400; t++) {
+      pts.push(u);
+      u = apply(C, u, d);
+      let e = 0;
+      for (let a = 0; a < d; a++) e += (u[a] - pts[0][a]) ** 2;
+      if (Math.sqrt(e) < 1e-7 * l) return { C, h: pts.length, pts };
+    }
+    return null;
+  }
+  // The plane in which c = s_0 ⋯ s_{n−1} turns through 2π/h (in its other planes, or about its
+  // axis, it turns through multiples of that): an orthonormal pair a, b with c taking a towards
+  // b. A regular polytope's Petrie polygons are in planes parallel to it [Coxeter, §13.3], and
+  // project to it as regular h-gons; all of the group's polytopes project to it with the
+  // symmetries of a regular h-gon. `rest` completes a, b to an orthonormal basis.
+  function coxeterPlane(M) {
+    const d = M.d, C = coxeterElement(M, 0), x = M.rho, h = petrie(M, 0, x).h, cs = Math.cos(2 * Math.PI / h);
+    const Cs = Array.from({ length: d }, (_, i) => Array.from({ length: d }, (__, j) => (C[i * d + j] + C[j * d + i]) / 2));
+    const { values, vectors } = jacobi(Cs), col = (k) => vectors.map((r) => r[k]);
+    const near = values.map((v, k) => [Math.abs(v - cs), k]).sort((p, q) => p[0] - q[0]);
+    const a = col(near[0][1]), b0 = col(near[1][1]);
+    const ca = apply(C, a, d), b = dotN(ca, b0) < 0 ? b0.map((t) => -t) : b0;
+    const rest = near.slice(2).map(([, k]) => col(k));
+    return { a, b, rest, h };
+  }
+
+  /* ---------- sections of a polytope of rank four ---------- */
+  // The sections of a polytope of rank four by the hyperplanes u·y = t (u a unit vector), in the
+  // coordinates of an orthonormal frame E = [e1, e2, e3] of the space orthogonal to u. pos: its
+  // vertices, d to a vertex; cells: each { normal (outward), faces (cycles of vertices) }. Returns
+  // the heights of the vertices, the levels (their distinct values, where the sections pass
+  // through vertices) and at(t, shape): the volume of the section, and with shape, the section:
+  // its points (by id: a vertex v, or V + aV + b on the edge from a to b), its faces (cycles of
+  // points, each with the cell it lies in and its outward unit normal), and the polytope's
+  // vertices in the hyperplane.
+  function sections(pos, d, cells, u, E) {
+    const V = pos.length / d, hgt = new Float64Array(V), q = new Float64Array(3 * V);
+    for (let v = 0; v < V; v++) {
+      let s = 0;
+      for (let a = 0; a < d; a++) s += u[a] * pos[d * v + a];
+      hgt[v] = s;
+      for (let k = 0; k < 3; k++) { let c = 0; for (let a = 0; a < d; a++) c += E[k][a] * pos[d * v + a]; q[3 * v + k] = c; }
+    }
+    const prep = cells.map((cell) => {
+      const seen = new Set(), edges = [];
+      let lo = Infinity, hi = -Infinity;
+      for (const f of cell.faces) for (let i = 0; i < f.length; i++) {
+        const a = Math.min(f[i], f[(i + 1) % f.length]), b = Math.max(f[i], f[(i + 1) % f.length]), key = a * V + b;
+        if (!seen.has(key)) { seen.add(key); edges.push(a, b); }
+        lo = Math.min(lo, hgt[f[i]]); hi = Math.max(hi, hgt[f[i]]);
+      }
+      const n = E.map((e) => dotN(e, cell.normal)), l = Math.sqrt(dotN(n, n));
+      return { edges, lo, hi, n: l > 1e-9 ? n.map((x) => x / l) : null };
+    });
+    const levels = [];
+    Array.from(hgt).sort((x, y) => x - y).forEach((x) => { if (!levels.length || x - levels[levels.length - 1] > 1e-7) levels.push(x); });
+    const EPS = 1e-9;
+    function at(t, shape) {
+      const pts = shape ? new Map() : null, faces = shape ? [] : null;
+      const s = (v) => { const x = hgt[v] - t; return Math.abs(x) < EPS ? 0 : x; };
+      const point = (id) => {
+        if (id < V) return [q[3 * id], q[3 * id + 1], q[3 * id + 2]];
+        const a = Math.floor((id - V) / V), b = (id - V) % V, l = (t - hgt[a]) / (hgt[b] - hgt[a]);
+        return [0, 1, 2].map((k) => q[3 * a + k] + l * (q[3 * b + k] - q[3 * a + k]));
+      };
+      let vol = 0;
+      // (a 2-face in the hyperplane is in the sections of both cells on it: taken once)
+      const done = new Set();
+      prep.forEach((c, ci) => {
+        if (!c.n || c.lo > t + EPS || c.hi < t - EPS) return;
+        const ids = new Set();
+        for (let i = 0; i < c.edges.length; i += 2) {
+          const a = c.edges[i], b = c.edges[i + 1], sa = s(a), sb = s(b);
+          if (sa === 0) ids.add(a);
+          if (sb === 0) ids.add(b);
+          if (sa * sb < 0) ids.add(V + a * V + b);
+        }
+        if (ids.size < 3) return;
+        // in order round the middle, in the plane of the face (counterclockwise seen from outside)
+        const list = [...ids].map((id) => ({ id, p: pts && pts.has(id) ? pts.get(id) : point(id) }));
+        const m = [0, 1, 2].map((k) => list.reduce((x, o) => x + o.p[k], 0) / list.length), n = c.n;
+        let b1 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const dn = dotN(b1, n);
+        b1 = b1.map((x, k) => x - dn * n[k]);
+        const l1 = Math.sqrt(dotN(b1, b1));
+        b1 = b1.map((x) => x / l1);
+        const b2 = [n[1] * b1[2] - n[2] * b1[1], n[2] * b1[0] - n[0] * b1[2], n[0] * b1[1] - n[1] * b1[0]];
+        list.forEach((o) => { const r = o.p.map((x, k) => x - m[k]); o.a = Math.atan2(dotN(r, b2), dotN(r, b1)); });
+        list.sort((x, y) => x.a - y.a);
+        // (points on a side between its ends left out)
+        const ring = list.filter((o, i) => {
+          const A = list[(i + list.length - 1) % list.length].p, B = list[(i + 1) % list.length].p, P = o.p;
+          const u1 = P.map((x, k) => x - A[k]), u2 = B.map((x, k) => x - P[k]);
+          const cr = [u1[1] * u2[2] - u1[2] * u2[1], u1[2] * u2[0] - u1[0] * u2[2], u1[0] * u2[1] - u1[1] * u2[0]];
+          return dotN(cr, n) > 1e-12;
+        });
+        if (ring.length < 3) return;
+        const key = ring.map((o) => o.id).sort((x, y) => x - y).join(',');
+        if (done.has(key)) return;
+        done.add(key);
+        let area = 0;
+        for (let i = 0; i < ring.length; i++) {
+          const A = ring[i].p, B = ring[(i + 1) % ring.length].p;
+          area += dotN(n, [A[1] * B[2] - A[2] * B[1], A[2] * B[0] - A[0] * B[2], A[0] * B[1] - A[1] * B[0]]) / 2;
+        }
+        vol += area * dotN(n, ring[0].p) / 3;
+        if (shape) {
+          ring.forEach((o) => pts.set(o.id, o.p));
+          faces.push({ ids: ring.map((o) => o.id), cell: ci, n });
+        }
+      });
+      if (!shape) return vol;
+      const onVerts = [];
+      for (let v = 0; v < V; v++) if (s(v) === 0) { onVerts.push(v); if (!pts.has(v)) pts.set(v, point(v)); }
+      return { vol, pts, faces, onVerts };
+    }
+    return { hgt, levels, at, lo: levels[0], hi: levels[levels.length - 1] };
+  }
+
   root.Polytopes = {
+    coxeterElement, petrie, coxeterPlane, sections,
     identity, mul, apply, solve, cholesky, jacobi, linear, triangle, geometry, curvature, model, chambers, wythoff, place, snub,
     dual, planes, polar, laves, dual4, faceMiddle, configuration, vertexConfig, least, confKey, uniform, snubPoint, wallsOf, real, groupOrder,
     nameByConfig, dualName, regName, symbol3, name4, elongated, octet, gon, adj, DUALS, REGULAR, POLY4, INF,

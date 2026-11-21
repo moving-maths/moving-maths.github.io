@@ -1,7 +1,8 @@
 // Independent checks of the mathematics in content/regular-polytopes/: Wythoff's construction
 // (polytopes.js) against the known counts of faces and Euler's formula, its duals, the vertex
 // configurations and names of the uniform polyhedra and tilings (with angles π/∞ too), the
-// honeycombs of rank four, and the Penrose tilings by deflation (penrose.js).
+// honeycombs of rank four, Petrie polygons and the Coxeter plane, sections of the 4-polytopes, and
+// the Penrose tilings by deflation (penrose.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../content/regular-polytopes/polytopes.js';
@@ -301,4 +302,99 @@ test('a snub shown across a wall: its faces’ middles reflected with it (the Ca
   // the dual: pentagons round the vertices near the middle, each through the middles of its five faces
   const D = P.laves(W), near = D.faces.filter((f) => Math.hypot(W.pos[3 * f.at], W.pos[3 * f.at + 1]) < 3);
   assert.ok(near.length > 10 && near.every((f) => f.v.length === 5));
+});
+
+// the vertices, edges and cells (as sets of vertices) of a polytope of Wythoff's construction
+function structure(M, W) {
+  const d = M.d, key = (p) => p.map((x) => Math.round(x * 1e6)).join(','), vid = new Map();
+  for (let v = 0; v < W.V; v++) vid.set(key(at(W, v, d)), v);
+  const edges = new Set();
+  for (let i = 0; i < W.edges.length; i += 3) edges.add(Math.min(W.edges[i], W.edges[i + 1]) + ',' + Math.max(W.edges[i], W.edges[i + 1]));
+  const cells = (W.cells || []).map((c) => { const s = new Set(); c.faces.forEach((fi) => W.faces[fi].v.forEach((v) => s.add(v))); return s; });
+  return { id: (p) => vid.get(key(p)), isEdge: (a, b) => edges.has(Math.min(a, b) + ',' + Math.max(a, b)), cells };
+}
+
+test('Petrie polygons: their sides, the zigzag, how many there are, and the Coxeter plane', () => {
+  const H = { '3,3': 4, '4,3': 6, '5,3': 10, '3,3,3': 5, '4,3,3': 8, '3,4,3': 12, '5,3,3': 30 };
+  for (const key of Object.keys(H)) {
+    const ms = key.split(',').map(Number), M = P.model(ms), T = P.chambers(M), n = M.n, d = M.d, cp = P.coxeterPlane(M);
+    assert.equal(cp.h, H[key], key + ': h');
+    if (n === 3) {
+      // cos²(π/h) = cos²(π/p) + cos²(π/q)
+      const c2 = (m) => Math.cos(Math.PI / m) ** 2;
+      assert.ok(Math.abs(c2(H[key]) - c2(ms[0]) - c2(ms[1])) < 1e-12);
+    }
+    for (const k of [0, n - 1]) {
+      const W = P.wythoff(T, M.corners[k]), S = structure(M, W), pr = P.petrie(M, k), h = pr.h, ids = pr.pts.map(S.id);
+      assert.equal(h, H[key]);
+      assert.ok(ids.every((v) => v !== undefined) && new Set(ids).size === h, 'distinct vertices');
+      assert.ok(ids.every((a, i) => S.isEdge(a, ids[(i + 1) % h])), 'sides are edges');
+      // n consecutive vertices (n − 1 sides) lie in a face or a cell, n + 1 do not
+      const run = (i, m) => Array.from({ length: m }, (_, t) => ids[(i + t) % h]);
+      const sets = n === 3 ? W.faces.map((f) => new Set(f.v)) : S.cells;
+      const inOne = (vs) => sets.some((F) => vs.every((v) => F.has(v)));
+      assert.ok(ids.every((_, i) => inOne(run(i, n))), key + ': ' + n + ' consecutive vertices in one ' + (n === 3 ? 'face' : 'cell'));
+      assert.ok(!ids.some((_, i) => inOne(run(i, n + 1))), key + ': never ' + (n + 1));
+      // the group's images of it: g/2h of them
+      const sides = (vs) => vs.map((a, i) => { const b = vs[(i + 1) % vs.length]; return Math.min(a, b) + ',' + Math.max(a, b); }).sort().join('|');
+      const orbit = new Set();
+      for (let e = 0; e < T.N; e++) { const G = T.mat(e); orbit.add(sides(pr.pts.map((p) => S.id(P.apply(G, p, d))))); }
+      assert.equal(orbit.size, T.N / (2 * h), key + ': the number of Petrie polygons');
+      // projected to the Coxeter plane: a regular h-gon, each vertex the last turned through ±2π/h
+      const pj = pr.pts.map((p) => [p.reduce((s, x, i) => s + x * cp.a[i], 0), p.reduce((s, x, i) => s + x * cp.b[i], 0)]);
+      pj.forEach((p, i) => {
+        const q = pj[(i + 1) % h], ang = Math.atan2(p[0] * q[1] - p[1] * q[0], p[0] * q[0] + p[1] * q[1]);
+        assert.ok(Math.abs(Math.hypot(...q) - Math.hypot(...pj[0])) < 1e-9 && Math.abs(Math.abs(ang) - 2 * Math.PI / h) < 1e-9, key + ': a regular h-gon');
+      });
+    }
+  }
+});
+
+test('sections of the 4-polytopes: their volumes add up to the 4-volume, and the first is the element', () => {
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0), unit = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  // 4-volumes with circumradius 1: edges √(5/2), 1, √2, 1
+  const KNOWN = { '3,3,3': Math.sqrt(5) / 96 * 6.25, '4,3,3': 1, '3,3,4': 2 / 3, '3,4,3': 2 };
+  const FIRST = { '3,3,3': [3, 4], '4,3,3': [4, 6], '3,3,4': [3, 4], '3,4,3': [3, 8], '5,3,3': [5, 12], '3,3,5': [3, 4] };
+  for (const key of Object.keys(FIRST)) {
+    const M = P.model(key.split(',').map(Number)), W = P.wythoff(P.chambers(M), M.corners[0]);
+    const cells = W.cells.map((c) => {
+      const vs = new Set(); c.faces.forEach((fi) => W.faces[fi].v.forEach((v) => vs.add(v)));
+      return { normal: unit([0, 1, 2, 3].map((a) => [...vs].reduce((s, v) => s + W.pos[4 * v + a], 0))), faces: c.faces.map((fi) => W.faces[fi].v), vs: [...vs] };
+    });
+    // the 4-volume from the cells: a pyramid on each from the centre
+    let byCells = 0;
+    for (const c of cells) {
+      const m = [0, 1, 2, 3].map((a) => c.vs.reduce((s, v) => s + W.pos[4 * v + a], 0) / c.vs.length), r = dot(m, c.normal);
+      let vol3 = 0;
+      for (const f of c.faces) {
+        const p = f.map((v) => at(W, v, 4).map((x, a) => x - m[a]));
+        for (let i = 1; i + 1 < p.length; i++) {
+          // the tetrahedron (centre of the cell, p0, pi, pi+1): its volume by the Gram determinant
+          const A = [p[0], p[i], p[i + 1]], G = A.map((u) => A.map((v) => dot(u, v)));
+          vol3 += Math.sqrt(Math.max(0, G[0][0] * (G[1][1] * G[2][2] - G[1][2] ** 2) - G[0][1] * (G[1][0] * G[2][2] - G[1][2] * G[2][0]) + G[0][2] * (G[1][0] * G[2][1] - G[1][1] * G[2][0]))) / 6;
+        }
+      }
+      byCells += vol3 * r / 4;
+    }
+    if (KNOWN[key]) assert.ok(Math.abs(byCells - KNOWN[key]) < 1e-9, key + ': the 4-volume from the cells');
+    for (let j = 0; j < 4; j++) {
+      const u = M.corners[j].map((x) => -x), E = [];
+      for (const v of [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {
+        let x = v.slice();
+        for (const b of [u, ...E]) { const c = dot(x, b); x = x.map((y, i) => y - c * b[i]); }
+        if (Math.hypot(...x) > 1e-6 && E.length < 3) E.push(unit(x));
+      }
+      const S = P.sections(W.pos, 4, cells, u, E);
+      // Simpson's rule between the levels is exact: the volume is a cubic there
+      let I = 0;
+      for (let i = 0; i + 1 < S.levels.length; i++) { const a = S.levels[i], b = S.levels[i + 1]; I += (b - a) / 6 * (S.at(a) + 4 * S.at((a + b) / 2) + S.at(b)); }
+      assert.ok(Math.abs(I - byCells) < 1e-9 * byCells, key + ' from corner ' + j + ': ∫ volume dt = ' + I + ', not ' + byCells);
+      // the first section: the vertex, the edge, the face (a p-gon), the cell (its faces)
+      const first = S.at(S.lo, true);
+      if (j === 0) assert.deepEqual([first.faces.length, first.onVerts.length], [0, 1]);
+      if (j === 1) assert.deepEqual([first.faces.length, first.onVerts.length], [0, 2]);
+      if (j === 2) assert.deepEqual([first.faces.length, first.faces[0].ids.length, Math.abs(first.vol) < 1e-12], [1, FIRST[key][0], true]);
+      if (j === 3) assert.equal(first.faces.length, FIRST[key][1]);
+    }
+  }
 });

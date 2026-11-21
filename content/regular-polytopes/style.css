@@ -34,9 +34,10 @@ body {
 }
 
 .rp { --split-main: 1.3fr; --split-below: 190px; }
+.rp.rp-sections { --split-below: 350px; }
 @media (max-width: 899.98px) {
   .rp > .split-main, .rp > .split-side { display: contents; }
-  .rp .rp-stage { order: 1; }
+  .rp .rp-stage, .rp .rp-sec { order: 1; }
   .rp .rp-name { order: 2; }
   .rp .rp-chamber-block { order: 3; }
   .rp .strip-block { order: 4; }
@@ -49,6 +50,19 @@ body {
 .rp-stage { position: relative; aspect-ratio: 1; }
 .rp-stage > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .rp-handle.rp-return { transition: transform .28s ease-out; }
+.rp-stage.on-mirror { cursor: pointer; }
+
+/* the sections' chart under the picture: the volume against t, t's handle on the curve */
+.rp-sec { margin: 6px 0 4px; }
+.rp-sec-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; overflow: visible; cursor: pointer; }
+.rp-sec-grid { stroke: var(--rule-2); stroke-width: 1; }
+.rp-sec-axis { stroke: var(--rule); stroke-width: 1; }
+.rp-sec-num { font-size: 12.5px; fill: var(--ink-3); }
+.rp-sec-curve { fill: none; stroke: var(--edge); stroke-width: 2.2; stroke-linejoin: round; }
+.rp-sec-level { fill: var(--ink-3); }
+.rp-sec-guide { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 2; }
+.rp-sec-handle { cursor: ew-resize; --handle-ring: var(--ink-2); }
+.rp-sec-hit { fill: transparent; }
 
 /* the chamber with x (an SVG drawn by main.js), the Coxeter diagram under it */
 .rp-chamber { display: block; width: 100%; max-width: 280px; overflow: hidden; touch-action: none; }
@@ -86,4 +100,6 @@ body {
 .cx-ring { fill: none; stroke: var(--ink); stroke-width: 1.5; }
 .cx-node:hover .cx-dot:not(.hollow), .cx-node:hover .cx-ring { fill-opacity: .7; stroke-opacity: .7; }
 .cx-node .focus-ring { fill: none; }
-.rp-ch-ring { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }
+.rp-ch-ring { fill: none; stroke-width: 1.4; }
+.rp-ch-ring.same { stroke: var(--accent); }
+.rp-ch-ring.like { stroke: var(--ink-3); stroke-opacity: .5; }
