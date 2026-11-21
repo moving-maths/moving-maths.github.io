@@ -433,3 +433,39 @@ test('sections recognised as Wythoff’s polyhedra or their duals, and Coxeter�
   assert.equal(two.n, 32);
   assert.equal(two.full, null);
 });
+
+test('sections of the polyhedra: their areas add up to the volume, and the polygons by name', () => {
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0), unit = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  function slices(pq, j) {
+    const M = P.model(pq), W = P.wythoff(P.chambers(M), M.corners[0]), at = (v) => Array.from(W.pos.subarray(3 * v, 3 * v + 3)), edges = [];
+    for (let i = 0; i < W.edges.length; i += 3) edges.push([at(W.edges[i]), at(W.edges[i + 1])]);
+    const u = M.corners[j].map((x) => -x), E = [];
+    for (const v of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) { let x = v.slice(); for (const b of [u, ...E]) { const c = dot(x, b); x = x.map((y, i) => y - c * b[i]); } if (Math.hypot(...x) > 1e-6 && E.length < 2) E.push(unit(x)); }
+    return { M, W, S: P.slices(edges, u, E), walls: [0, 1, 2].filter((i) => i !== j).map((i) => E.map((e) => dot(e, M.r[i]))) };
+  }
+  for (const pq of [[3, 3], [4, 3], [3, 4], [5, 3], [3, 5]]) {
+    // the volume from the faces, a pyramid on each from the centre
+    const { W } = slices(pq, 0);
+    let vol = 0;
+    for (const f of P.planes(W)) {
+      const A = f.pts.reduce((s, a, i) => { const b = f.pts[(i + 1) % f.pts.length]; return s.map((x, k) => x + [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]][k] / 2); }, [0, 0, 0]);
+      vol += Math.abs(dot(A, f.n)) * dot(f.n, f.pts[0]) / 3;
+    }
+    for (let j = 0; j < 3; j++) {
+      const { S } = slices(pq, j);
+      // Simpson's rule between the levels is exact: the area is a quadratic there
+      let I = 0;
+      for (let i = 0; i + 1 < S.levels.length; i++) { const a = S.levels[i], b = S.levels[i + 1]; I += (b - a) / 6 * (S.at(a) + 4 * S.at((a + b) / 2) + S.at(b)); }
+      assert.ok(Math.abs(I - vol) < 1e-9 * vol, pq + ' from corner ' + j + ': ∫ area dt = ' + I + ', not ' + vol);
+    }
+  }
+  const mid = (pq, j) => { const { S, walls } = slices(pq, j), sec = S.at((S.lo + S.hi) / 2, true); return { n: sec.flat.length, r: P.recognise(walls, sec.flat, sec.sides) }; };
+  // the cube: a regular hexagon from a vertex, a rectangle from an edge, a square from a face
+  const a = mid([4, 3], 0), b = mid([4, 3], 1), c = mid([4, 3], 2);
+  assert.deepEqual([a.n, a.r.w, a.r.dual], [6, [1, 1], false]);
+  assert.ok(b.n === 4 && !b.r.dual && Math.abs(b.r.w[0] - Math.SQRT1_2) < 1e-9 && b.r.w[1] === 1);
+  assert.deepEqual([c.n, c.r.w, c.r.dual], [4, [1, 0], false]);
+  // the octahedron from an edge: a rhomb, the dual of a rectangle
+  const d = mid([3, 4], 1);
+  assert.ok(d.n === 4 && d.r.dual);
+});
