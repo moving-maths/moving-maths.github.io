@@ -1028,15 +1028,16 @@
     return { hgt, levels, at, lo: levels[0], hi: levels[levels.length - 1] };
   }
 
-  // A convex polyhedron with its centre at the origin, as one of Wythoff's: `walls`, the unit
-  // normals of three mirrors through the origin among its symmetries (positive inside their
-  // chamber); `pts` its vertices; `faces` its faces, each { n: outward unit normal, d: distance }.
+  // A convex polyhedron (or polygon) with its centre at the origin, as one of Wythoff's: `walls`,
+  // the unit normals of three (two) mirrors through the origin among its symmetries (positive
+  // inside their chamber); `pts` its vertices; `faces` its faces (sides), each { n: outward unit
+  // normal, d: distance }.
   // If its vertices are the images of one vertex under the reflections, that vertex's distances
   // from the walls (Wythoff's point x, up to scale); else, if its faces are the images of one face,
   // the distances of that face's normal (the x of the polyhedron it is the dual of); else nothing.
   function recognise(walls, pts, faces) {
     const refl = (n, p) => { const d = 2 * dotN(n, p); return p.map((x, i) => x - d * n[i]); };
-    const near = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 1e-7;
+    const near = (a, b) => { let e = 0; for (let i = 0; i < a.length; i++) e += Math.abs(a[i] - b[i]); return e < 1e-7; };
     const inC = (p) => walls.every((n) => dotN(n, p) > -1e-9);
     // the images of p0, if they are exactly the points of list
     function one(list) {
@@ -1054,7 +1055,7 @@
       }
       return orbit.length === list.length && list.every((p) => orbit.some((o) => near(o, p))) ? p0 : null;
     }
-    const w = (p) => { const v = walls.map((n) => Math.max(0, dotN(n, p))), m = Math.max(...v); return v.map((x) => (x < 1e-9 * m ? 0 : x / m)); };
+    const w = (p) => { const v = walls.map((n) => Math.max(0, dotN(n, p))), m = Math.max(...v); return v.map((x) => (x < 1e-9 * m ? 0 : Math.round(x / m * 1e12) / 1e12)); };
     const v0 = pts.length ? one(pts) : null;
     if (v0) return { w: w(v0), dual: false };
     const d0 = faces.length ? faces[0].d : 0;
@@ -1065,8 +1066,51 @@
     return null;
   }
 
+  // The sections of a convex polyhedron (its edges, as pairs of points of space) by the planes
+  // u·y = t (u a unit vector), in the coordinates of an orthonormal pair E of the plane orthogonal
+  // to u: the levels of its vertices, and at(t, shape): the area of the section, and with shape
+  // the section's corners in order (counterclockwise about u), in space and in the plane, its
+  // sides as { n, d } in the plane, and the polyhedron's vertices on the plane.
+  function slices(edges, u, E) {
+    const vid = new Map(), pts = [], pairs = [];
+    const id = (p) => { const k = p.map((x) => Math.round(x * 1e7)).join(','); let i = vid.get(k); if (i === undefined) { i = pts.length; vid.set(k, i); pts.push(Array.from(p)); } return i; };
+    for (const [a, b] of edges) { const i = id(a), j = id(b); if (i !== j) pairs.push(Math.min(i, j), Math.max(i, j)); }
+    const hgt = pts.map((p) => dotN(u, p)), levels = [];
+    hgt.slice().sort((x, y) => x - y).forEach((x) => { if (!levels.length || x - levels[levels.length - 1] > 1e-7) levels.push(x); });
+    const EPS = 1e-9;
+    function at(t, shape) {
+      const s = (v) => { const x = hgt[v] - t; return Math.abs(x) < EPS ? 0 : x; }, seen = new Set(), corners = [], on = [];
+      for (let v = 0; v < pts.length; v++) if (s(v) === 0) { corners.push(pts[v]); on.push(pts[v]); }
+      for (let i = 0; i < pairs.length; i += 2) {
+        const a = pairs[i], b = pairs[i + 1], sa = s(a), sb = s(b);
+        if (sa * sb >= 0 || seen.has(a * pts.length + b)) continue;
+        seen.add(a * pts.length + b);
+        const l = (t - hgt[a]) / (hgt[b] - hgt[a]);
+        corners.push(pts[a].map((x, k) => x + l * (pts[b][k] - x)));
+      }
+      // in order round their middle (the section is convex), points between two others left out
+      const q = corners.map((p) => [dotN(E[0], p), dotN(E[1], p)]), n = q.length;
+      const m = [q.reduce((x, p) => x + p[0], 0) / (n || 1), q.reduce((x, p) => x + p[1], 0) / (n || 1)];
+      let order = q.map((_, i) => i).sort((i, j) => Math.atan2(q[i][1] - m[1], q[i][0] - m[0]) - Math.atan2(q[j][1] - m[1], q[j][0] - m[0]));
+      if (n >= 3) order = order.filter((i, k) => {
+        const A = q[order[(k + n - 1) % n]], B = q[order[(k + 1) % n]], P0 = q[i];
+        return (P0[0] - A[0]) * (B[1] - P0[1]) - (P0[1] - A[1]) * (B[0] - P0[0]) > 1e-12;
+      });
+      let area = 0;
+      for (let k = 0; k < order.length; k++) { const A = q[order[k]], B = q[order[(k + 1) % order.length]]; area += (A[0] * B[1] - A[1] * B[0]) / 2; }
+      if (order.length < 3) area = 0;
+      if (!shape) return area;
+      const flat = order.map((i) => q[i]), sides = flat.length >= 3 ? flat.map((A, k) => {
+        const B = flat[(k + 1) % flat.length], dx = B[0] - A[0], dy = B[1] - A[1], l = Math.hypot(dx, dy), nn = [dy / l, -dx / l];
+        return { n: nn, d: nn[0] * A[0] + nn[1] * A[1] };
+      }) : [];
+      return { area, corners: order.map((i) => corners[i]), flat, sides, on, all: corners };
+    }
+    return { levels, at, lo: levels[0], hi: levels[levels.length - 1] };
+  }
+
   root.Polytopes = {
-    coxeterElement, petrie, coxeterPlane, sections, recognise,
+    coxeterElement, petrie, coxeterPlane, sections, recognise, slices,
     identity, mul, apply, solve, cholesky, jacobi, linear, triangle, geometry, curvature, model, chambers, wythoff, place, snub,
     dual, planes, polar, laves, dual4, faceMiddle, configuration, vertexConfig, least, confKey, uniform, snubPoint, wallsOf, real, groupOrder,
     nameByConfig, dualName, regName, symbol3, name4, elongated, octet, gon, adj, DUALS, REGULAR, POLY4, INF,

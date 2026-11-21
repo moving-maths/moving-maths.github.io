@@ -136,7 +136,7 @@
     two: { p: 5, w: [1, 0], dual: false },
     // rank three: the triangle (p q r), x by its walls w (in C), the chamber beside C it is
     // shown in (−1: in C), the dual, or a tiling that is not Wythoff's
-    three: { p: 5, q: 3, r: 2, w: [1, 0, 0], flap: -1, dual: false, special: null },
+    three: { p: 5, q: 3, r: 2, w: [1, 0, 0], flap: -1, dual: false, special: null, from: 0, t: 0 },  // (from, t: its sections, as for rank four)
     // rank four: the group, x, the dual or the honeycomb that is not Wythoff's; the view: a map
     // of the space (a rotation of R⁴, an affine map, a Lorentz map), the turn of the picture in
     // space, the projection of the 3-sphere, and the turn of the chamber's picture
@@ -146,6 +146,7 @@
       // the corner `from` of C (t in [−1, 1], the vertices at distance at most 1)
       view: 'space', from: 0, t: 0 },
     colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(), petrie: false,
+    upFlip: false,             // the solid stands on the Petrie polygon's or the sections' axis the other way up
     mirrorHi: null,            // the mirror picked on the sphere: { g: the group's key, key: the mirror's (mirrorKey) }
     // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
     // tipping it towards the eye
@@ -612,7 +613,7 @@
   // before a far one), or null
   function mirrorAt(x, y, tol) {
     const c = complex3();
-    if (state.kind !== 'sphere' || !mirrorsShown(c)) return null;
+    if (state.kind !== 'sphere' || state.view3 === 'sections' || !mirrorsShown(c)) return null;
     const dSeg = (A, B) => { const dx = B[0] - A[0], dy = B[1] - A[1], l2 = dx * dx + dy * dy, t = l2 ? clamp(((x - A[0]) * dx + (y - A[1]) * dy) / l2, 0, 1) : 0; return Math.hypot(x - A[0] - t * dx, y - A[1] - t * dy); };
     let best = null, bd = tol;
     if (state.view3 === 'solid') {
@@ -822,11 +823,24 @@
   function upNow() {
     const c = complex3();
     if (c.special || c.kind !== 'sphere') return I(3);
-    const s = state.three, pet = state.petrie ? petrie3(c) : null, key = s.dual + '|' + !!pet;
+    const s = state.three, slicing = state.view3 === 'sections', pet = state.petrie && !slicing ? petrie3(c) : null, kind = pet ? 'p' : slicing ? 's' + s.from : '', key = s.dual + '|' + kind + (state.upFlip ? '|f' : '');
     if (c.up && c.upKey === key) return c.up;
     c.upKey = key;
-    c.upPet = !!pet;
-    return (c.up = pet ? pet.up : upFrame(c.M, [s.p, s.q, s.r], s.dual, c.on.map((o) => +!o)));
+    c.upKind = kind;
+    // (the Petrie polygon's axis and the sections' stand either way up: see followUp)
+    const U = pet ? pet.up : slicing ? sliceFrame(c.M, s.from) : null;
+    return (c.up = U ? (state.upFlip ? flipFrame(U) : U) : upFrame(c.M, [s.p, s.q, s.r], s.dual, c.on.map((o) => +!o)));
+  }
+  // a frame turned upside down (a half-turn about the axis towards the eye)
+  const flipFrame = (U) => [U[0].map((v) => -v), U[1].map((v) => -v), U[2].slice()];
+  // The solid as its sections show it: upright along u, from the corner j of C through the centre
+  // (the first section at the bottom and the planes rising with t; or, turned over, the other way)
+  function sliceFrame(M, j) {
+    const u = norm(M.corners[j].map((v) => -v));
+    let f = [0, 0, 0];
+    for (const v of [M.r[j], M.corners[(j + 1) % 3], [1, 0, 0], [0, 1, 0]]) { const d = dot(v, u); f = v.map((x, i) => x - d * u[i]); if (Math.hypot(...f) > 1e-6) break; }
+    f = norm(f);
+    return [cross(u, f), u, f];
   }
   // The solid's turn: about the upright axis by a, tipped by b (never past looking straight down
   // or up); its matrix; and the turn nearest a matrix (from the stereographic picture, or a link).
@@ -1668,14 +1682,35 @@
     if (Math.hypot(...n) < 1e-6) n = Q.map((r, i) => r.map((x, j) => (x + (i === j)) / 2)).reduce((b, r) => (Math.hypot(...r) > Math.hypot(...b) ? r : b), [0, 0, 0]);
     return mm(axisTurn(norm(n), e * th), A);
   }
-  // The solid stands on its Petrie polygon's axis while the polygon is shown: when it is shown or
-  // hidden, the solid turns into its new frame smoothly instead of at once.
+  // The solid stands on its Petrie polygon's axis while the polygon is shown, and on the axis of
+  // its sections while they are: when that changes, it turns into its new frame smoothly, and
+  // the shortest way. On the turntable the turn about the upright axis is free, and the tilt
+  // within a range (in the new frames seen from a little above, so that a section is not seen
+  // edge on): those of the two nearest to the turn shown.
   let shownUp = null;
+  function nearestTurn(R0, U, lo, hi) {
+    let best = null;
+    for (let ph = lo; ph <= hi + 1e-9; ph += 0.025) {
+      // the trace of R0ᵀ·rotX(ph)·rotY(th)·U, largest at this th
+      const A = mm(mm(U, tr(R0)), rotX(ph)), th = Math.atan2(A[2][0] - A[0][2], A[0][0] + A[2][2]);
+      const v = Math.cos(th) * (A[0][0] + A[2][2]) + Math.sin(th) * (A[2][0] - A[0][2]) + A[1][1];
+      if (!best || v > best.v) best = { v, th, ph };
+    }
+    return best;
+  }
   function followUp() {
-    const c = complex3(), R0 = state.R3;
-    upNow();
-    const now = { g: c.g ? c.g.key : '', pet: !!c.upPet };
-    if (shownUp && shownUp.g === now.g && shownUp.pet !== now.pet && R0) {
+    const c = complex3(), R0 = state.R3, U = upNow();
+    const now = { g: c.g ? c.g.key : '', kind: c.upKind || '' };
+    if (shownUp && shownUp.g === now.g && shownUp.kind !== now.kind && R0) {
+      let best;
+      if (now.kind) {
+        // the axis of the Petrie polygon or of the sections, whichever way up is nearer
+        if (state.upFlip) { state.upFlip = false; c.upKey = null; }
+        const U0 = upNow(), a = nearestTurn(R0, U0, 0.2, 0.75), b = nearestTurn(R0, flipFrame(U0), 0.2, 0.75);
+        best = b.v > a.v + 1e-9 ? b : a;
+        if (best === b) { state.upFlip = true; c.upKey = null; upNow(); }
+      } else best = nearestTurn(R0, U, 0.05, 0.8);
+      state.turn = { th: best.th, ph: best.ph };
       flight = { step: (e) => { state.R3fly = e >= 1 ? null : slerp3(R0, turnR3(), e); }, t0: performance.now(), dur: MM.reduceMotion() ? 0 : 750 };
       state.R3fly = R0;
       tick();
@@ -1757,8 +1792,12 @@
     ts.forEach((t) => { if (!curve.length || t - curve[curve.length - 1][0] > 1e-9) curve.push([t, Math.max(0, S.at(t))]); });
     return (secData = { key, S, curve, grp, vmax: Math.max(...curve.map((c) => c[1])) });
   }
+  // the sections shown (of a polyhedron, or of a polytope of rank four), and what holds their t
+  const slicing = () => state.kind === 'sphere' && state.view3 === 'sections';
+  const sectionsShown = () => slicing() || view4() === 'sections';
+  const secHolder = () => (state.kind === 'sphere' ? state.three : state.four);
   // t, within the range of the polytope's sections
-  const secT = (sd) => { const t = clamp(state.four.t, sd.S.lo, sd.S.hi), L = sd.S.levels.find((x) => Math.abs(x - t) < 6e-5); return L === undefined ? t : L; };
+  const secT = (sd) => { const t = clamp(secHolder().t, sd.S.lo, sd.S.hi), L = sd.S.levels.find((x) => Math.abs(x - t) < 6e-5); return L === undefined ? t : L; };
   // The polyhedron of the page a section is, if any: Wythoff's for the symmetries fixing the
   // element, or the dual of one; its spec and name
   function sectionIs(sd, pts, faces) {
@@ -1851,6 +1890,75 @@
     drawSecChart(sd, t, sec.vol);
   }
 
+  /* ---------- rank three: sections ---------- */
+  // The sections of the solid by the planes u·y = t, u from the corner `from` of C through the
+  // centre (the solid scaled so that its farthest vertices are at distance 1, as in rank four), in
+  // the frame the solid stands in while they are shown; with the area at the levels and between
+  // them, and the symmetries that fix the element: the reflections in the two other walls, the
+  // group [m] of a polygon.
+  let sliceCache = null;
+  function sliceData(c) {
+    const s = state.three, sh = solidShape(c), key = '3|' + c.key + '|' + s.dual + '|' + s.from;
+    if (sliceCache && sliceCache.key === key) return sliceCache;
+    const M = c.M, j = s.from, u = M.corners[j].map((v) => -v), F = sliceFrame(M, j), E = [F[0], F[2]], k = 1 / sh.rho;
+    const S = P.slices(sh.edges.map((e) => [e.a.map((x) => x * k), e.b.map((x) => x * k)]), u, E);
+    const ts = [];
+    for (let i = 0; i <= 96; i++) ts.push(S.lo + (S.hi - S.lo) * i / 96);
+    ts.push(...S.levels);
+    ts.sort((a, b) => a - b);
+    const curve = [];
+    ts.forEach((t) => { if (!curve.length || t - curve[curve.length - 1][0] > 1e-9) curve.push([t, Math.max(0, S.at(t))]); });
+    const [a, b] = [0, 1, 2].filter((i) => i !== j);
+    return (sliceCache = { key, S, curve, vmax: Math.max(...curve.map((x) => x[1])), scale: sh.rho, label: 'Area of the section', m: M.m[a][b], walls: [a, b].map((i) => E.map((e) => dot(e, M.r[i]))) });
+  }
+  // the name the page gives the polygon of a spec of rank two (as about2 does)
+  function polyName2(spec) {
+    const on = spec.w.some((v) => v < 1e-9), sides = on ? spec.p : 2 * spec.p, uni = on || Math.abs(spec.w[0] - spec.w[1]) < 1e-9;
+    if (uni) return sides === 3 ? 'equilateral triangle' : sides === 4 ? 'square' : 'regular ' + P.gon(sides);
+    if (spec.dual) return sides === 4 ? 'rhomb' : P.gon(sides) + ' with equal sides';
+    return lower(named(cap(P.gon(sides)), false));
+  }
+  let shownSlice = null; // the section drawn, for the readouts
+  function drawSlices() {
+    const { ctx, w, h } = frameCanvas(), c = complex3(), sh = solidShape(c), sd = sliceData(c), t = secT(sd), sec = sd.S.at(t, true);
+    const C = cam3 = camera(state.R3, sh.rho, w, h, 1.16, SOLID_FOV), eye = mv(tr(C.R), [0, 0, C.D]), k = thin(), sc = sd.scale;
+    const front = sh.faces.map((f) => dot(f.n, eye.map((e, i) => e - f.c[i])) > 1e-9);
+    const edgeFront = (e) => !e.faces.length || e.faces.length === 1 || e.faces.some((fi) => front[fi]);
+    const path = (list) => { const p = new Path2D(); for (const e of list) { const a = onScreen(C, e.a), b = onScreen(C, e.b); p.moveTo(a[0], a[1]); p.lineTo(b[0], b[1]); } return p; };
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = MM.rgba('edge', 0.42);
+    ctx.lineWidth = 1 * k;
+    ctx.stroke(path(sh.edges.filter((e) => !edgeFront(e))));
+    ctx.setLineDash([]);
+    // the section, shaded, with its outline (a vertex or an edge of the solid at the ends)
+    const poly = sec.corners.map((p) => onScreen(C, p.map((x) => x * sc)));
+    if (poly.length >= 2) {
+      ctx.beginPath();
+      poly.forEach((q, i) => { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+      ctx.closePath();
+      if (poly.length >= 3) { ctx.globalAlpha = 0.85; ctx.fillStyle = MM.color('cell-mid'); ctx.fill(); ctx.globalAlpha = 1; }
+      ctx.strokeStyle = MM.color('edge');
+      ctx.lineWidth = 2.4 * k;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+    ctx.strokeStyle = MM.color('edge');
+    ctx.lineWidth = 1.7 * k;
+    ctx.stroke(path(sh.edges.filter(edgeFront)));
+    // the solid's vertices on the plane
+    ctx.fillStyle = MM.color('edge');
+    for (const p of sec.on) { const q = onScreen(C, p.map((x) => x * sc)); ctx.beginPath(); ctx.arc(q[0], q[1], 3.2 * k, 0, TAU); ctx.fill(); }
+    // the polygon of the page it is: Wythoff's for [m], or the dual of one
+    let is = null;
+    if (sec.flat.length >= 3 && !c.snubbed) {
+      const r = P.recognise(sd.walls, sec.flat, sec.sides);
+      if (r) { const spec = { rank: 2, p: sd.m, w: r.w, dual: r.dual }; is = { spec, name: polyName2(spec) }; }
+    }
+    shownSlice = { n: sec.flat.length >= 3 ? sec.flat.length : sec.all.length, is, on: sec.on.length };
+    handle.hidden = true;
+    drawSecChart(sd, t, sec.area);
+  }
+
   /* ---------- the sections' chart: the volume against t, with t's handle ---------- */
   const secBlock = $('sec-block'), secSvg = $('sec-chart');
   const secBody = MM.svg('g', {}, secSvg), secGuide = MM.svg('path', { class: 'rp-sec-guide' }, secSvg);
@@ -1862,7 +1970,9 @@
   // a round step for about n intervals over the range x
   const niceStep = (x, n) => { const r = x / n, e = Math.pow(10, Math.floor(Math.log10(r))); return [1, 2, 2.5, 5, 10].map((m) => m * e).find((s) => s >= r) || 10 * e; };
   const numTex = (x) => '$' + (+x.toFixed(6)).toString().replace('-', '{-}') + '$';
+  let shownSd = null; // the sections the chart is of
   function drawSecChart(sd, t, vol) {
+    shownSd = sd;
     const W = secWidth(), key = [W, sd.key, t.toFixed(9)].join('|');
     if (secShown === key) return;
     secShown = key;
@@ -1878,7 +1988,7 @@
     for (let v = step; v <= vtop + 1e-9; v += step) el('path', { class: 'rp-sec-grid', d: 'M' + left + ' ' + (Math.round(Y(v)) + 0.5) + 'H' + (W - right) });
     el('path', { class: 'rp-sec-axis', d: 'M' + left + ' ' + (Math.round(Y(0)) + 0.5) + 'H' + (W - right) });
     for (let v = 0; v <= vtop + 1e-9; v += step) label(numTex(v), left - 8, Y(v) + 4, 'end');
-    MM.svgLabel(el('text', { class: 'rp-sec-num', x: 2, y: 12, 'text-anchor': 'start' }), 'Volume of the section');
+    MM.svgLabel(el('text', { class: 'rp-sec-num', x: 2, y: 12, 'text-anchor': 'start' }), sd.label || 'Volume of the section');
     for (let x = -1; x <= 1 + 1e-9; x += 0.5) {
       el('path', { class: 'rp-sec-axis', d: 'M' + (Math.round(X(x)) + 0.5) + ' ' + Y(0) + 'v4' });
       label(numTex(x), X(x), Y(0) + 17);
@@ -1900,7 +2010,7 @@
     secKnob.setAttribute('aria-valuenow', String(+t.toFixed(4)));
     secKnob.setAttribute('aria-valuetext', 't = ' + t.toFixed(3) + ', volume ' + Math.max(0, vol).toFixed(3));
   }
-  new ResizeObserver(() => { if (!secBlock.hidden) { secShown = ''; if (view4() === 'sections') draw(); } }).observe(secBlock);
+  new ResizeObserver(() => { if (!secBlock.hidden) { secShown = ''; if (sectionsShown()) draw(); } }).observe(secBlock);
   // t from a point of the chart (the handle holding at the levels within a few pixels)
   function secAt(clientX) {
     const r = secSvg.getBoundingClientRect(), m = secMap, x = (clientX - r.left) * m.W / (r.width || 1);
@@ -1908,14 +2018,14 @@
     for (const L of m.levels) if (Math.abs(m.X(L) - m.X(t)) < 6) { t = L; break; }
     return t;
   }
-  const setSecT = (t) => { state.four.t = clamp(t, secMap.lo, secMap.hi); draw(); };
+  const setSecT = (t) => { secHolder().t = clamp(t, secMap.lo, secMap.hi); draw(); };
   let secHeld = null;
   secKnob.addEventListener('pointerdown', (e) => {
     if (e.button || !secMap) return;
     e.preventDefault();
     e.stopPropagation();
     secKnob.setPointerCapture(e.pointerId);
-    const m = secMap, t = clamp(state.four.t, m.lo, m.hi), r = secSvg.getBoundingClientRect();
+    const m = secMap, t = clamp(secHolder().t, m.lo, m.hi), r = secSvg.getBoundingClientRect();
     secHeld = { id: e.pointerId, off: (e.clientX - r.left) * m.W / (r.width || 1) - m.X(t) };
     secKnob.focus({ preventScroll: true });
   });
@@ -1932,7 +2042,7 @@
   // the keyboard: the arrows move t a little, Page Up and Down to the levels, Home and End to the ends
   secKnob.addEventListener('keydown', (e) => {
     if (!secMap || e.altKey || e.ctrlKey || e.metaKey) return;
-    const m = secMap, t = clamp(state.four.t, m.lo, m.hi), lv = secData ? secData.S.levels : [];
+    const m = secMap, t = clamp(secHolder().t, m.lo, m.hi), lv = shownSd ? shownSd.S.levels : [];
     let to = null;
     if (e.key === 'ArrowRight' || e.key === 'ArrowUp') to = t + (e.shiftKey ? 0.004 : 0.02);
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') to = t - (e.shiftKey ? 0.004 : 0.02);
@@ -2601,7 +2711,7 @@
       kv = a.rows;
       const v4 = view4();
       if (state.kind === 'space' && v4 === 'sections' && shownSection) {
-        const sc = shownSection, word = (n) => (n === 4 ? 'quadrilateral' : P.gon(n)), art = (wd) => (/^[aeiou]/.test(wd) ? 'an ' : 'a ') + wd;
+        const sc = shownSection, word = (n) => (n === 4 ? 'quadrilateral' : /^\d/.test(P.gon(n)) ? '<span class="tex-nowrap">$' + n + '$-gon</span>' : P.gon(n)), art = (wd) => (/^[aeiou]/.test(wd) ? 'an ' : 'a ') + wd;
         const n0 = [...sc.sides.keys()][0], parts = [...sc.sides.entries()].sort((x, y) => x[0] - y[0]).map(([n, m]) => '$' + m + '$ ' + plural(word(n), m));
         const counts = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
         const linked = (it) => (/^[aeiou]/.test(it.name) ? 'an ' : 'a ') + go(it.spec, it.name);
@@ -2613,8 +2723,15 @@
         if (sc.verts && sc.faces) leg.push(['dot', 'edge', 'its vertices in the hyperplane']);
       } else if (state.kind === 'space' && v4 === 'coxeter') leg = [];
       else if (state.kind === 'space') leg = [['swatch', 'cell-mid', 'the cell in the middle', 'accent']];
-      if (state.petrie && petrieCorner() && v4 !== 'sections') leg.push(['line', 'highlight', 'a Petrie polygon']);
-      else if (state.kind !== 'polygon' && state.colours) {
+      else if (slicing() && shownSlice) {
+        const sc = shownSlice, word = (n) => (n === 4 ? 'quadrilateral' : /^\d/.test(P.gon(n)) ? '<span class="tex-nowrap">$' + n + '$-gon</span>' : P.gon(n));
+        const what = sc.n === 1 ? 'a vertex' : sc.n === 2 ? 'an edge' : sc.is ? (/^[aeiou]/.test(sc.is.name) ? 'an ' : 'a ') + go(sc.is.spec, sc.is.name) : (/^[aeiou]/.test(word(sc.n)) ? 'an ' : 'a ') + word(sc.n);
+        kv = [['Section', what]].concat(kv);
+        leg = [['swatch', 'cell-mid', 'the section', 'accent']];
+        if (sc.on && sc.n >= 3) leg.push(['dot', 'edge', 'its vertices in the plane']);
+      }
+      if (state.petrie && petrieCorner() && v4 !== 'sections' && !slicing()) leg.push(['line', 'highlight', 'a Petrie polygon']);
+      else if (state.kind !== 'polygon' && state.colours && !slicing()) {
         const s = state.three, kinds = new Set(a.kinds || []);
         if (s.special) leg = [['swatch', 'face-2', 'squares'], ['swatch', 'face-3', 'triangles']];
         else if (!s.dual) {
@@ -2626,7 +2743,7 @@
           leg = [2, 0, 1, 3].filter((kk) => kinds.has(kk)).map((kk) => ['swatch', FACE[kk], words[kk]]);
         } else leg = [['swatch', 'dual-face', 'a face for each vertex of the ' + lower(a.primal)], ['dots', [2, 0, 1].filter((kk) => kinds.has(kk)).map((kk) => FACE[kk]), 'a vertex for each of its faces, in the face’s colour']];
       }
-      if (state.mirrors && state.kind !== 'space' && !(state.kind !== 'polygon' && (complex3().snubbed || state.three.special))) leg.push(['line', 'wall-line', 'mirrors']);
+      if (state.mirrors && state.kind !== 'space' && !slicing() && !(state.kind !== 'polygon' && (complex3().snubbed || state.three.special))) leg.push(['line', 'wall-line', 'mirrors']);
     }
     let changed = html !== lastHead;
     lastHead = html;
@@ -2702,7 +2819,7 @@
       state.two.dual = !!spec.dual;
     } else if (spec.rank === 3) {
       const s = state.three, was = state.kind;
-      Object.assign(s, { p: spec.p, q: spec.q, r: spec.r === undefined ? 2 : spec.r, special: null, dual: !!spec.dual });
+      Object.assign(s, { p: spec.p, q: spec.q, r: spec.r === undefined ? 2 : spec.r, special: null, dual: !!spec.dual, t: 0 });
       s.flap = spec.flap === undefined ? -1 : spec.flap;
       const g = group3(s.p, s.q, s.r);
       s.w = spec.w ? spec.w.slice() : weights(g.M.walls(snubPoint(g)));
@@ -2731,7 +2848,7 @@
         if (!flight) state.R3fly = null;
         followUp();
         state.R3 = state.R3fly || turnR3();
-        drawSolid();
+        if (state.view3 === 'sections') drawSlices(); else drawSolid();
       }
     } else if (k === 'plane' || k === 'hyperbolic') drawPlane();
     else if (k === 'penrose') drawPenrose();
@@ -2752,11 +2869,13 @@
     $('view3-c').hidden = k !== 'sphere';
     $('view4-c').hidden = !finite4;
     $('proj4-c').hidden = !finite4 || v4 !== 'space';
-    $('from4-c').hidden = secBlock.hidden = v4 !== 'sections';
-    $('figure').classList.toggle('rp-sections', v4 === 'sections');
-    $('petrie').hidden = !petrieCorner() || v4 === 'sections';
-    $('mirrors').hidden = k === 'penrose' || k === 'space' || (three && state.three.special);
-    $('colours').hidden = k === 'space';
+    $('from4-c').hidden = v4 !== 'sections';
+    $('from3-c').hidden = !slicing();
+    secBlock.hidden = !sectionsShown();
+    $('figure').classList.toggle('rp-sections', sectionsShown());
+    $('petrie').hidden = !petrieCorner() || v4 === 'sections' || slicing();
+    $('mirrors').hidden = k === 'penrose' || k === 'space' || (three && state.three.special) || slicing();
+    $('colours').hidden = k === 'space' || slicing();
     $('arcs').hidden = $('larger').hidden = $('tiles-c').hidden = k !== 'penrose';
     $('zoom').hidden = !(k === 'plane' || k === 'penrose' || k === 'space');
     $('pq').hidden = !three || !!state.three.special;
@@ -2768,9 +2887,9 @@
       : t3.r === 2 ? 'Schläfli symbol $\\{p,q\\} = \\{' + tx(t3.p) + ',' + tx(t3.q) + '\\}$'
         : 'Triangle group $(p\\;q\\;r) = (' + [t3.p, t3.q, t3.r].map(tx).join('\\;') + ')$';
     if (!sch.hidden && sch.dataset.text !== schText) { sch.dataset.text = schText; MM.setHTML(sch, schText); }
-    $('rotate').hidden = !((k === 'sphere' && state.view3 === 'solid') || (k === 'space' && v4 !== 'coxeter'));
+    $('rotate').hidden = !((k === 'sphere' && state.view3 !== 'stereo') || (k === 'space' && v4 !== 'coxeter'));
     canvas.setAttribute('aria-label', {
-      polygon: 'The polygon', sphere: state.view3 === 'stereo' ? 'The tiling of the sphere, projected stereographically to the plane' : 'The polyhedron, turning in space',
+      polygon: 'The polygon', sphere: state.view3 === 'stereo' ? 'The tiling of the sphere, projected stereographically to the plane' : state.view3 === 'sections' ? 'The polyhedron, turning in space, with its section by a plane' : 'The polyhedron, turning in space',
       plane: 'The tiling of the plane', hyperbolic: 'The tiling of the hyperbolic plane, in the Poincaré disc', penrose: 'A Penrose tiling',
       space: k !== 'space' ? '' : v4 === 'coxeter' ? 'The polytope projected to its Coxeter plane' : v4 === 'sections' ? 'The section of the polytope by a hyperplane, turning in space'
         : space4().kind === 'sphere' ? 'The polytope’s boundary in space' : space4().kind === 'plane' ? 'The honeycomb, in space' : 'The honeycomb, in the Poincaré ball',
@@ -2783,7 +2902,7 @@
   /* ---------- animation ---------- */
   let raf = 0, lastT = 0, morphing = null;
   const visible = MM.whenVisible([stage], (on) => { if (on) tick(); });
-  const turning = () => state.rotate && ((state.kind === 'sphere' && state.view3 === 'solid') || (state.kind === 'space' && view4() !== 'coxeter'));
+  const turning = () => state.rotate && ((state.kind === 'sphere' && state.view3 !== 'stereo') || (state.kind === 'space' && view4() !== 'coxeter'));
   function animating() { return morphing || flight || turning(); }
   function tick() {
     if (raf || !visible()) return;
@@ -2829,7 +2948,7 @@
     else if (it.rank === 3 && it.special) { state.kind = 'plane'; state.three.special = it.special; state.three.dual = false; state.V = null; }
     else if (it.rank === 3) {
       const s = state.three, g = group3(it.p, it.q, it.r);
-      Object.assign(s, { p: it.p, q: it.q, r: it.r, special: null, dual: !!it.dual, flap: it.snub ? 0 : -1 });
+      Object.assign(s, { p: it.p, q: it.q, r: it.r, special: null, dual: !!it.dual, flap: it.snub ? 0 : -1, t: 0 });
       s.w = it.snub ? weights(g.M.walls(snubPoint(g))) : it.w.slice();
       state.kind = g.M.kind;
       state.L = I(3); state.V = null;
@@ -2863,6 +2982,7 @@
     $('proj4').value = state.four.proj;
     $('view4').value = state.four.view;
     $('from4').value = String(state.four.from);
+    $('from3').value = String(state.three.from);
     $('petrie').pressed = state.petrie;
     const s = state.three;
     setSlider('p', s.p); setSlider('q', s.q); setSlider('r', s.r);
@@ -3141,7 +3261,7 @@
     end: () => { hold = null; tick(); },
     move(dx, dy, e) {
       const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-      if (state.kind === 'sphere' && state.view3 === 'solid') { const K = Math.min(r.width, r.height) / 2; turnBy(dx / K, dy / K); }
+      if (state.kind === 'sphere' && state.view3 !== 'stereo') { const K = Math.min(r.width, r.height) / 2; turnBy(dx / K, dy / K); }
       else if (state.kind === 'space') {
         const K = Math.min(r.width, r.height) / 2;
         turnBy4(dx / K, dy / K);
@@ -3153,7 +3273,7 @@
     },
     keys: {
       turn(a, b) {
-        if (state.kind === 'sphere' && state.view3 === 'solid') turnBy(a, b);
+        if (state.kind === 'sphere' && state.view3 !== 'stereo') turnBy(a, b);
         else if (state.kind === 'space') turnBy4(a, b);
         else if (state.kind === 'sphere') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2; moveSphere(w, h, w + a * 60, h + b * 60); }
         else if (state.kind === 'hyperbolic') { const w = stage.clientWidth / 2, h = stage.clientHeight / 2, k = 60; moveDisc(w, h, w + a * k, h + b * k); }
@@ -3277,7 +3397,7 @@
     if (drag.moved || handle.contains(e.target)) return;
     const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     if (state.kind === 'space' && cam3) { if (view4() !== 'space') return; const cell = cellAt(x, y); if (cell) { flyTo(cell); MM.moved(); } }
-    else if (state.kind === 'sphere' && (state.view3 === 'stereo' || cam3)) {
+    else if (state.kind === 'sphere' && state.view3 !== 'sections' && (state.view3 === 'stereo' || cam3)) {
       const m = mirrorAt(x, y, e.pointerType === 'touch' ? 14 : 7), g = complex3().g;
       if (m) { state.mirrorHi = state.mirrorHi && state.mirrorHi.key === m && state.mirrorHi.g === g.key ? null : { g: g.key, key: m }; draw(); return; }
       const u = faceAt(x, y);
@@ -3293,7 +3413,14 @@
   $('arcs').addEventListener('change', (e) => { state.pen.arcs = e.detail.pressed; draw(); });
   $('larger').addEventListener('change', (e) => { state.pen.larger = e.detail.pressed; draw(); });
   $('tiles').addEventListener('change', (e) => { state.pen.tiles = e.detail.value; draw(); });
-  $('view3').addEventListener('change', (e) => { state.view3 = e.detail.value; if (state.view3 === 'solid') turnFrom(state.R3); draw(); tick(); });
+  $('view3').addEventListener('change', (e) => {
+    const was = state.view3;
+    state.view3 = e.detail.value;
+    if (state.view3 === 'solid' && was === 'stereo') turnFrom(state.R3);
+    draw();
+    tick();
+  });
+  $('from3').addEventListener('change', (e) => { state.three.from = +e.detail.value; draw(); tick(); });
   $('proj4').addEventListener('change', (e) => { state.four.proj = e.detail.value; state.four.m = null; draw(); });
   $('view4').addEventListener('change', (e) => { state.four.view = e.detail.value; state.four.m = null; draw(); tick(); });
   $('from4').addEventListener('change', (e) => { state.four.from = +e.detail.value; draw(); });
@@ -3303,7 +3430,6 @@
     state.petrie = e.detail.pressed;
     if (state.petrie && state.kind === 'sphere') {
       const pet = petrie3(complex3());
-      if (pet && state.view3 === 'solid') state.turn.ph = 0.45;
       if (pet && state.view3 === 'stereo') centreSphere(pet.axis);
     }
     draw();
@@ -3386,7 +3512,7 @@
       return {
         t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate, p: state.petrie,
         j: k === 'sphere' ? state.view3 : k === 'space' ? (state.four.view !== 'space' ? state.four.view : state.four.proj) : k === 'penrose' ? (state.pen.tiles === 'p2' ? 'kites' : 'rhombs') : 'solid',
-        k: state.four.from, s: +state.four.t.toFixed(4),
+        k: k === 'sphere' ? state.three.from : state.four.from, s: +(k === 'sphere' ? state.three.t : state.four.t).toFixed(4),
         v: k === 'space' ? state.four.R3 : state.R3, u: state.four.rot,
         z: k === 'plane' ? state.span : k === 'penrose' ? state.pen.span : k === 'space' ? 3.2 * state.four.zoom : 3.2,
       };
@@ -3432,7 +3558,11 @@
       state.colours = x.c;
       state.mirrors = x.m;
       state.rotate = x.r && !MM.reduceMotion();
-      if (k === 'sphere') state.view3 = x.j === 'stereo' ? 'stereo' : 'solid';
+      if (k === 'sphere') {
+        state.view3 = ['stereo', 'sections'].includes(x.j) ? x.j : 'solid';
+        state.three.from = x.k >= 0 && x.k <= 2 ? x.k : 0;
+        state.three.t = Number.isFinite(x.s) ? clamp(x.s, -1, 1) : 0;
+      }
       state.petrie = x.p;
       if (k === 'space') {
         state.four.view = ['coxeter', 'sections'].includes(x.j) ? x.j : 'space';
@@ -3441,7 +3571,7 @@
         state.four.t = Number.isFinite(x.s) ? clamp(x.s, -1, 1) : 0;
       }
       if (k === 'penrose') state.pen.tiles = x.j === 'kites' ? 'p2' : 'p3';
-      if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
+      if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 !== 'stereo') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
       if (k === 'space') state.four.zoom = named.has('z') ? clamp(x.z / 3.2, ZOOM4_OUT, ZOOM4) : 1;
       if (named.has('z')) { if (k === 'plane') { state.span = clamp(x.z, PLANE_SPAN.min, PLANE_SPAN.max); state.V = null; } else if (k === 'penrose') state.pen.span = clamp(x.z, PEN_SPAN.min, PEN_SPAN.max); }
