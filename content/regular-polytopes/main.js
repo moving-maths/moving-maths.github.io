@@ -114,7 +114,7 @@
         S3('truncated-hexagonal-tiling', 6, 3, [1, 1, 0]), S3('rhombitrihexagonal-tiling', 6, 3, [1, 0, 1]), S3('truncated-trihexagonal-tiling', 6, 3, [1, 1, 1]),
         S3('snub-trihexagonal-tiling', 6, 3, null, { snub: true }), { id: 'elongated-triangular-tiling', rank: 3, special: 'elongated' }],
       [S3('rhombille-tiling', 6, 3, [0, 1, 0], { dual: true }), S3('cairo-pentagonal-tiling', 4, 4, null, { snub: true, dual: true }), S3('kisrhombille-tiling', 6, 3, [1, 1, 1], { dual: true })],
-      [{ id: 'penrose-rhombs', kind: 'penrose', tiles: 'p3' }, { id: 'penrose-kites', kind: 'penrose', tiles: 'p2' }],
+      [{ id: 'penrose', kind: 'penrose' }],
     ],
     hyperbolic: [
       [S3('heptagonal-tiling', 7, 3), S3('order-7-triangular-tiling', 3, 7), S3('order-4-pentagonal-tiling', 5, 4), S3('order-5-square-tiling', 4, 5),
@@ -140,8 +140,13 @@
     // rank four: the group, x, the dual or the honeycomb that is not Wythoff's; the view: a map
     // of the space (a rotation of R⁴, an affine map, a Lorentz map), the turn of the picture in
     // space, the projection of the 3-sphere, and the turn of the chamber's picture
-    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: I(3), turn: { th: -0.45, ph: 0.3 }, m: null, proj: 'stereo', wR: I(3), wt: { th: 1, ph: 0.3 }, zoom: 1 },
-    colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(),
+    four: { ms: [5, 3, 3], w: [1, 0, 0, 0], dual: false, special: null, rot: I(4), R3: I(3), turn: { th: -0.45, ph: 0.3 }, m: null, proj: 'stereo', wR: I(3), wt: { th: 1, ph: 0.3 }, zoom: 1,
+      // how a polytope (not a honeycomb) is shown: its boundary in space, its projection to the
+      // Coxeter plane, or its sections by the hyperplanes perpendicular to the direction of the
+      // corner `from` of C, at the fraction s of the way from the first to the last
+      view: 'space', from: 0, s: 0.5 },
+    colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(), petrie: false,
+    mirrorHi: null,            // the mirror picked on the sphere: { g: the group's key, key: the mirror's (mirrorKey) }
     // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
     // tipping it towards the eye
     turn: { th: -0.45, ph: 0.3 },
@@ -444,6 +449,7 @@
   /* ---------- rank three on the sphere: the solid ---------- */
   // the solid as drawn, cached with the complex: its faces (as planes), its edges with the faces
   // on each, and the dual's vertices (for the dual, in the colours of the faces they stand for)
+  const ends = (a, b) => { const ka = a.map((x) => Math.round(x * 1e6)).join(','), kb = b.map((x) => Math.round(x * 1e6)).join(','); return ka < kb ? ka + '|' + kb : kb + '|' + ka; };
   function solidShape(c) {
     const dualOn = state.three.dual;
     if (c.solid && c.solid.dual === dualOn) return c.solid;
@@ -465,7 +471,8 @@
     }));
     // (a polyhedron without faces, as the hosohedra: its edges as they are)
     if (!faces.length) for (let i = 0; i < W.edges.length; i += 3) edges.push({ a: Array.from(W.pos.subarray(3 * W.edges[i], 3 * W.edges[i] + 3)), b: Array.from(W.pos.subarray(3 * W.edges[i + 1], 3 * W.edges[i + 1] + 3)), faces: [] });
-    c.solid = { dual: dualOn, faces, edges, verts, rho };
+    const edgeAt = new Map(edges.map((e) => [ends(e.a, e.b), e]));
+    c.solid = { dual: dualOn, faces, edges, verts, rho, edgeAt };
     return c.solid;
   }
   function drawSolid() {
@@ -475,11 +482,35 @@
     const edgeFront = (e) => !e.faces.length || e.faces.length === 1 || e.faces.some((fi) => front[fi]);
     const path = (list) => { const p = new Path2D(); for (const e of list) { const a = onScreen(C, e.a), b = onScreen(C, e.b); p.moveTo(a[0], a[1]); p.lineTo(b[0], b[1]); } return p; };
     const k = thin();
+    // the mirrors: their segments on the surface, each on one face, and the one picked
+    const lines = mirrorsShown(c) ? wallLines(c) : [], hi = mirrorHi(c);
+    // the Petrie polygon's sides, each with whether it is on the near side
+    const pet = state.petrie ? petrie3(c) : null;
+    const petSides = pet ? pet.pts.map((A, i) => { const B = pet.pts[(i + 1) % pet.h], e = sh.edgeAt.get(ends(A, B)); return { a: A, b: B, near: !e || edgeFront(e) }; }) : [];
+    const near = (sg) => dot(sg[2], eye.map((e, i) => e - sg[0][i])) > 1e-9;
+    const segs = (list) => { const p = new Path2D(); for (const sg of list) { const A = onScreen(C, sg[0]), B = onScreen(C, sg[1]); p.moveTo(A[0], A[1]); p.lineTo(B[0], B[1]); } return p; };
     // the far side: dashed
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = MM.rgba('edge', 0.42);
     ctx.lineWidth = 1 * k;
     ctx.stroke(path(sh.edges.filter((e) => !edgeFront(e))));
+    if (lines.length) {
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = MM.rgba('wall', 0.32);
+      ctx.lineWidth = 0.8;
+      ctx.stroke(segs(lines.filter((sg) => !near(sg) && sg[3] !== hi)));
+      if (hi) {
+        ctx.strokeStyle = MM.rgba('highlight', 0.75);
+        ctx.lineWidth = 1.3;
+        ctx.stroke(segs(lines.filter((sg) => !near(sg) && sg[3] === hi)));
+      }
+    }
+    if (pet) {
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = MM.rgba('highlight', 0.7);
+      ctx.lineWidth = 1.5 * k;
+      ctx.stroke(path(petSides.filter((e) => !e.near)));
+    }
     ctx.setLineDash([]);
     // the near faces, lightly coloured (the dashes show through)
     if (state.colours) {
@@ -494,21 +525,36 @@
       });
       ctx.globalAlpha = 1;
     }
+    // the picked mirror's plane: where it cuts the solid, lightly shaded
+    if (hi) {
+      const sec = mirrorSection(c, hi);
+      if (sec) {
+        ctx.beginPath();
+        sec.forEach((p, i) => { const q = onScreen(C, p); if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+        ctx.closePath();
+        ctx.fillStyle = MM.rgba('highlight', 0.1);
+        ctx.fill();
+      }
+    }
     // the mirrors on the near faces
-    if (state.mirrors && !c.snubbed && !c.special) {
+    if (lines.length) {
       ctx.strokeStyle = MM.rgba('wall', 0.42);
       ctx.lineWidth = 0.8;
-      const p = new Path2D();
-      for (const [a, b, n] of wallLines(c)) {
-        if (dot(n, eye.map((e, i) => e - a[i])) <= 1e-9) continue; // on a face turned away
-        const A = onScreen(C, a), B = onScreen(C, b);
-        p.moveTo(A[0], A[1]); p.lineTo(B[0], B[1]);
+      ctx.stroke(segs(lines.filter((sg) => near(sg) && sg[3] !== hi)));
+      if (hi) {
+        ctx.strokeStyle = MM.color('highlight');
+        ctx.lineWidth = 1.8;
+        ctx.stroke(segs(lines.filter((sg) => near(sg) && sg[3] === hi)));
       }
-      ctx.stroke(p);
     }
     ctx.strokeStyle = MM.color('edge');
     ctx.lineWidth = 1.7 * k;
     ctx.stroke(path(sh.edges.filter(edgeFront)));
+    if (pet) {
+      ctx.strokeStyle = MM.color('highlight');
+      ctx.lineWidth = 2.6 * k;
+      ctx.stroke(path(petSides.filter((e) => e.near)));
+    }
     // the dual's vertices, near ones, in the colours of the faces they stand for
     if (state.three.dual) for (const v of sh.verts) {
       if (dot(v.p, eye) - dot(v.p, v.p) < 0) continue;
@@ -520,10 +566,12 @@
   }
   // the kaleidoscope's walls on the surface: in each chamber gC the segments from the middles
   // of the faces round its corners to the points where the edges cross its walls, each with the
-  // normal of the face it lies on (the corner's direction; for the dual, the vertex's)
+  // normal of the face it lies on (the corner's direction; for the dual, the vertex's) and the
+  // key of its mirror
   function wallLines(c) {
     if (c.walls && c.wallsDual === state.three.dual) return c.walls;
     c.wallsDual = state.three.dual;
+    c.sections = new Map();
     const { g, x } = c, T = g.T, M = g.M, out = [], dualOn = state.three.dual;
     const sel = (k) => { const ck = M.corners[k]; return dualOn ? ck.map((v) => v / dot(ck, x)) : ck.map((v) => v * dot(ck, x)); };
     const P3 = [0, 1, 2].map(sel), mids = [0, 1, 2].map((i) => { const s = P.apply(M.S[i], x, 3); return x.map((v, j) => (v + s[j]) / 2); });
@@ -532,11 +580,62 @@
       for (let i = 0; i < 3; i++) {
         const j = (i + 1) % 3, k = (i + 2) % 3;           // wall i joins the corners j and k
         if (!dualOn && T.right[e * 3 + i] < e) continue;  // each wall once
-        if (dualOn) out.push([pts[j], pts[k], xe]);
-        else { const m = P.apply(G, mids[i], 3); out.push([pts[j], m, norm(pts[j])], [m, pts[k], norm(pts[k])]); }
+        const key = mirrorKey(norm(P.apply(G, M.r[i], 3)));
+        if (dualOn) out.push([pts[j], pts[k], xe, key]);
+        else { const m = P.apply(G, mids[i], 3); out.push([pts[j], m, norm(pts[j]), key], [m, pts[k], norm(pts[k]), key]); }
       }
     }
     return (c.walls = out);
+  }
+  // A mirror (a plane through the middle) by its unit normal, whichever way round. On the sphere
+  // a click on a mirror picks it (and another click on it lets it go): it is drawn in the
+  // highlight's red (the edges are blue), and on the solid with the polygon where its plane cuts
+  // the solid.
+  const mirrorKey = (n) => { const sg = (n.find((v) => Math.abs(v) > 1e-6) || 1) < 0 ? -1 : 1; return n.map((v) => Math.round(sg * v * 1e5)).join(','); };
+  const mirrorsShown = (c) => state.mirrors && !c.snubbed && !c.special;
+  const mirrorHi = (c) => (state.mirrorHi && mirrorsShown(c) && state.mirrorHi.g === c.g.key ? state.mirrorHi.key : null);
+  // the polygon where the plane of a mirror cuts the solid: the ends of its segments in order round it
+  function mirrorSection(c, key) {
+    const lines = wallLines(c);
+    if (c.sections.has(key)) return c.sections.get(key);
+    const n = key.split(',').map((v) => +v / 1e5), u = norm(cross(n, Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), v = cross(norm(n), u);
+    const pts = [];
+    for (const sg of lines) if (sg[3] === key) pts.push(sg[0], sg[1]);
+    const at = pts.map((p) => ({ p, a: Math.atan2(dot(p, v), dot(p, u)) })).sort((a, b) => a.a - b.a);
+    const out = [];
+    for (const q of at) if (!out.length || Math.hypot(...q.p.map((t, i) => t - out[out.length - 1][i])) > 1e-9) out.push(q.p);
+    const sec = out.length >= 3 ? out : null;
+    c.sections.set(key, sec);
+    return sec;
+  }
+  // the mirror under the point (x, y) of the picture, within tol pixels (on the solid, a near one
+  // before a far one), or null
+  function mirrorAt(x, y, tol) {
+    const c = complex3();
+    if (state.kind !== 'sphere' || !mirrorsShown(c)) return null;
+    const dSeg = (A, B) => { const dx = B[0] - A[0], dy = B[1] - A[1], l2 = dx * dx + dy * dy, t = l2 ? clamp(((x - A[0]) * dx + (y - A[1]) * dy) / l2, 0, 1) : 0; return Math.hypot(x - A[0] - t * dx, y - A[1] - t * dy); };
+    let best = null, bd = tol;
+    if (state.view3 === 'solid') {
+      if (!cam3) return null;
+      const C = cam3, eye = mv(tr(C.R), [0, 0, C.D]);
+      for (const sg of wallLines(c)) {
+        const far = dot(sg[2], eye.map((e, i) => e - sg[0][i])) <= 1e-9, d = dSeg(onScreen(C, sg[0]), onScreen(C, sg[1])) + (far ? 3 : 0);
+        if (d < bd) { bd = d; best = sg[3]; }
+      }
+      return best;
+    }
+    const V = stereoView(stage.clientWidth, stage.clientHeight), T = c.g.T, M = c.g.M, seen = new Set();
+    for (let e = 0; e < T.N; e++) for (let i = 0; i < 3; i++) {
+      const mn = norm(P.apply(T.mat(e), M.r[i], 3)), key = mirrorKey(mn);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const n = V.cam(mn);
+      let d;
+      if (Math.abs(n[2]) < 1e-6) d = Math.abs((x - V.cx) * n[0] - (V.cy - y) * n[1]) / Math.hypot(n[0], n[1]);
+      else d = Math.abs(Math.hypot(x - (V.cx + V.K * n[0] / n[2]), y - (V.cy - V.K * n[1] / n[2])) - V.K / Math.abs(n[2]));
+      if (d < bd) { bd = d; best = key; }
+    }
+    return best;
   }
 
   /* ---------- rank three on the sphere: stereographic ---------- */
@@ -647,19 +746,28 @@
     ctx.beginPath(); ctx.arc(V.cx, V.cy, V.K, 0, TAU); ctx.stroke();
     ctx.setLineDash([]);
     // the edges (an edge to the point at infinity: a ray out from its other end)
-    const path = new Path2D();
-    for (const [a, b] of edges) {
-      const A = U(a), B = U(b), nA = near(A), nB = near(B);
-      if (!nA && !nB) continue;
-      if (!nA || !nB) { const q = V.at(nA ? A : B), fq = far(q); path.moveTo(q[0], q[1]); path.lineTo(fq[0], fq[1]); continue; }
-      if (!near(mid2(A, B)) || nearPole(A, B)) { sampled(path, A, B); continue; }
+    const edgeTo = (path, A, B) => {
+      const nA = near(A), nB = near(B);
+      if (!nA && !nB) return;
+      if (!nA || !nB) { const q = V.at(nA ? A : B), fq = far(q); path.moveTo(q[0], q[1]); path.lineTo(fq[0], fq[1]); return; }
+      if (!near(mid2(A, B)) || nearPole(A, B)) { sampled(path, A, B); return; }
       const p0 = V.at(A);
       path.moveTo(p0[0], p0[1]);
       stereoArc(path, V, A, B);
-    }
+    };
+    const path = new Path2D();
+    for (const [a, b] of edges) edgeTo(path, U(a), U(b));
     ctx.strokeStyle = MM.color('edge');
     ctx.lineWidth = 1.6 * thin();
     ctx.stroke(path);
+    const pet = state.petrie ? petrie3(c) : null;
+    if (pet) {
+      const pp = new Path2D();
+      pet.pts.forEach((A, i) => edgeTo(pp, V.cam(norm(A)), V.cam(norm(pet.pts[(i + 1) % pet.h]))));
+      ctx.strokeStyle = MM.color('highlight');
+      ctx.lineWidth = 2.4 * thin();
+      ctx.stroke(pp);
+    }
     if (dualOn && state.colours) {
       const D = c.D;
       D.pos.forEach((p, i) => { const u = V.cam(norm(p)); if (!near(u)) return; const q = V.at(u); if (q[0] < -4 || q[0] > w + 4 || q[1] < -4 || q[1] > h + 4) return; ctx.fillStyle = MM.color(FACE[D.kinds[i]]); ctx.beginPath(); ctx.arc(q[0], q[1], 3, 0, TAU); ctx.fill(); });
@@ -714,8 +822,11 @@
   function upNow() {
     const c = complex3();
     if (c.special || c.kind !== 'sphere') return I(3);
-    const s = state.three;
-    return c.up && c.upKey === s.dual ? c.up : (c.upKey = s.dual, c.up = upFrame(c.M, [s.p, s.q, s.r], s.dual, c.on.map((o) => +!o)));
+    const s = state.three, pet = state.petrie ? petrie3(c) : null, key = s.dual + '|' + !!pet;
+    if (c.up && c.upKey === key) return c.up;
+    c.upKey = key;
+    c.upPet = !!pet;
+    return (c.up = pet ? pet.up : upFrame(c.M, [s.p, s.q, s.r], s.dual, c.on.map((o) => +!o)));
   }
   // The solid's turn: about the upright axis by a, tipped by b (never past looking straight down
   // or up); its matrix; and the turn nearest a matrix (from the stereographic picture, or a link).
@@ -766,12 +877,13 @@
     tick();
   }
   function drawStereoMirrors(ctx, V, c) {
-    const T = c.g.T, M = c.g.M, seen = new Set(), path = new Path2D();
+    const T = c.g.T, M = c.g.M, seen = new Set(), all = new Path2D(), picked = new Path2D(), hi = mirrorHi(c);
     for (let e = 0; e < T.N; e++) for (let i = 0; i < 3; i++) {
       // the mirror of wall i of gC: the great circle orthogonal to G r_i
-      const nrm = norm(V.cam(P.apply(T.mat(e), M.r[i], 3))), key = nrm.map((x) => Math.round(x * 1e5)).join(','), key2 = nrm.map((x) => Math.round(-x * 1e5)).join(',');
-      if (seen.has(key) || seen.has(key2)) continue;
+      const mn = norm(P.apply(T.mat(e), M.r[i], 3)), key = mirrorKey(mn), nrm = norm(V.cam(mn));
+      if (seen.has(key)) continue;
       seen.add(key);
+      const path = key === hi ? picked : all;
       if (Math.abs(nrm[2]) < 1e-6) {
         const L = 2 * (V.w + V.h), dx = -nrm[1], dy = -nrm[0];
         path.moveTo(V.cx - L * dx, V.cy - L * dy); path.lineTo(V.cx + L * dx, V.cy + L * dy);
@@ -786,7 +898,8 @@
     }
     ctx.strokeStyle = MM.rgba('wall', 0.42);
     ctx.lineWidth = 0.8;
-    ctx.stroke(path);
+    ctx.stroke(all);
+    if (hi) { ctx.strokeStyle = MM.color('highlight'); ctx.lineWidth = 1.8; ctx.stroke(picked); }
   }
 
   /* ---------- rank three: the planes ---------- */
@@ -1340,6 +1453,14 @@
     ctx.strokeStyle = MM.color('edge');
     ctx.lineWidth = 1.9 * kw;
     ctx.stroke(midPath);
+    const pet = state.petrie ? petrie4(X) : null;
+    if (pet) {
+      const pp = new Path2D();
+      for (let i = 0; i < pet.h; i++) { const a = pet.idx[i], b = pet.idx[(i + 1) % pet.h], pts = []; if (!ok[a] || !ok[b]) continue; edgePts(a, b, pts); addPts(pp, pts); }
+      ctx.strokeStyle = MM.color('highlight');
+      ctx.lineWidth = 2.4 * kw;
+      ctx.stroke(pp);
+    }
     // the ball's rim
     if (X.kind === 'hyperbolic') {
       const R = F / Math.sqrt(Dc * Dc - 1);
@@ -1466,6 +1587,322 @@
     tick();
   }
 
+  /* ---------- Petrie polygons ---------- */
+  // The regular polytope shown, when its Petrie polygons are drawn: a polyhedron {p, q} (p, q ≥ 3)
+  // or a polytope of rank four, with x at the first or the last corner of C; its group's model
+  // and the corner its vertices are at (the other one for the dual).
+  function petrieCorner() {
+    const k = state.kind;
+    if (k === 'sphere') {
+      const c = complex3(), s = state.three;
+      if (c.special || c.snubbed || s.r !== 2 || s.p === 2 || s.q === 2) return null;
+      const at = c.on[1] && c.on[2] ? 0 : c.on[0] && c.on[1] ? 2 : -1;
+      return at < 0 ? null : { M: c.M, g: c.g, k: s.dual ? 2 - at : at };
+    }
+    if (k === 'space') {
+      const X = space4(), f = state.four;
+      if (f.special || X.kind !== 'sphere') return null;
+      const on = P.wallsOf(X.M, X.x), at = on[1] && on[2] && on[3] ? 0 : on[0] && on[1] && on[2] ? 3 : -1;
+      return at < 0 ? null : { M: X.M, g: X.g, k: f.dual ? 3 - at : at };
+    }
+    return null;
+  }
+  const coxPlane = (g) => g.cp || (g.cp = P.coxeterPlane(g.M));
+  // The Petrie polygon through the vertex nearest the corner of C, among the points drawn: its
+  // vertices (each the image of the one before under the product of the generating reflections)
+  // and their indices among the points; how many sides, and how many such polygons there are
+  function petrieThrough(pc, pts) {
+    const ck = pc.M.corners[pc.k];
+    let best = -Infinity, i0 = 0;
+    pts.forEach((p, i) => { const d = dot(p, ck) / Math.hypot(...p); if (d > best) { best = d; i0 = i; } });
+    const pr = P.petrie(pc.M, pc.k, pts[i0]);
+    const idx = pr.pts.map((u) => {
+      let bi = 0, bd = Infinity;
+      pts.forEach((p, i) => { let e = 0; for (let a = 0; a < p.length; a++) e += (p[a] - u[a]) ** 2; if (e < bd) { bd = e; bi = i; } });
+      return bi;
+    });
+    return { pts: pr.pts, idx, h: pr.h, count: pc.g.T.N / (2 * pr.h) };
+  }
+  // rank three: the polygon among the solid's vertices (the dual's, if shown), and the frame the
+  // solid stands in while it is shown: upright along the axis of s₀s₁s₂, a rotation through 2π/h
+  // followed by the reflection in the plane perpendicular to it (seen along it, the Petrie
+  // polygon is a regular h-gon), with the first vertex towards the eye
+  function petrie3(c) {
+    const pc = petrieCorner();
+    if (!pc) return null;
+    const dualOn = state.three.dual;
+    if (c.pet && c.pet.dual === dualOn) return c.pet;
+    const pts = dualOn ? solidShape(c).verts.map((v) => v.p) : Array.from({ length: c.W.V }, (_, v) => Array.from(c.W.pos.subarray(3 * v, 3 * v + 3)));
+    const pet = petrieThrough(pc, pts), cp = coxPlane(c.g), up = norm(cross(cp.a, cp.b)), p0 = pet.pts[0];
+    const fw = norm(cp.a.map((x, i) => x * dot(p0, cp.a) + cp.b[i] * dot(p0, cp.b)));
+    pet.up = [cross(up, fw), up, fw];
+    pet.axis = up;
+    pet.dual = dualOn;
+    return (c.pet = pet);
+  }
+  // rank four: among the vertices drawn
+  function petrie4(X) {
+    if (X.pet !== undefined) return X.pet;
+    const pc = petrieCorner();
+    return (X.pet = pc ? petrieThrough(pc, Array.from({ length: X.V }, (_, v) => Array.from(X.pos.subarray(4 * v, 4 * v + 4)))) : null);
+  }
+  // a Petrie polygon's sides, its words: 4 skew hexagons
+  const skewWords = (h, n) => '$' + n + '$ skew ' + (/^\d/.test(P.gon(h)) ? '<span class="tex-nowrap">$' + h + '$-gons</span>' : plural(P.gon(h), n));
+  // the turn about the unit axis n through t (Rodrigues)
+  function axisTurn(n, t) {
+    const C = Math.cos(t), S = Math.sin(t), k = 1 - C;
+    return [[C + n[0] * n[0] * k, n[0] * n[1] * k - n[2] * S, n[0] * n[2] * k + n[1] * S], [n[1] * n[0] * k + n[2] * S, C + n[1] * n[1] * k, n[1] * n[2] * k - n[0] * S], [n[2] * n[0] * k - n[1] * S, n[2] * n[1] * k + n[0] * S, C + n[2] * n[2] * k]];
+  }
+  // the turn the fraction e of the way from A to B (by the turn B Aᵀ about its axis)
+  function slerp3(A, B, e) {
+    const Q = mm(B, tr(A)), th = Math.acos(clamp((Q[0][0] + Q[1][1] + Q[2][2] - 1) / 2, -1, 1));
+    if (th < 1e-9) return B;
+    let n = [Q[2][1] - Q[1][2], Q[0][2] - Q[2][0], Q[1][0] - Q[0][1]];
+    if (Math.hypot(...n) < 1e-6) n = Q.map((r, i) => r.map((x, j) => (x + (i === j)) / 2)).reduce((b, r) => (Math.hypot(...r) > Math.hypot(...b) ? r : b), [0, 0, 0]);
+    return mm(axisTurn(norm(n), e * th), A);
+  }
+  // The solid stands on its Petrie polygon's axis while the polygon is shown: when it is shown or
+  // hidden, the solid turns into its new frame smoothly instead of at once.
+  let shownUp = null;
+  function followUp() {
+    const c = complex3(), R0 = state.R3;
+    upNow();
+    const now = { g: c.g ? c.g.key : '', pet: !!c.upPet };
+    if (shownUp && shownUp.g === now.g && shownUp.pet !== now.pet && R0) {
+      flight = { step: (e) => { state.R3fly = e >= 1 ? null : slerp3(R0, turnR3(), e); }, t0: performance.now(), dur: MM.reduceMotion() ? 0 : 750 };
+      state.R3fly = R0;
+      tick();
+    }
+    shownUp = now;
+  }
+
+  /* ---------- rank four: the Coxeter plane ---------- */
+  // The polytope projected orthogonally to the plane in which s₀s₁s₂s₃ turns through 2π/h, its
+  // edges light, turned so that the projection of the corner 0 of C is straight up (an axis of
+  // the picture's symmetry), and its Petrie polygon, a regular h-gon, when shown.
+  function drawCoxeter() {
+    const { ctx, w, h } = frameCanvas(), X = space4(), f = state.four, cp = coxPlane(X.g), pos = X.pos, V = X.V, edges = X.edges;
+    const A = cp.a, B = cp.b, c0 = X.M.corners[0], rot = Math.PI / 2 - Math.atan2(dot(c0, B), dot(c0, A)), cr = Math.cos(rot), sr = Math.sin(rot);
+    const pr = (p, o) => { const a = A[0] * p[o] + A[1] * p[o + 1] + A[2] * p[o + 2] + A[3] * p[o + 3], b = B[0] * p[o] + B[1] * p[o + 1] + B[2] * p[o + 2] + B[3] * p[o + 3]; return [cr * a - sr * b, sr * a + cr * b]; };
+    const xy = new Float64Array(2 * V);
+    let R = 0;
+    for (let v = 0; v < V; v++) { const q = pr(pos, 4 * v); xy[2 * v] = q[0]; xy[2 * v + 1] = q[1]; R = Math.max(R, Math.hypot(q[0], q[1])); }
+    const s = 0.46 * Math.min(w, h) / (R || 1) * f.zoom, cx = w / 2, cy = h / 2, kw = thin();
+    const path = new Path2D();
+    for (let i = 0; i < edges.length; i += 3) {
+      const a = edges[i], b = edges[i + 1];
+      path.moveTo(cx + s * xy[2 * a], cy - s * xy[2 * a + 1]);
+      path.lineTo(cx + s * xy[2 * b], cy - s * xy[2 * b + 1]);
+    }
+    ctx.lineCap = 'round';
+    const E = edges.length / 3;
+    ctx.strokeStyle = MM.rgba('edge', clamp(18 / Math.sqrt(E), 0.34, 0.8));
+    ctx.lineWidth = (E > 2000 ? 0.85 : 1.1) * kw;
+    ctx.stroke(path);
+    const pet = state.petrie && petrie4(X);
+    if (pet) {
+      ctx.beginPath();
+      pet.pts.forEach((u, i) => { const q = pr(u, 0); if (i) ctx.lineTo(cx + s * q[0], cy - s * q[1]); else ctx.moveTo(cx + s * q[0], cy - s * q[1]); });
+      ctx.closePath();
+      ctx.strokeStyle = MM.color('highlight');
+      ctx.lineWidth = 2.2 * kw;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+    handle.hidden = true;
+  }
+
+  /* ---------- rank four: sections ---------- */
+  // The sections by the hyperplanes u·y = t, u the unit vector from the corner `from` of C (the
+  // middle of the flag's vertex, edge, face or cell) through the centre, so that t runs from that
+  // element to the far side; in a frame of u⊥ upright along the axis of the turn of highest order
+  // among the symmetries that fix the element (through another corner of C). With the volume
+  // of the section at the levels where it passes through vertices and between them.
+  let secData = null;
+  function sectionData(X) {
+    const f = state.four, key = X.key + '|' + f.from;
+    if (secData && secData.key === key) return secData;
+    const M = X.M, j = f.from, u = M.corners[j].map((v) => -v), others = [0, 1, 2, 3].filter((k) => k !== j);
+    const order = (k) => { const [a, b] = others.filter((t) => t !== k); return M.m[a][b]; };
+    const top = others.reduce((b, k) => (order(k) > order(b) ? k : b), others[0]);
+    const E = [];
+    for (const v of [M.corners[top], M.corners[others.find((k) => k !== top)], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) {
+      let x = v.slice();
+      for (const b of [u, ...E]) { const d = dot(x, b); x = x.map((y, i) => y - d * b[i]); }
+      const l = Math.hypot(...x);
+      if (l > 1e-6 && E.length < 3) E.push(x.map((y) => y / l));
+    }
+    const S = P.sections(X.pos, 4, X.cells.map((cell) => ({ normal: norm(cell.mid), faces: X.cellFaces(cell) })), u, [E[2], E[0], E[1]]);
+    const ts = [], N = 96;
+    for (let i = 0; i <= N; i++) ts.push(S.lo + (S.hi - S.lo) * i / N);
+    if (S.levels.length <= 400) ts.push(...S.levels);
+    ts.sort((a, b) => a - b);
+    const curve = [];
+    ts.forEach((t) => { if (!curve.length || t - curve[curve.length - 1][0] > 1e-9) curve.push([t, Math.max(0, S.at(t))]); });
+    return (secData = { key, S, curve, vmax: Math.max(...curve.map((c) => c[1])) });
+  }
+  const secT = (sd) => sd.S.lo + state.four.s * (sd.S.hi - sd.S.lo);
+  // a face of the section takes the colour of the cell it lies in, by its kind as a face of the
+  // solid does (the cells of {p, q, r}; those from its vertices, edges, faces); the dual's alike
+  const CELL4 = { 3: 'face-1', 0: 'face-2', 1: 'face-3', 2: 'face-4', '-1': 'dual-face' };
+  let shownSection = null; // the section drawn, for the readouts: { sides, kinds, flat, verts }
+  function drawSections() {
+    const { ctx, w, h } = frameCanvas(), X = space4(), f = state.four, sd = sectionData(X), t = secT(sd), sec = sd.S.at(t, true);
+    f.R3 = mm(rotX(f.turn.ph), rotY(f.turn.th));
+    const C = cam3 = camera(f.R3, 1, w, h, 1.1, SOLID_FOV);
+    C.s *= f.zoom;
+    const eye = mv(tr(C.R), [0, 0, C.D]), k = thin();
+    const faces = sec.faces.map((fc) => { const pts = fc.ids.map((id) => sec.pts.get(id)), c = [0, 1, 2].map((a) => pts.reduce((x, p) => x + p[a], 0) / pts.length); return { pts, ids: fc.ids, n: fc.n, c, cell: fc.cell }; });
+    const front = faces.map((fc) => dot(fc.n, eye.map((e, i) => e - fc.c[i])) > 1e-9);
+    const at = new Map(), edges = [];
+    faces.forEach((fc, fi) => fc.ids.forEach((a, i) => {
+      const b = fc.ids[(i + 1) % fc.ids.length], key = Math.min(a, b) + ',' + Math.max(a, b);
+      let e = at.get(key);
+      if (!e) { e = { a: fc.pts[i], b: fc.pts[(i + 1) % fc.pts.length], faces: [] }; at.set(key, e); edges.push(e); }
+      e.faces.push(fi);
+    }));
+    // (a section that is a vertex or an edge of the polytope: its edges in the hyperplane)
+    if (!faces.length) {
+      const on = new Set(sec.onVerts);
+      for (let i = 0; i < X.edges.length; i += 3) if (on.has(X.edges[i]) && on.has(X.edges[i + 1])) edges.push({ a: sec.pts.get(X.edges[i]), b: sec.pts.get(X.edges[i + 1]), faces: [] });
+    }
+    const edgeFront = (e) => e.faces.length < 2 || e.faces.some((fi) => front[fi]);
+    const path = (list) => { const p = new Path2D(); for (const e of list) { const a = onScreen(C, e.a), b = onScreen(C, e.b); p.moveTo(a[0], a[1]); p.lineTo(b[0], b[1]); } return p; };
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = MM.rgba('edge', 0.42);
+    ctx.lineWidth = 1 * k;
+    ctx.stroke(path(edges.filter((e) => !edgeFront(e))));
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.78;
+    faces.forEach((fc, fi) => {
+      if (!front[fi]) return;
+      ctx.beginPath();
+      fc.pts.forEach((p, i) => { const q = onScreen(C, p); if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+      ctx.closePath();
+      ctx.fillStyle = MM.color(CELL4[X.cells[fc.cell].l] + '-fill');
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = MM.color('edge');
+    ctx.lineWidth = 1.7 * k;
+    ctx.stroke(path(edges.filter(edgeFront)));
+    // the polytope's vertices in the hyperplane
+    ctx.fillStyle = MM.color('edge');
+    for (const v of sec.onVerts) {
+      const p = sec.pts.get(v), q = onScreen(C, p);
+      if (faces.length && dot(p, eye) - dot(p, p) < -1e-9 && !edges.some((e) => edgeFront(e) && (e.a === p || e.b === p))) continue;
+      ctx.beginPath(); ctx.arc(q[0], q[1], 3 * k, 0, TAU); ctx.fill();
+    }
+    const sides = new Map(), kinds = new Set();
+    faces.forEach((fc) => { sides.set(fc.ids.length, (sides.get(fc.ids.length) || 0) + 1); kinds.add(X.cells[fc.cell].l); });
+    shownSection = { sides, kinds, flat: sec.vol < 1e-9 * (sd.vmax || 1), verts: sec.onVerts.length, faces: faces.length };
+    handle.hidden = true;
+    drawSecChart(sd, t, sec.vol);
+  }
+
+  /* ---------- the sections' chart: the volume against t, with t's handle ---------- */
+  const secBlock = $('sec-block'), secSvg = $('sec-chart');
+  const secBody = MM.svg('g', {}, secSvg), secGuide = MM.svg('path', { class: 'rp-sec-guide' }, secSvg);
+  const secKnob = MM.svg('g', { class: 'rp-sec-handle draggable', tabindex: '0', role: 'slider', 'aria-label': 'The hyperplane: t' }, secSvg);
+  MM.svg('circle', { class: 'rp-sec-hit', r: 18 }, secKnob);
+  MM.handle(secKnob, 5.1);
+  let secMap = null, secShown = '';
+  const secWidth = () => Math.round(Math.min(560, secSvg.getBoundingClientRect().width || 320));
+  // a round step for about n intervals over the range x
+  const niceStep = (x, n) => { const r = x / n, e = Math.pow(10, Math.floor(Math.log10(r))); return [1, 2, 2.5, 5, 10].map((m) => m * e).find((s) => s >= r) || 10 * e; };
+  const numTex = (x) => '$' + (+x.toFixed(6)).toString().replace('-', '{-}') + '$';
+  function drawSecChart(sd, t, vol) {
+    const W = secWidth(), key = [W, sd.key, t.toFixed(9)].join('|');
+    if (secShown === key) return;
+    secShown = key;
+    const H = 150, left = 44, right = 16, top = 24, bottom = 36, lo = sd.S.lo, hi = sd.S.hi;
+    const step = niceStep(sd.vmax || 1, 3), vtop = Math.max(step, Math.ceil((sd.vmax || 1) / step - 1e-9) * step);
+    const X = (x) => left + (x - lo) / (hi - lo || 1) * (W - left - right), Y = (v) => top + (1 - v / vtop) * (H - top - bottom);
+    secMap = { lo, hi, left, right, W, X, levels: sd.S.levels.length <= 60 ? sd.S.levels : [] };
+    const el = (name, attrs) => MM.svg(name, attrs, secBody), label = (text, x, y, anchor) => MM.svgLabel(el('text', { class: 'rp-sec-num', x, y, 'text-anchor': anchor || 'middle' }), text);
+    secBody.textContent = '';
+    secSvg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    // the volume up the side, t along the bottom
+    for (let v = step; v <= vtop + 1e-9; v += step) el('path', { class: 'rp-sec-grid', d: 'M' + left + ' ' + (Math.round(Y(v)) + 0.5) + 'H' + (W - right) });
+    el('path', { class: 'rp-sec-axis', d: 'M' + left + ' ' + (Math.round(Y(0)) + 0.5) + 'H' + (W - right) });
+    for (let v = 0; v <= vtop + 1e-9; v += step) label(numTex(v), left - 8, Y(v) + 4, 'end');
+    MM.svgLabel(el('text', { class: 'rp-sec-num', x: 2, y: 12, 'text-anchor': 'start' }), 'Volume of the section');
+    const ts = niceStep(hi - lo, 4);
+    for (let x = Math.ceil(lo / ts - 1e-9) * ts; x <= hi + 1e-9; x += ts) {
+      el('path', { class: 'rp-sec-axis', d: 'M' + (Math.round(X(x)) + 0.5) + ' ' + Y(0) + 'v4' });
+      label(numTex(x), X(x), Y(0) + 17);
+    }
+    label('$t$', (X(lo) + X(hi)) / 2, Y(0) + 33);
+    let d = '';
+    sd.curve.forEach(([x, v], i) => { d += (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(v).toFixed(1); });
+    el('path', { class: 'rp-sec-curve', d });
+    // the levels where the hyperplane passes through vertices: the handle holds there
+    for (const x of secMap.levels) { const v = sd.curve.find((c) => Math.abs(c[0] - x) < 1e-9); el('circle', { class: 'rp-sec-level', cx: X(x), cy: Y(v ? v[1] : 0), r: 2.6 }); }
+    const hx = X(t), hy = Y(Math.max(0, vol));
+    secKnob.setAttribute('transform', 'translate(' + hx.toFixed(1) + ' ' + hy.toFixed(1) + ')');
+    secGuide.setAttribute('d', 'M' + (Math.round(hx) + 0.5) + ' ' + Y(0) + 'V' + (hy + 7).toFixed(1));
+    secKnob.setAttribute('aria-valuemin', String(+lo.toFixed(4)));
+    secKnob.setAttribute('aria-valuemax', String(+hi.toFixed(4)));
+    secKnob.setAttribute('aria-valuenow', String(+t.toFixed(4)));
+    secKnob.setAttribute('aria-valuetext', 't = ' + t.toFixed(3) + ', volume ' + Math.max(0, vol).toFixed(3));
+  }
+  new ResizeObserver(() => { if (!secBlock.hidden) { secShown = ''; if (view4() === 'sections') draw(); } }).observe(secBlock);
+  // t from a point of the chart (the handle holding at the levels within a few pixels)
+  function secAt(clientX) {
+    const r = secSvg.getBoundingClientRect(), m = secMap, x = (clientX - r.left) * m.W / (r.width || 1);
+    let t = clamp(m.lo + (x - m.left) / (m.W - m.left - m.right) * (m.hi - m.lo), m.lo, m.hi);
+    for (const L of m.levels) if (Math.abs(m.X(L) - m.X(t)) < 6) { t = L; break; }
+    return t;
+  }
+  const setSecT = (t) => { const m = secMap; state.four.s = m.hi > m.lo ? (t - m.lo) / (m.hi - m.lo) : 0; draw(); };
+  let secHeld = null;
+  secKnob.addEventListener('pointerdown', (e) => {
+    if (e.button || !secMap) return;
+    e.preventDefault();
+    e.stopPropagation();
+    secKnob.setPointerCapture(e.pointerId);
+    const m = secMap, t = m.lo + state.four.s * (m.hi - m.lo);
+    secHeld = { id: e.pointerId, off: secAt(e.clientX) - t };
+    secKnob.focus({ preventScroll: true });
+  });
+  secKnob.addEventListener('pointermove', (e) => {
+    if (!secHeld || secHeld.id !== e.pointerId) return;
+    const r = secSvg.getBoundingClientRect(), m = secMap, px = (e.clientX - r.left) * m.W / (r.width || 1) - secHeld.off * (m.W - m.left - m.right) / (m.hi - m.lo);
+    setSecT(secAt(r.left + px * (r.width || 1) / m.W));
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((type) => secKnob.addEventListener(type, (e) => {
+    if (!secHeld || secHeld.id !== e.pointerId) return;
+    secHeld = null;
+    MM.moved();
+  }));
+  // the keyboard: the arrows move t a little, Page Up and Down to the levels, Home and End to the ends
+  secKnob.addEventListener('keydown', (e) => {
+    if (!secMap || e.altKey || e.ctrlKey || e.metaKey) return;
+    const m = secMap, t = m.lo + state.four.s * (m.hi - m.lo), lv = secData ? secData.S.levels : [];
+    let to = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') to = t + (m.hi - m.lo) * (e.shiftKey ? 0.002 : 0.01);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') to = t - (m.hi - m.lo) * (e.shiftKey ? 0.002 : 0.01);
+    else if (e.key === 'PageUp') to = lv.find((L) => L > t + 1e-9);
+    else if (e.key === 'PageDown') to = [...lv].reverse().find((L) => L < t - 1e-9);
+    else if (e.key === 'Home') to = m.lo;
+    else if (e.key === 'End') to = m.hi;
+    else return;
+    e.preventDefault();
+    if (to === undefined) return;
+    setSecT(clamp(to, m.lo, m.hi));
+    MM.moved();
+  });
+  // a click on the chart puts t there; a tap does not (on a touch screen t moves by its handle)
+  let secTouch = false;
+  secSvg.addEventListener('pointerdown', (e) => { secTouch = e.pointerType === 'touch'; });
+  secSvg.addEventListener('click', (e) => {
+    if (!secMap || secTouch || e.target.closest('.rp-sec-handle')) return;
+    setSecT(secAt(e.clientX));
+    MM.moved();
+  });
+  // the view of a polytope of rank four: its boundary in space for the honeycombs
+  const view4 = () => (state.kind === 'space' && !state.four.special && space4().kind === 'sphere' ? state.four.view : 'space');
+
   /* ---------- the chamber: x as a handle ---------- */
   // An SVG picture of C (rank two: an arc of the circle between the two walls; rank three: the
   // triangle, in a conformal chart round ρ, with the three chambers across its walls, where x
@@ -1540,7 +1977,7 @@
     el('polyline', { points: ptsAttr(arc), class: 'rp-ch-arc' }, ch.gShapes);
     ch.specials = [[1, 0], [1, 1], [0, 1]].map((w) => M.point(w));
     for (const sp of ch.specials) { const q = F.px(sp); el('circle', { cx: q[0], cy: q[1], r: 2.6, class: 'rp-ch-dot' }, ch.gDots); }
-    ch.same = { w: [[1, 0], [1, 1], [0, 1]], key: ['1', '2', '1'], at: (i) => F.px(ch.specials[i]) };
+    ch.same = { w: [[1, 0], [1, 1], [0, 1]], key: ['1', '2', '1'], orbit: ['0', '1', '2'], at: (i) => F.px(ch.specials[i]) };
     const p = state.two.p, o = F.px([0, 0]);
     const lab = (u, text) => labelAt(F.px(u), o, text);
     lab(M.corners[0], '$\\{' + p + '\\}$');
@@ -1589,6 +2026,9 @@
     ch.same = {
       w: ch.specials.map((sp) => sp.w), flap: ch.specials.map((sp) => sp.flap), at: (i) => ch.toPx(ch.specials[i].w, ch.specials[i].flap),
       key: ch.specials.map((sp) => { const on = sp.w.map((v) => v === 0), c = P.vertexConfig(M, on, sp.flap >= 0 && !on.some(Boolean)); return P.confKey(c.sizes) + (c.ideal ? '|i' : ''); }),
+      // the points with the same images under the group: a far corner of a flap and the corner of
+      // C it mirrors, and the snub's points (images of each other under the rotations)
+      orbit: ch.specials.map((sp) => (sp.w === snubW ? 'snub' : sp.w.join())),
     };
     // the corners named by the regular polytopes there (for [p, q])
     if (s.r === 2) {
@@ -1627,7 +2067,7 @@
     ch.specials = [];
     for (let b = 1; b < 16; b++) { const r = [8, 4, 2, 1].map((m) => +!!(b & m)); ch.specials.push({ w: r }); }
     ch.u = ch.specials.map((sp) => tetraAt(sp.w));
-    ch.same = { w: ch.specials.map((sp) => sp.w), at: (i) => ch.px3(ch.u[i]), key: ch.specials.map((sp) => String(P.name4(state.four.ms, sp.w) || sp.w.join(''))) };
+    ch.same = { w: ch.specials.map((sp) => sp.w), orbit: ch.specials.map((sp) => sp.w.join()), at: (i) => ch.px3(ch.u[i]), key: ch.specials.map((sp) => String(P.name4(state.four.ms, sp.w) || sp.w.join(''))) };
     placeTetra();
   }
   // the tetrahedron's picture for its present turn: edges, the corners' names, the dots
@@ -1665,8 +2105,10 @@
   // about the upright by th and tipped by ph.
   const TETRA_UP = (() => { const u = TETRA[0], d = dot(TETRA[1], u), f = norm(TETRA[1].map((x, i) => -(x - d * u[i]))); return [cross(u, f), u.slice(), f]; })();
   const tetraTurn = () => mm(mm(rotX(state.four.wt.ph), rotY(state.four.wt.th)), TETRA_UP);
-  // The special points that give the same picture as the one x is at (the corners of C and of the
-  // chambers beside it that mirror each other, the ends of a symmetric diagram), ringed.
+  // The special points that give the same picture as the one x is at, ringed in blue (a far
+  // corner of a flap and the corner of C it mirrors, the snub's points), and those that give the
+  // same shape moved, turned or scaled, in grey (the ends of a symmetric diagram, the corners of
+  // [4,4]).
   function ringSame() {
     if (!ch || !ch.same || !ch.gRings) return;
     ch.gRings.textContent = '';
@@ -1676,7 +2118,7 @@
     S.key.forEach((k, i) => {
       if (i === at || k !== S.key[at]) return;
       const q = S.at(i);
-      el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 6, class: 'rp-ch-ring' }, ch.gRings);
+      el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 6, class: S.orbit[i] === S.orbit[at] ? 'rp-ch-ring same' : 'rp-ch-ring like' }, ch.gRings);
     });
   }
   // the handle where x is
@@ -1753,16 +2195,14 @@
     return p.map((v) => (v < 1e-7 * top ? 0 : v / top));
   }
   let chDrag = null;
-  const holdName = (on) => { const nb = $('name-block'); nb.style.minHeight = on ? nb.offsetHeight + 'px' : ''; };
   chamberSvg.addEventListener('pointerdown', (e) => {
     if (!ch) return;
-    holdName(true);
     const r = chamberSvg.getBoundingClientRect(), sx = ch.W / r.width, x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sx;
     const onHandle = ch.handle.contains(e.target);
     if (ch.rank === 4 && !onHandle) {
       chDrag = { turn: true, x: e.clientX, y: e.clientY };
     } else {
-      chDrag = { turn: false, gx: 0, gy: 0 };
+      chDrag = { turn: false, gx: 0, gy: 0, left: r.left + scrollX, top: r.top + scrollY };
       if (onHandle) { const b = ch.handle.getBoundingClientRect(); chDrag.gx = (e.clientX - (b.left + b.width / 2)) * sx; chDrag.gy = (e.clientY - (b.top + b.height / 2)) * sx; }
       else { morphing = null; chamberTo(x, y); draw(); }
     }
@@ -1780,12 +2220,14 @@
       placeChamberHandle();
       return;
     }
+    // from where the chamber was when it was pressed: if the name above grows and moves it
+    // down, x does not jump
     const r = chamberSvg.getBoundingClientRect(), sx = ch.W / r.width;
     morphing = null;
-    chamberTo((e.clientX - r.left) * sx - chDrag.gx, (e.clientY - r.top) * sx - chDrag.gy);
+    chamberTo((e.clientX + scrollX - chDrag.left) * sx - chDrag.gx, (e.clientY + scrollY - chDrag.top) * sx - chDrag.gy);
     draw();
   });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => chamberSvg.addEventListener(t, () => { holdName(false); if (chDrag) { chDrag = null; MM.moved(); } }));
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => chamberSvg.addEventListener(t, () => { if (chDrag) { chDrag = null; MM.moved(); } }));
   // the keyboard: the arrow keys move x a few pixels in the picture of C
   chamberSvg.addEventListener('keydown', (e) => {
     const step = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -1896,7 +2338,8 @@
 
   /* ---------- the readouts ---------- */
   const cap = (s) => s[0].toUpperCase() + s.slice(1);
-  const lower = (s) => (/^\d/.test(s) || /^[A-Z][a-z]*[A-Z]/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+  // (names that begin with a proper name keep their capital: the Cairo pentagonal tiling)
+  const lower = (s) => (/^\d/.test(s) || /^[A-Z][a-z]*[A-Z]/.test(s) || /^(Cairo|Penrose|Platonic|Archimedean|Catalan|Laves)\b/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
   const plural = (s, n) => (n === 1 ? s : /hedron$/.test(s) ? s.slice(0, -2) + 'a' : /x$/.test(s) ? s + 'es' : /(ss|sh|ch)$/.test(s) ? s + 'es' : s + 's');
   const tex = (n) => (n === INF ? '\\infty' : n);
   const confTex = (c) => '$' + c.sizes.map(tex).join('.') + (c.ideal ? '\\ldots' : '') + '$';
@@ -1910,6 +2353,9 @@
     if (wi < 1e-9 || wj < 1e-9 || Math.abs(wi - wj) < 1e-9 * Math.max(wi, wj)) return { rank: 2, p: sides, w: [1, 0] };
     return { rank: 2, p: m, w: [wi, wj] };
   }
+  // the names that say all edges are equal, for a polytope of the same kind whose edges are not
+  const UNEQUAL = { Square: 'Rectangle', Cube: 'Rectangular cuboid', 'Square tiling': 'Tiling by squares and rectangles' };
+  const named = (nm, uniform) => (!uniform && UNEQUAL[nm]) || nm;
   function polygonWords(sides, regular, n) { const g = P.gon(sides); return (regular || sides === 3 ? g : sides === 4 ? 'rectangle' : g); }
   function about() {
     const k = state.kind;
@@ -1919,12 +2365,12 @@
   }
   function about2() {
     const s = state.two, c = complex2(), sides = c.W.faces[0] ? c.W.faces[0].v.length : 2, uniform = c.on.some(Boolean) || Math.abs(s.w[0] - s.w[1]) < 1e-9;
-    const name = cap(P.gon(sides));
-    const dualName = s.dual ? (uniform ? cap(P.gon(sides)) : 'Dual of the ' + P.gon(sides)) : '';
+    // (a rectangle's dual is a rhomb)
+    const name = named(cap(P.gon(sides)), uniform), dualOf = uniform ? name : sides === 4 ? 'Rhomb' : 'Dual of the ' + lower(name);
     const rowsOut = [['Edges', '$' + sides + '$'], ['Vertices', '$' + sides + '$']];
-    rowsOut.push(['Dual', go({ rank: 2, p: s.p, w: s.w, dual: !s.dual }, s.dual ? 'the ' + P.gon(sides) : uniform ? 'itself' : 'a ' + P.gon(sides) + ' with equal sides')]);
+    rowsOut.push(['Dual', go({ rank: 2, p: s.p, w: s.w, dual: !s.dual }, s.dual ? 'the ' + lower(name) : uniform ? 'itself' : sides === 4 ? 'a rhomb' : 'a ' + P.gon(sides) + ' with equal sides')]);
     rowsOut.push(['Symmetry', '$[' + s.p + ']$, order $' + 2 * s.p + '$']);
-    return { name: s.dual ? dualName : name, what: s.dual ? (uniform ? 'regular polygon' : 'polygon with equal sides') : uniform ? 'regular polygon' : 'polygon with its vertices alike', rows: rowsOut, legend: [] };
+    return { name: s.dual ? dualOf : name, what: s.dual ? (uniform ? 'regular polygon' : 'polygon with equal sides') : uniform ? 'regular polygon' : 'polygon with its vertices alike', rows: rowsOut, legend: [] };
   }
   function about3() {
     const s = state.three, c = complex3(), conf = config3(c), kind = c.kind, W = c.W;
@@ -1932,6 +2378,7 @@
     if (!name && conf.ideal && conf.sizes.length === 1) name = P.regName(conf.sizes[0], INF);
     if (!name && !conf.sizes.length) name = cap(P.adj(s.p === 2 ? s.q : s.p)) + ' hosohedron';
     const generic = !name, uni = c.uniform;
+    if (name) name = named(name, uni);
     // (no name of its own: called by its vertex configuration)
     if (generic) name = (uni ? 'Uniform ' + (kind === 'sphere' ? 'polyhedron ' : 'tiling ') : kind === 'sphere' ? 'Polyhedron ' : 'Tiling ') + confTex(conf);
     const regular = !c.snubbed && (conf.ideal ? conf.sizes.length === 1 : new Set(conf.sizes).size === 1) && uni;
@@ -1986,6 +2433,8 @@
       rowsOut.length = 0;
       rowsOut.push(['Faces', '$' + n + '$ digons'], ['Edges', '$' + n + '$'], ['Vertices', '$2$'], ['At each vertex', '$2^{' + n + '}$']);
     } else rowsOut.push([s.dual ? 'Each face' : 'At each vertex', s.dual ? '$\\mathrm V' + confTex(conf).slice(1) : confTex(conf)]);
+    const pet = kind === 'sphere' ? petrie3(c) : null;
+    if (pet) rowsOut.push(['Petrie polygons', skewWords(pet.h, pet.count)]);
     const degenerate = !c.special && (!conf.sizes.length || conf.sizes.length === 2);
     let dualWords = uni ? P.dualName(primal) : null;
     if (!dualWords && regular && kind === 'hyperbolic' && !generic) dualWords = P.regName(...dualPQ(conf));
@@ -2023,7 +2472,7 @@
       name = dualReg || (uni && P.dualName(name)) || 'Dual of the ' + lower(name);
       what = regular ? what : (honey ? 'honeycomb' : '4-polytope') + ' with its cells alike';
     }
-    const rowsOut = [];
+    const rowsOut = [], cellNames = {};
     if (!f.dual) {
       // the cells by type: the polyhedra of the three walls other than l (prisms where they fall apart)
       const byType = new Map();
@@ -2032,7 +2481,8 @@
         const J = [0, 1, 2, 3].filter((i) => i !== l), sub = [J.map((a) => J.map((b) => M.m[a][b]))][0];
         const t = [sub[0][1], sub[1][2], sub[0][2]], wJ = J.map((i) => f.w[i]);
         const Ms = P.model(P.triangle(...t)), on = P.wallsOf(Ms, Ms.point(wJ)), conf = P.vertexConfig(Ms, on);
-        const nm = P.nameByConfig('sphere', conf.sizes) || 'Polyhedron';
+        const ringed = wJ.filter((v) => v > 1e-9), nm = named(P.nameByConfig('sphere', conf.sizes) || 'Polyhedron', ringed.every((v) => Math.abs(v - ringed[0]) < 1e-6));
+        cellNames[l] = lower(nm);
         const n = byType.get(l), words = lower(plural(nm, finite ? n : 2));
         return (finite ? '$' + n + '$ ' : '') + go({ rank: 3, p: t[0], q: t[1], r: t[2], w: wJ }, words);
       });
@@ -2048,16 +2498,19 @@
     } else if (regular) {
       // the dual of {p, q, r} is {r, q, p}: its cells {r, q}, its faces r-gons
       const d = rings[0] ? ms.slice().reverse() : ms.slice(), cellNm = P.nameByConfig('sphere', Array(d[1]).fill(d[0])) || 'cells';
+      cellNames[-1] = lower(cellNm);
       rowsOut.push(['Cells', (finite ? '$' + W.V + '$ ' : '') + go({ rank: 3, p: d[0], q: d[1], r: 2, w: [1, 0, 0] }, lower(plural(cellNm, 2)))]);
       rowsOut.push(['Faces', (finite ? '$' + W.edges.length / 3 + '$ ' : '') + go({ rank: 2, p: d[0], w: [1, 0] }, plural(P.gon(d[0]), 2))]);
       if (finite) rowsOut.push(['Edges', '$' + W.faces.length + '$'], ['Vertices', '$' + W.cells.length + '$']);
     } else if (finite) {
       rowsOut.push(['Cells', '$' + W.V + '$, all alike'], ['Faces', '$' + W.edges.length / 3 + '$'], ['Edges', '$' + W.faces.length + '$'], ['Vertices', '$' + W.cells.length + '$']);
     } else rowsOut.push(['Cells', 'all alike']);
+    const pet = petrie4(X);
+    if (pet) rowsOut.push(['Petrie polygons', skewWords(pet.h, pet.count)]);
     const dualWords = dualReg || (uni && P.dualName(primal));
     rowsOut.push(['Dual', go(Object.assign(specOf4(), { dual: !f.dual }), f.dual ? lower(primal) : dualWords ? lower(dualWords) + (dualWords === primal ? ' (itself)' : '') : 'its dual')]);
     rowsOut.push(['Symmetry', '$[' + ms.join(',') + ']$' + (finite ? ', order $' + X.g.T.N + '$' : '')]);
-    return { name, what, rows: rowsOut };
+    return { name, what, rows: rowsOut, cellNames };
   }
   function uniform4(X) {
     const W = X.W, M = X.M;
@@ -2068,7 +2521,16 @@
     }
     return hi - lo < 1e-6 * Math.max(1, hi);
   }
-  let lastAbout = '';
+  // While the reader works in the side column (drags x, moves a slider, rings a node), the name
+  // and the legend at its head keep the tallest height they have had there: what is under them
+  // moves down at most once, and never back up under the finger.
+  const nameBlock = $('name-block');
+  let lastAbout = '', lastHead = '', sideActive = false, sideHold = 0;
+  ['pointerdown', 'keydown'].forEach((t) => document.addEventListener(t, (e) => {
+    const side = !!(e.target.closest && e.target.closest('.split-side'));
+    if (side && !sideActive) sideHold = nameBlock.offsetHeight;
+    sideActive = side;
+  }, true));
   function readouts() {
     const head = $('name'), legend = $('legend');
     let html, leg = [], kv = [];
@@ -2078,13 +2540,22 @@
       if (state.colours) leg = [['swatch', p3 ? 'tile-thick' : 'tile-kite', p3 ? 'thick rhombs' : 'kites'], ['swatch', p3 ? 'tile-thin' : 'tile-dart', p3 ? 'thin rhombs' : 'darts']];
       if (state.pen.arcs) leg.push(['arcs', '', 'arcs of the matching rules']);
       if (state.pen.larger) leg.push(['line', 'edge', 'tiles two and four deflations larger']);
-      kv = [['Tiles', p3 ? 'thick and thin rhombs' : 'kites and darts']];
       if (state.pen.larger) kv.push([p3 ? 'Thick to thin' : 'Kites to darts', '$\\varphi = \\tfrac{1+\\sqrt5}2$']);
     } else {
       const a = about();
       html = MM.rich(a.name) + ' <span class="side-kind">' + a.what + '</span>';
       kv = a.rows;
-      if (state.kind === 'space') leg = [['swatch', 'cell-mid', 'the cell in the middle', 'accent']];
+      const v4 = view4();
+      if (state.kind === 'space' && v4 === 'sections' && shownSection) {
+        const sc = shownSection, word = (n) => (n === 4 ? 'quadrilateral' : P.gon(n)), art = (wd) => (/^[aeiou]/.test(wd) ? 'an ' : 'a ') + wd;
+        const what = !sc.faces ? (sc.verts === 1 ? 'a vertex' : 'an edge') : sc.flat ? art(word([...sc.sides.keys()][0])) + ' of the polytope'
+          : [...sc.sides.entries()].sort((x, y) => x[0] - y[0]).map(([n, m]) => '$' + m + '$ ' + plural(word(n), m)).join(', ');
+        kv = [['Section', what]].concat(kv);
+        leg = [...sc.kinds].sort((x, y) => (x === 3 ? -1 : y === 3 ? 1 : x - y)).map((l) => ['swatch', CELL4[l], 'where it cuts ' + (/^[aeiou]/.test(a.cellNames[l] || 'c') ? 'an ' : 'a ') + (a.cellNames[l] || 'cell')]);
+        if (sc.verts && sc.faces) leg.push(['dot', 'edge', 'its vertices in the hyperplane']);
+      } else if (state.kind === 'space' && v4 === 'coxeter') leg = [];
+      else if (state.kind === 'space') leg = [['swatch', 'cell-mid', 'the cell in the middle', 'accent']];
+      if (state.petrie && petrieCorner() && v4 !== 'sections') leg.push(['line', 'highlight', 'a Petrie polygon']);
       else if (state.kind !== 'polygon' && state.colours) {
         const s = state.three, kinds = new Set(a.kinds || []);
         if (s.special) leg = [['swatch', 'face-2', 'squares'], ['swatch', 'face-3', 'triangles']];
@@ -2099,9 +2570,12 @@
       }
       if (state.mirrors && state.kind !== 'space' && !(state.kind !== 'polygon' && (complex3().snubbed || state.three.special))) leg.push(['line', 'wall-line', 'mirrors']);
     }
+    let changed = html !== lastHead;
+    lastHead = html;
     MM.setHTML(head, html);
     const legHtml = leg.map(([t, col, words]) => {
       if (t === 'swatch') return '<span class="legend-item"><span class="swatch" style="--c: var(--' + (col === 'cell-mid' ? 'accent' : col) + '); --c-soft: var(--' + (col === 'cell-mid' ? 'cell-mid' : col + '-fill') + ')"></span>' + words + '</span>';
+      if (t === 'dot') return '<span class="legend-item"><span class="dot" style="--c: var(--' + col + ')"></span>' + words + '</span>';
       if (t === 'dots') return '<span class="legend-item"><span class="rp-dots">' + col.map((c) => '<span class="dot" style="--c: var(--' + c + ')"></span>').join('') + '</span>' + words + '</span>';
       if (t === 'arcs') return '<span class="legend-item"><svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true"><path d="M1 9 Q 6 1 11 5" style="stroke: var(--arc-1)"/><path d="M11 5 Q 16 9 21 1" style="stroke: var(--arc-2)"/></svg>' + words + '</span>';
       return '<span class="legend-item"><svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c: var(--' + col + ')"><path d="M1 5 H21"/></svg>' + words + '</span>';
@@ -2112,6 +2586,11 @@
       MM.setHTML(legend, legHtml);
       legend.hidden = !legHtml;
       MM.kv($('about'), kv);
+      changed = true;
+    }
+    if (changed) {
+      nameBlock.style.minHeight = '';
+      if (sideActive) { sideHold = Math.max(sideHold, nameBlock.offsetHeight); nameBlock.style.minHeight = sideHold + 'px'; }
     }
     coxeter();
     seeAlso();
@@ -2188,9 +2667,18 @@
   function draw() {
     const k = state.kind;
     if (k === 'polygon') drawPolygon();
-    else if (k === 'sphere') { if (state.view3 === 'stereo') drawStereo(); else { state.R3 = turnR3(); drawSolid(); } }
-    else if (k === 'plane' || k === 'hyperbolic') drawPlane();
+    else if (k === 'sphere') {
+      if (state.view3 === 'stereo') drawStereo();
+      else {
+        if (!flight) state.R3fly = null;
+        followUp();
+        state.R3 = state.R3fly || turnR3();
+        drawSolid();
+      }
+    } else if (k === 'plane' || k === 'hyperbolic') drawPlane();
     else if (k === 'penrose') drawPenrose();
+    else if (view4() === 'coxeter') drawCoxeter();
+    else if (view4() === 'sections') drawSections();
     else drawSpace();
     buildChamber();
     placeChamberHandle();
@@ -2202,11 +2690,16 @@
   // which controls apply
   function chrome() {
     const k = state.kind, three = k === 'sphere' || k === 'plane' || k === 'hyperbolic';
+    const v4 = view4(), finite4 = k === 'space' && !state.four.special && space4().kind === 'sphere';
     $('view3-c').hidden = k !== 'sphere';
-    $('proj4-c').hidden = !(k === 'space' && space4().kind === 'sphere');
+    $('view4-c').hidden = !finite4;
+    $('proj4-c').hidden = !finite4 || v4 !== 'space';
+    $('from4-c').hidden = secBlock.hidden = v4 !== 'sections';
+    $('figure').classList.toggle('rp-sections', v4 === 'sections');
+    $('petrie').hidden = !petrieCorner() || v4 === 'sections';
     $('mirrors').hidden = k === 'penrose' || k === 'space' || (three && state.three.special);
     $('colours').hidden = k === 'space';
-    $('arcs').hidden = $('larger').hidden = k !== 'penrose';
+    $('arcs').hidden = $('larger').hidden = $('tiles-c').hidden = k !== 'penrose';
     $('zoom').hidden = !(k === 'plane' || k === 'penrose' || k === 'space');
     $('pq').hidden = !three || !!state.three.special;
     $('p2-c').hidden = k !== 'polygon';
@@ -2217,11 +2710,12 @@
       : t3.r === 2 ? 'Schläfli symbol $\\{p,q\\} = \\{' + tx(t3.p) + ',' + tx(t3.q) + '\\}$'
         : 'Triangle group $(p\\;q\\;r) = (' + [t3.p, t3.q, t3.r].map(tx).join('\\;') + ')$';
     if (!sch.hidden && sch.dataset.text !== schText) { sch.dataset.text = schText; MM.setHTML(sch, schText); }
-    $('rotate').hidden = !((k === 'sphere' && state.view3 === 'solid') || k === 'space');
+    $('rotate').hidden = !((k === 'sphere' && state.view3 === 'solid') || (k === 'space' && v4 !== 'coxeter'));
     canvas.setAttribute('aria-label', {
       polygon: 'The polygon', sphere: state.view3 === 'stereo' ? 'The tiling of the sphere, projected stereographically to the plane' : 'The polyhedron, turning in space',
       plane: 'The tiling of the plane', hyperbolic: 'The tiling of the hyperbolic plane, in the Poincaré disc', penrose: 'A Penrose tiling',
-      space: k === 'space' ? (space4().kind === 'sphere' ? 'The polytope’s boundary in space' : space4().kind === 'plane' ? 'The honeycomb, in space' : 'The honeycomb, in the Poincaré ball') : '',
+      space: k !== 'space' ? '' : v4 === 'coxeter' ? 'The polytope projected to its Coxeter plane' : v4 === 'sections' ? 'The section of the polytope by a hyperplane, turning in space'
+        : space4().kind === 'sphere' ? 'The polytope’s boundary in space' : space4().kind === 'plane' ? 'The honeycomb, in space' : 'The honeycomb, in the Poincaré ball',
     }[k]);
     handle.setAttribute('aria-label', 'A point of the space: moving it moves the space');
     if (drag) drag.update();
@@ -2231,7 +2725,7 @@
   /* ---------- animation ---------- */
   let raf = 0, lastT = 0, morphing = null;
   const visible = MM.whenVisible([stage], (on) => { if (on) tick(); });
-  const turning = () => state.rotate && ((state.kind === 'sphere' && state.view3 === 'solid') || state.kind === 'space');
+  const turning = () => state.rotate && ((state.kind === 'sphere' && state.view3 === 'solid') || (state.kind === 'space' && view4() !== 'coxeter'));
   function animating() { return morphing || flight || turning(); }
   function tick() {
     if (raf || !visible()) return;
@@ -2272,7 +2766,7 @@
     const it = ITEMS.get(id);
     if (!it) return;
     morphing = flight = null;
-    if (it.kind === 'penrose') { state.kind = 'penrose'; state.pen.tiles = it.tiles; }
+    if (it.kind === 'penrose') state.kind = 'penrose';
     else if (it.rank === 2) { state.kind = 'polygon'; Object.assign(state.two, { p: it.p, w: it.w.slice(), dual: false }); }
     else if (it.rank === 3 && it.special) { state.kind = 'plane'; state.three.special = it.special; state.three.dual = false; state.V = null; }
     else if (it.rank === 3) {
@@ -2306,7 +2800,11 @@
     $('arcs').pressed = state.pen.arcs;
     $('larger').pressed = state.pen.larger;
     $('view3').value = state.view3;
+    $('tiles').value = state.pen.tiles;
     $('proj4').value = state.four.proj;
+    $('view4').value = state.four.view;
+    $('from4').value = String(state.four.from);
+    $('petrie').pressed = state.petrie;
     const s = state.three;
     setSlider('p', s.p); setSlider('q', s.q); setSlider('r', s.r);
     setSlider('p2', state.two.p);
@@ -2327,7 +2825,7 @@
   /* ---------- the strip ---------- */
   const minis = new Map(), drawnFamilies = new Set();
   function itemName(it) {
-    if (it.kind === 'penrose') return [it.tiles === 'p3' ? 'Rhombs' : 'Kites, darts', it.tiles === 'p3' ? 'Penrose tiling by rhombs' : 'Penrose tiling by kites and darts'];
+    if (it.kind === 'penrose') return ['Penrose', 'Penrose tiling'];
     if (it.rank === 2) return ['$\\{' + it.p + '\\}$', cap(P.gon(it.p))];
     if (it.rank === 4) {
       if (it.special) return ['Rhombic', 'Rhombic dodecahedral honeycomb'];
@@ -2367,7 +2865,7 @@
     $('geo').addEventListener('change', () => showFamily(familyOfControls()));
     return s;
   }
-  // the list's two controls: the dimension (2D, 3D, 4D) and the kind, named for the dimension
+  // the list's two controls: the rank (2, 3, 4: the number of mirrors) and the kind, named for the rank
   const KINDS = { 3: ['Polyhedra', 'Tilings', 'Hyperbolic'], 4: ['Polytopes', 'Honeycombs', 'Hyperbolic'] };
   function setKindLabels() {
     const d = $('dim').value, geo = $('geo');
@@ -2399,7 +2897,7 @@
   // the item shown, if one is
   function current() {
     const k = state.kind;
-    if (k === 'penrose') return ITEMS.get(state.pen.tiles === 'p3' ? 'penrose-rhombs' : 'penrose-kites');
+    if (k === 'penrose') return ITEMS.get('penrose');
     if (k === 'polygon') return state.two.w.join() === '1,0' && !state.two.dual ? ITEMS.get('polygon-' + state.two.p) : null;
     if (k === 'space') {
       const f = state.four;
@@ -2430,11 +2928,11 @@
     const path = (d, attrs) => elx('path', Object.assign({ d, fill: 'none', stroke: 'currentColor', 'stroke-width': 1, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, attrs || {}), svg);
     const f2 = (x) => x.toFixed(2);
     if (it.kind === 'penrose') {
-      const lv = PEN.cover(it.tiles, PEN.sun(it.tiles, 1), [-1, 1, -1, 1], 3), k = 19;
+      const lv = PEN.cover('p3', PEN.sun('p3', 1), [-1, 1, -1, 1], 3), k = 19;
       let d = '';
       for (const t of lv[3]) {
         const [a, b, c] = t.slice(1).map((p) => [S / 2 + k * p[0], S / 2 - k * p[1]]);
-        d += it.tiles === 'p3' ? 'M' + f2(b[0]) + ' ' + f2(b[1]) + 'L' + f2(a[0]) + ' ' + f2(a[1]) + 'L' + f2(c[0]) + ' ' + f2(c[1]) : 'M' + f2(a[0]) + ' ' + f2(a[1]) + 'L' + f2(b[0]) + ' ' + f2(b[1]) + 'L' + f2(c[0]) + ' ' + f2(c[1]);
+        d += 'M' + f2(b[0]) + ' ' + f2(b[1]) + 'L' + f2(a[0]) + ' ' + f2(a[1]) + 'L' + f2(c[0]) + ' ' + f2(c[1]);
       }
       path(d, { 'stroke-width': 0.8 });
       return;
@@ -2568,7 +3066,7 @@
   // the keyboard: the arrow keys pull the space a few pixels
   handle.addEventListener('keydown', (e) => {
     const step = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-    if (!step || e.altKey || e.ctrlKey || e.metaKey || state.kind !== 'space') return;
+    if (!step || e.altKey || e.ctrlKey || e.metaKey || state.kind !== 'space' || view4() !== 'space') return;
     e.preventDefault();
     const b = handle.getBoundingClientRect(), r = stage.getBoundingClientRect(), d = e.shiftKey ? 2 : 10;
     dragging = true;
@@ -2579,7 +3077,7 @@
   });
   let hold = null;
   const drag = MM.turnDrag(stage, {
-    when: (e) => !(e && e.target && handle.contains(e.target)) && state.kind !== 'polygon',
+    when: (e) => !(e && e.target && handle.contains(e.target)) && state.kind !== 'polygon' && !(state.kind === 'space' && view4() === 'coxeter'),
     start: () => { hold = null; },
     end: () => { hold = null; tick(); },
     move(dx, dy, e) {
@@ -2708,12 +3206,25 @@
       draw();
     },
   });
-  // a click on a cell (rank four), or on a face of a polyhedron, brings it to the middle
+  // a mirror under the mouse shows the pointer: a click picks it
+  stage.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    const r = stage.getBoundingClientRect();
+    stage.classList.toggle('on-mirror', !e.buttons && !!mirrorAt(e.clientX - r.left, e.clientY - r.top, 7));
+  });
+  stage.addEventListener('pointerleave', () => stage.classList.remove('on-mirror'));
+  // a click on a mirror picks it; on a cell (rank four), or on a face of a polyhedron, brings it to the middle
   stage.addEventListener('click', (e) => {
     if (drag.moved || handle.contains(e.target)) return;
     const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-    if (state.kind === 'space' && cam3) { const cell = cellAt(x, y); if (cell) { flyTo(cell); MM.moved(); } }
-    else if (state.kind === 'sphere' && (state.view3 === 'stereo' || cam3)) { const u = faceAt(x, y); if (u) { centreSphere(u); MM.moved(); } }
+    if (state.kind === 'space' && cam3) { if (view4() !== 'space') return; const cell = cellAt(x, y); if (cell) { flyTo(cell); MM.moved(); } }
+    else if (state.kind === 'sphere' && (state.view3 === 'stereo' || cam3)) {
+      const m = mirrorAt(x, y, e.pointerType === 'touch' ? 14 : 7), g = complex3().g;
+      if (m) { state.mirrorHi = state.mirrorHi && state.mirrorHi.key === m && state.mirrorHi.g === g.key ? null : { g: g.key, key: m }; draw(); return; }
+      const u = faceAt(x, y);
+      if (u) { centreSphere(u); MM.moved(); }
+      else if (state.mirrorHi) { state.mirrorHi = null; draw(); }
+    }
   });
 
   /* ---------- the controls ---------- */
@@ -2722,8 +3233,23 @@
   $('rotate').addEventListener('change', (e) => { state.rotate = e.detail.pressed; lastT = 0; tick(); draw(); });
   $('arcs').addEventListener('change', (e) => { state.pen.arcs = e.detail.pressed; draw(); });
   $('larger').addEventListener('change', (e) => { state.pen.larger = e.detail.pressed; draw(); });
+  $('tiles').addEventListener('change', (e) => { state.pen.tiles = e.detail.value; draw(); });
   $('view3').addEventListener('change', (e) => { state.view3 = e.detail.value; if (state.view3 === 'solid') turnFrom(state.R3); draw(); tick(); });
   $('proj4').addEventListener('change', (e) => { state.four.proj = e.detail.value; state.four.m = null; draw(); });
+  $('view4').addEventListener('change', (e) => { state.four.view = e.detail.value; state.four.m = null; draw(); tick(); });
+  $('from4').addEventListener('change', (e) => { state.four.from = +e.detail.value; draw(); });
+  // the Petrie polygon: on the solid, which then stands on its axis; in the stereographic
+  // picture, with that axis brought to the middle
+  $('petrie').addEventListener('change', (e) => {
+    state.petrie = e.detail.pressed;
+    if (state.petrie && state.kind === 'sphere') {
+      const pet = petrie3(complex3());
+      if (pet && state.view3 === 'solid') state.turn.ph = 0.45;
+      if (pet && state.view3 === 'stereo') centreSphere(pet.axis);
+    }
+    draw();
+    tick();
+  });
   // p, q, r: another group, x kept by its walls (the same rings, the same proportions)
   ['p', 'q', 'r'].forEach((k) => $(k).addEventListener('input', (e) => {
     const v = fromSlider($(k).value), s = state.three;
@@ -2742,7 +3268,12 @@
   }));
   $('p2').addEventListener('input', () => { state.two.p = +$('p2').value; draw(); });
 
-  function resize() { if (ch) ch.fullKey = ''; draw(); }
+  let lastWidth = 0;
+  function resize() {
+    if (stage.clientWidth !== lastWidth) { lastWidth = stage.clientWidth; nameBlock.style.minHeight = ''; sideActive = false; }
+    if (ch) ch.fullKey = '';
+    draw();
+  }
   new ResizeObserver(resize).observe(stage);
   const strip = buildStrip();
   syncControls();
@@ -2779,7 +3310,7 @@
   };
   const nums = MM.example.numbers(4);
   example = MM.example({
-    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', j: 'text', v: 'rotation', u: rotation4, z: 'number' },
+    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', p: 'flag', j: 'text', k: 'int', s: 'number', v: 'rotation', u: rotation4, z: 'number' },
     view: ['v', 'u', 'z'],
     get() {
       const it = current(), k = state.kind;
@@ -2787,15 +3318,16 @@
       if (it) t = it.id;
       else if (k === 'polygon') { t = tOf({ rank: 2, p: state.two.p }); w = state.two.w; dd = state.two.dual; }
       else if (k === 'space') { const sp = specOf4(); t = tOf(sp); w = sp.w || [1, 0, 0, 0]; dd = !!sp.dual && !sp.item; }
-      else if (k === 'penrose') t = it ? it.id : 'penrose-rhombs';
+      else if (k === 'penrose') t = 'penrose';
       else if (state.three.special) t = 'elongated-triangular-tiling';
       else { const sp = specOf3(); t = tOf(sp); w = sp.w; fl = complex3().snubbed ? sp.flap : -1; dd = sp.dual; }
       if (it && k === 'polygon') w = state.two.w;
       if (it && (k === 'sphere' || k === 'plane' || k === 'hyperbolic') && !state.three.special) { w = state.three.w; fl = complex3().snubbed ? state.three.flap : -1; dd = state.three.dual; }
       if (it && k === 'space') { w = state.four.w; dd = state.four.dual; }
       return {
-        t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate,
-        j: k === 'sphere' ? state.view3 : k === 'space' ? state.four.proj : 'solid',
+        t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate, p: state.petrie,
+        j: k === 'sphere' ? state.view3 : k === 'space' ? (state.four.view !== 'space' ? state.four.view : state.four.proj) : k === 'penrose' ? (state.pen.tiles === 'p2' ? 'kites' : 'rhombs') : 'solid',
+        k: state.four.from, s: +state.four.s.toFixed(4),
         v: k === 'space' ? state.four.R3 : state.R3, u: state.four.rot,
         z: k === 'plane' ? state.span : k === 'penrose' ? state.pen.span : k === 'space' ? 3.2 * state.four.zoom : 3.2,
       };
@@ -2842,7 +3374,14 @@
       state.mirrors = x.m;
       state.rotate = x.r && !MM.reduceMotion();
       if (k === 'sphere') state.view3 = x.j === 'stereo' ? 'stereo' : 'solid';
-      if (k === 'space') state.four.proj = ['stereo', 'persp', 'parallel'].includes(x.j) ? x.j : 'stereo';
+      state.petrie = x.p;
+      if (k === 'space') {
+        state.four.view = ['coxeter', 'sections'].includes(x.j) ? x.j : 'space';
+        state.four.proj = ['stereo', 'persp', 'parallel'].includes(x.j) ? x.j : 'stereo';
+        state.four.from = x.k >= 0 && x.k <= 3 ? x.k : 0;
+        state.four.s = Number.isFinite(x.s) ? clamp(x.s, 0, 1) : 0.5;
+      }
+      if (k === 'penrose') state.pen.tiles = x.j === 'kites' ? 'p2' : 'p3';
       if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 === 'solid') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
       if (k === 'space') state.four.zoom = named.has('z') ? clamp(x.z / 3.2, 1, ZOOM4) : 1;
