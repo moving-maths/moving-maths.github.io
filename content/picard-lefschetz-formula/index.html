@@ -1,6 +1,6 @@
 ---
 title: Picard–Lefschetz formula
-description: 'Vanishing cycles of a Morse function, and how they change as the value goes once round a critical value: $h_i(a)=a\pm\langle a,\Delta_i\rangle\,\Delta_i$.'
+description: 'Vanishing cycles of a Morse function, and how they change as the value goes once round a critical value: $h_i(\gamma)=\gamma\pm\langle\gamma,\Delta_i\rangle\,\Delta_i$.'
 tags: [complex-analysis, algebraic-geometry]
 date: 2026-11-19
 draft: true
@@ -30,7 +30,7 @@ references:
     note: Zurich Lectures in Advanced Mathematics, European Mathematical Society (2008)
 ---
 <div class="wrap">
-  <p class="lede">The function $f=p(x)+y_2^2+\cdots+y_n^2$, for a polynomial $p$ of degree $\mu+1$ with distinct critical values $z_1,\dots,z_\mu$, is a Morse perturbation of the singularity $x^{\mu+1}+y_2^2+\cdots+y_n^2$. Its level set $V_z=f^{-1}(z)$ has a vanishing cycle $\Delta_i$ for each critical value, a sphere that shrinks to a point as $z$ goes to $z_i$ along a path. Taking $z$ once round $z_i$ changes each cycle $a$ of $V_z$ by the Picard–Lefschetz formula, $h_i(a)=a+(-1)^{n(n+1)/2}\langle a,\Delta_i\rangle\,\Delta_i$.</p>
+  <p class="lede">For a function $f\colon X\to\CC$ with isolated nondegenerate critical points, Picard–Lefschetz theory describes how its fibres $X_a = f^{-1}(a)$ change as $a$ goes round a critical value $a_i$ of $f$. Each fibre has a vanishing cycle $\Delta_i \subset X_a$ for each critical value $a_i$, an $(n-1)$-sphere that shrinks to a point as $a$ goes to $a_i$, where $n = \dim X$. Taking $a$ once round $a_i$ changes each cycle $\gamma$ of $X_a$ by the Picard–Lefschetz formula, $h_i(\gamma)=\gamma+(-1)^{n(n+1)/2}\langle\gamma,\Delta_i\rangle\,\Delta_i$.</p>
 </div>
 
 <div class="control-bar"><div class="wrap">
@@ -39,13 +39,13 @@ references:
       <button value="1">1</button><button value="2">2</button><button value="3">3</button>
     </mm-seg>
   </div>
-  <div class="control"><span class="label">$\mu$</span>
-    <mm-seg id="mu" value="3" aria-label="The Milnor number mu, the number of critical points">
+  <div class="control"><span class="label">$d$</span>
+    <mm-seg id="mu" value="3" aria-label="The number d of critical points">
       <button value="2">2</button><button value="3">3</button><button value="4">4</button><button value="5">5</button>
     </mm-seg>
   </div>
   <div class="control"><span class="label">Show</span>
-    <mm-seg id="which" value="carried" aria-label="The cycles in the picture: the basis at z, or the cycles carried along with z">
+    <mm-seg id="which" value="carried" aria-label="The cycles in the picture: the basis at a, or the cycles carried along with a">
       <button value="basis">$\Delta_i$</button><button value="carried">$h(\Delta_i)$</button>
     </mm-seg>
   </div>
@@ -56,7 +56,7 @@ references:
     <button value="plane">Plane</button><button value="phase">Phase</button><button value="3d" id="view-3d">3D</button>
   </mm-seg>
   <div class="control">
-    <mm-menu id="round" aria-label="Take z once round a critical value"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2L12.6 8L5 12.8Z" style="fill:currentColor"/></svg></mm-menu>
+    <mm-menu id="round" aria-label="Take the value a once round a critical value"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2L12.6 8L5 12.8Z" style="fill:currentColor"/></svg></mm-menu>
     <button type="button" class="btn btn-sm btn-icon" id="undo" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5L3 6.5l3 3"/><path d="M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/></svg></button>
     <button type="button" class="btn btn-sm btn-icon" id="redo" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5l3 3-3 3"/><path d="M13 6.5H6.5a3.5 3.5 0 0 0 0 7H9"/></svg></button>
   </div>
@@ -66,7 +66,7 @@ references:
   <figure class="panel split pl" id="figure">
     <div class="split-main pl-main">
       <div class="pl-xplane split-fit" id="xplane">
-        <canvas id="xcv" role="img" aria-label="The plane of x, shaded where |p(x) − z| is small, with its level lines (or coloured by the phase of p(x) − z, or in 3D, with the curve over it), the roots of p(x) = z, over which the level set degenerates, the vanishing cycles along the straight paths from z (or the cycles carried along with z), and the critical points of p"></canvas>
+        <canvas id="xcv" role="img" aria-label="The plane of x, shaded where |p(x) − a| is small, with its level lines (or coloured by the phase of p(x) − a, or in 3D, with the curve over it), the roots of p(x) = a, over which the level set degenerates, the vanishing cycles along the straight paths from a (or the cycles carried along with a), and the critical points of p"></canvas>
         <svg id="xsvg" class="pl-over" aria-label="Critical points"></svg>
       </div>
       <p class="hint" id="hint">Drag critical points to move them.</p>
@@ -74,23 +74,25 @@ references:
     <div class="split-side">
       <section class="side-block side-head" aria-labelledby="title">
         <h2 class="side-title" id="title"></h2>
-        <p class="side-sub" id="sub"></p>
         <div class="legend" id="legend"></div>
+      </section>
+      <section class="side-block side-more pl-about" aria-label="About the level sets">
+        <p class="side-sub" id="sub"></p>
       </section>
       <section class="side-block pl-zblock" aria-label="The plane of values">
         <div class="pl-zplane" id="zplane">
-          <canvas id="zcv" role="img" aria-label="The plane of values: the critical values, the straight paths from z to them, the Stokes rays, and the value z, which can be dragged"></canvas>
+          <canvas id="zcv" role="img" aria-label="The plane of values: the critical values, the straight paths from a to them, the Stokes rays, and the value a, which can be dragged"></canvas>
           <svg id="zsvg" class="pl-over" aria-label="Critical values"></svg>
-          <div class="handle draggable pl-zh" id="zh" role="slider" tabindex="0" aria-label="The value z: drag it, or move it with the arrow keys"></div>
+          <div class="handle draggable pl-zh" id="zh" role="slider" tabindex="0" aria-label="The value a: drag it, or move it with the arrow keys"></div>
         </div>
-        <p class="hint pl-zhint">Drag $z$ once round one of the $z_i$ to see the monodromy.</p>
+        <p class="hint pl-zhint">Drag $a$ once round one of the $a_i$ to see the monodromy.</p>
         <div class="legend" id="zlegend"></div>
       </section>
-      <section class="side-block" id="note-block" hidden aria-label="Where z is">
+      <section class="side-block" id="note-block" hidden aria-label="Where a is">
         <p class="pl-note" id="note" aria-live="polite"></p>
       </section>
       <section class="side-block" aria-labelledby="mono-h">
-        <h3 class="label" id="mono-h">Carried along with $z$</h3>
+        <h3 class="label" id="mono-h">Carried along with $a$</h3>
         <div class="pl-mono" id="mono" aria-live="polite"></div>
         <p class="pl-rule" id="rule"></p>
       </section>
@@ -108,29 +110,30 @@ references:
   <h2 class="section-title" id="sec-vanishing">Vanishing cycles</h2>
   <figure id="v3-fig">
     <div class="fig-pair pl-pair">
-      <div class="pl-v3" id="v3-box"><canvas id="v3-cv" role="img" aria-label="The level set near a critical point in three dimensions, as z comes to the critical value: the vanishing cycle and its shrinking to the singular point"></canvas></div>
-      <div class="pl-dialbox"><canvas id="v3-dial" role="img" aria-label="z near the critical value z_i"></canvas><div class="handle draggable pl-dialh" id="v3-z" role="slider" tabindex="0" aria-label="z near z_i: drag it, or move it with the arrow keys"></div><p class="pl-dialval" id="v3-val"></p></div>
+      <div class="pl-v3" id="v3-box"><canvas id="v3-cv" role="img" aria-label="The level set near a critical point in three dimensions, as the value a comes to the critical value: the vanishing cycle and its shrinking to the singular point"></canvas></div>
+      <div class="pl-dialbox"><canvas id="v3-dial" role="img" aria-label="The value a near the critical value a_i"></canvas><div class="handle draggable pl-dialh" id="v3-z" role="slider" tabindex="0" aria-label="The value a near a_i: drag it, or move it with the arrow keys"></div></div>
     </div>
-    <figcaption class="caption">The level set $V_z$ near $c_i$, in coordinates in which $f=z_i+x^2+y_2^2+\cdots+y_n^2$, as $z$ comes to $z_i$, for the $n$ chosen in the bar. For $n=2$ it is the curve $x^2+y^2=z-z_i$, a double cover of the disc $|x|\le1$ branched at $\pm\sqrt{z-z_i}$, drawn at the height $\mathrm{Re}(\mathrm{e}^{-\mathrm{i}\theta}y)$, made smaller, with $\theta=\frac12\arg(z-z_i)$: its two sheets, white and blue, meet along the vanishing circle, dashed where it is hidden. For $n=3$ it is the vanishing sphere, and for $n=1$ the two points. At $z=z_i$ the cycle has shrunk to the singular point.</figcaption>
+    <figcaption class="caption" id="v3-cap">The level set $X_a$ near a critical point $x_i$, in coordinates in which $f=a_i+x^2+y^2$, as $a$ comes to $a_i$. It is the curve $x^2+y^2=a-a_i$, a double cover of the disc $|x|\le1$ branched at $\pm\sqrt{a-a_i}$, whose two sheets, white and blue, meet along the vanishing circle. At $a=a_i$ the cycle has shrunk to the singular point.</figcaption>
   </figure>
-  <p>Let $p$ be a monic polynomial of degree $\mu+1$ whose critical points $c_1,\dots,c_\mu$ are simple and whose critical values $z_i=p(c_i)$ are distinct. The critical points of $f=p(x)+y_2^2+\cdots+y_n^2$ are the points $(c_i,0,\dots,0)$, all nondegenerate, so the level set $V_z=f^{-1}(z)$ is a smooth complex manifold for every $z$ other than $z_1,\dots,z_\mu$. It is homotopy equivalent to a bouquet of $\mu$ spheres $S^{n-1}$, as Milnor showed for the level sets near any isolated critical point [@milnor1968], so that</p>
-  $$H_{n-1}(V_z)\cong\ZZ^\mu$$
-  <p>(in reduced homology for $n=1$, where $V_z$ is $\mu+1$ points).</p>
-  <p>Near $c_i$ there are coordinates in which $f=z_i+x^2+y_2^2+\cdots+y_n^2$. For $z$ near $z_i$ the level set there is the quadric $x^2+y_2^2+\cdots+y_n^2=z-z_i$, which contains the sphere of its points in $\sqrt{z-z_i}\,\RR^n$, and this sphere shrinks to the point $c_i$ as $z$ tends to $z_i$, where the quadric becomes a cone. Carried back along a path $\gamma$ from a regular value to $z_i$, it gives a class in the homology of the level set at the start of $\gamma$, the <strong>vanishing cycle</strong> along $\gamma$, defined up to its orientation [@arnold1988, Ch. 1].</p>
-  <p>Since $f$ is $p(x)$ plus a sum of squares, its vanishing cycles can be seen in the plane of $x$. Over a point $x$ the level set is the quadric $y_2^2+\cdots+y_n^2=z-p(x)$, which contains the sphere $\sqrt{z-p(x)}\,S^{n-2}$ and degenerates to a point where $p(x)=z$. A path from $z$ to $z_i$ lifts through $c_i$ to an arc between two roots of $p(x)=z$, and the vanishing cycle is made of the spheres over the points of the arc [@seidel2008]. For the straight path from $z$ to $z_i$ the arc is the line through $c_i$ on which $p(x)-z$ has the phase of $z_i-z$: it runs from the saddle $c_i$ of $|p(x)-z|$ down to two roots, the way water runs, across the level lines in the picture at the top (with Phase in the bar, it runs along the colour of $c_i$).</p>
-  <p>The straight paths from $z$ to the critical values meet only at $z$, and numbered in the order in which they leave it, clockwise, they form a <strong>distinguished system of paths</strong>; their vanishing cycles $\Delta_1,\dots,\Delta_\mu$ form a basis of $H_{n-1}(V_z)$ [@arnold1988].</p>
+  <p>In general, $f\colon X\to\CC$ is a holomorphic function on a complex manifold of dimension $n$ whose critical points are isolated and nondegenerate, with distinct critical values, and which is well behaved at infinity (proper, for instance); Lefschetz studied the fibres of a pencil of hyperplane sections of a projective variety in this way [@lefschetz1924]. Over the regular values its fibres form a fibre bundle, so a loop of values carries the homology of a fibre back to itself. Near each critical point $f$ is a sum of squares in suitable coordinates, which gives a vanishing cycle, and what a loop round a single critical value does depends only on this local form [@arnold1988]. This page follows one example, on $X=\CC^n$, in which all of this can be seen in the plane of $x$.</p>
+  <p>Let $p$ be a monic polynomial of degree $d+1$ whose critical points $x_1,\dots,x_d$ are simple and whose critical values $a_i=p(x_i)$ are distinct. The critical points of $f=p(x)+y_2^2+\cdots+y_n^2$ are the points $(x_i,0,\dots,0)$, all nondegenerate, so the level set $X_a=f^{-1}(a)$ is a smooth complex manifold for every $a$ other than $a_1,\dots,a_d$. It is homotopy equivalent to a bouquet of $d$ spheres $S^{n-1}$, as Milnor showed for the level sets near any isolated critical point [@milnor1968], so that</p>
+  $$H_{n-1}(X_a)\cong\ZZ^d$$
+  <p>(in reduced homology for $n=1$, where $X_a$ is $d+1$ points).</p>
+  <p>Near $x_i$ there are coordinates in which $f=a_i+x^2+y_2^2+\cdots+y_n^2$. For $a$ near $a_i$ the level set there is the quadric $x^2+y_2^2+\cdots+y_n^2=a-a_i$, which contains the sphere of its points in $\sqrt{a-a_i}\,\RR^n$, and this sphere shrinks to the point $x_i$ as $a$ tends to $a_i$, where the quadric becomes a cone. Carried back along a path $\ell$ from a regular value to $a_i$, it gives a class in the homology of the level set at the start of $\ell$, the <strong>vanishing cycle</strong> along $\ell$, defined up to its orientation [@arnold1988, Ch. 1].</p>
+  <p>Since $f$ is $p(x)$ plus a sum of squares, its vanishing cycles can be seen in the plane of $x$. Over a point $x$ the level set is the quadric $y_2^2+\cdots+y_n^2=a-p(x)$, which contains the sphere $\sqrt{a-p(x)}\,S^{n-2}$ and degenerates to a point where $p(x)=a$. A path from $a$ to $a_i$ lifts through $x_i$ to an arc between two roots of $p(x)=a$, and the vanishing cycle is made of the spheres over the points of the arc [@seidel2008]. For the straight path from $a$ to $a_i$ the arc is the line through $x_i$ on which $p(x)-a$ has the phase of $a_i-a$: it runs from the saddle $x_i$ of $|p(x)-a|$ down to two roots, the way water runs, across the level lines in the picture at the top (with Phase in the bar, it runs along the colour of $x_i$).</p>
+  <p>The straight paths from $a$ to the critical values meet only at $a$, and numbered in the order in which they leave it, clockwise, they form a <strong>distinguished system of paths</strong>; their vanishing cycles $\Delta_1,\dots,\Delta_d$ form a basis of $H_{n-1}(X_a)$ [@arnold1988].</p>
 </section>
 
 <section aria-labelledby="sec-formula">
   <h2 class="section-title" id="sec-formula">The Picard–Lefschetz formula</h2>
-  <p>Let $\tau_i$ be the loop that goes from $z$ along the straight path to near $z_i$, once round $z_i$ counterclockwise, and back. Carrying the cycles of $V_z$ along $\tau_i$ gives an automorphism $h_i$ of $H_{n-1}(V_z)$, and the <strong>Picard–Lefschetz formula</strong> says that</p>
-  <div class="pl-eq" id="eq-1">$$h_i(a)=a+(-1)^{n(n+1)/2}\,\langle a,\Delta_i\rangle\,\Delta_i,\tag{1}$$</div>
-  <p>where $\langle\ ,\ \rangle$ is the intersection form of $V_z$, defined with its complex orientation [@arnold1988, Ch. 1]. It is named after Picard, who studied the cycles on the curves of a family of plane curves [@picard1897], and Lefschetz, who studied them in every dimension [@lefschetz1924].</p>
+  <p>Let $\tau_i$ be the loop that goes from $a$ along the straight path to near $a_i$, once round $a_i$ counterclockwise, and back. Carrying the cycles of $X_a$ along $\tau_i$ gives an automorphism $h_i$ of $H_{n-1}(X_a)$, and the <strong>Picard–Lefschetz formula</strong> says that</p>
+  <div class="pl-eq" id="eq-1">$$h_i(\gamma)=\gamma+(-1)^{n(n+1)/2}\,\langle\gamma,\Delta_i\rangle\,\Delta_i,\tag{1}$$</div>
+  <p>where $\langle\ ,\ \rangle$ is the intersection form of $X_a$, defined with its complex orientation [@arnold1988, Ch. 1]. It is named after Picard, who studied the cycles on the curves of a family of plane curves [@picard1897], and Lefschetz, who studied them in every dimension [@lefschetz1924].</p>
   <p>The self-intersection of a vanishing cycle is</p>
   $$\langle\Delta,\Delta\rangle=\begin{cases}(-1)^{(n-1)(n-2)/2}\cdot2,&n\text{ odd},\\0,&n\text{ even}.\end{cases}$$
-  <p>So for odd $n$, $h_i(\Delta_i)=-\Delta_i$ and $h_i$ is the reflection in the hyperplane orthogonal to $\Delta_i$. For even $n$, $h_i(\Delta_i)=\Delta_i$ and $h_i$ is a transvection; for $n=2$ it is the action of the Dehn twist of the curve $V_z$ about the circle $\Delta_i$.</p>
-  <p>Only the part of $V_z$ near $c_i$ changes as $z$ goes round $z_i$. There the two roots at the ends of $\Delta_i$ are $c_i\pm\sqrt{(z-z_i)/a_i}$ to first order, with $a_i=\frac12p''(c_i)$, so they turn half a turn round each other. An arc that ends at one of them comes back as the arc that runs along it and then along $\Delta_i$: it has become $a\pm\Delta_i$, with the sign of <a href="#eq-1">$(1)$</a>. The picture at the top shows this: take $z$ once round $z_i$, by hand or from the bar, and the cycles that meet $\Delta_i$ come back running along it.</p>
-  <p>The basis of straight paths in the picture at the top does not change as $z$ goes round $z_i$: it is the same basis when $z$ is back (choose $\Delta_i$ in the bar to see it). Instead it jumps where $z$ crosses a <strong>Stokes ray</strong>, the ray from $z_k$ away from $z_j$: there the straight path to $z_j$ runs through $z_k$, $\Delta_j$ runs into $c_k$, and across the ray the path to $z_j$ changes by the loop $\tau_k$, so that $\Delta_j$ becomes $h_k^{\pm1}(\Delta_j)$. This is the Stokes phenomenon of <a href="/stokes-phenomenon/">Stokes phenomenon</a>, where the thimbles jump in the same way.</p>
+  <p>So for odd $n$, $h_i(\Delta_i)=-\Delta_i$ and $h_i$ is the reflection in the hyperplane orthogonal to $\Delta_i$. For even $n$, $h_i(\Delta_i)=\Delta_i$ and $h_i$ is a transvection; for $n=2$ it is the action of the Dehn twist of the curve $X_a$ about the circle $\Delta_i$.</p>
+  <p>Only the part of $X_a$ near $x_i$ changes as $a$ goes round $a_i$. There the two roots at the ends of $\Delta_i$ are $x_i\pm\sqrt{(a-a_i)/b_i}$ to first order, with $b_i=\frac12p''(x_i)$, so they turn half a turn round each other. An arc that ends at one of them comes back as the arc that runs along it and then along $\Delta_i$: it has become $\gamma\pm\Delta_i$, with the sign of <a href="#eq-1">$(1)$</a>. The picture at the top shows this: take $a$ once round $a_i$, by hand or from the bar, and the cycles that meet $\Delta_i$ come back running along it.</p>
+  <p>The basis of straight paths in the picture at the top does not change as $a$ goes round $a_i$: it is the same basis when $a$ is back (choose $\Delta_i$ in the bar to see it). Instead it jumps where $a$ crosses a <strong>Stokes ray</strong>, the ray from $a_k$ away from $a_j$: there the straight path to $a_j$ runs through $a_k$, $\Delta_j$ runs into $x_k$, and across the ray the path to $a_j$ changes by the loop $\tau_k$, so that $\Delta_j$ becomes $h_k^{\pm1}(\Delta_j)$. This is the Stokes phenomenon of <a href="/stokes-phenomenon/">Stokes phenomenon</a>, where the thimbles jump in the same way.</p>
 </section>
 
 <section aria-labelledby="sec-form">
@@ -140,8 +143,8 @@ references:
     <figcaption class="caption">The Dynkin diagram of the basis in the picture at the top: a node for each $\Delta_i$, placed as its critical value, and an edge where $\langle\Delta_i,\Delta_j\rangle\ne0$, dashed where it is $-1$ for $n=3$ (for $n=1$ the signs are the other way), and for $n=2$ pointing from $i$ to $j$ where $\langle\Delta_i,\Delta_j\rangle=1$.</figcaption>
   </figure>
   <p>The arcs of a distinguished basis meet only at their ends. Two vanishing cycles whose arcs share an end meet once, at the point over it, and $\langle\Delta_i,\Delta_j\rangle=\pm1$; cycles over disjoint arcs do not meet. The form is symmetric for odd $n$ and skew-symmetric for even $n$, and adding two squares changes its sign without changing the monodromy [@arnold1988]:</p>
-  $$\langle a,b\rangle_{n+2}=-\langle a,b\rangle_n,\qquad h^{(n+2)}_i=h^{(n)}_i.$$
-  <p>For $n=3$, $-\langle\ ,\ \rangle$ is positive definite, and the vanishing cycles are roots of the root system $\mathrm{A}_\mu$ (see <a href="/root-systems/">Root systems</a>); the basis the page opens with is a chain, with the Dynkin diagram of $\mathrm{A}_\mu$. Where $z$ crosses a Stokes ray the basis changes, and so does the diagram, though the lattice it describes does not.</p>
+  $$\langle\gamma,\delta\rangle_{n+2}=-\langle\gamma,\delta\rangle_n,\qquad h^{(n+2)}_i=h^{(n)}_i.$$
+  <p>For $n=3$, $-\langle\ ,\ \rangle$ is positive definite, and the vanishing cycles are roots of the root system $\mathrm{A}_d$ (see <a href="/root-systems/">Root systems</a>); the basis the page opens with is a chain, with the Dynkin diagram of $\mathrm{A}_d$. Where $a$ crosses a Stokes ray the basis changes, and so does the diagram, though the lattice it describes does not.</p>
 </section>
 
 <section aria-labelledby="sec-monodromy">
@@ -149,11 +152,11 @@ references:
   <figure id="eig-fig">
     <div class="pl-eigbox"><svg id="eig" role="img" aria-label="The eigenvalues of the classical monodromy on the unit circle"></svg></div>
     <p class="caption pl-twval" id="eig-val"></p>
-    <figcaption class="caption">The eigenvalues of the classical monodromy $h$ on the unit circle, with ticks at the $(\mu+1)$-th roots of unity times $(-1)^{n-1}$.</figcaption>
+    <figcaption class="caption">The eigenvalues of the classical monodromy $h$ on the unit circle, with ticks at the $(d+1)$-th roots of unity times $(-1)^{n-1}$.</figcaption>
   </figure>
-  <p>A loop that $z$ travels is a product of the loops $\tau_i$ and their inverses, which generate the fundamental group of the plane without the critical values, a free group. The <strong>monodromy</strong> of the loop is the automorphism $h$ it gives; if it is $\tau_{i_1}^{\pm1}$, then $\tau_{i_2}^{\pm1}$, and so on, then $h=\cdots h_{i_2}^{\pm1}h_{i_1}^{\pm1}$, which preserves the intersection form. Next to the picture at the top, $h(\Delta_i)$ is $\Delta_i$ carried along the path of $z$ since it was picked up (or along the loop chosen in the bar), written in the basis at $z$, with the path closed up by the straight segment back to its start. The picture shows these cycles (with $\Delta_i$ in the bar, the basis instead): their arcs are dragged along with the roots and pulled tight once $z$ rests, a number beside an arc saying how many of its strands run together there, and while $h$ is the identity they are drawn as the basis. For odd $n$ the class of a sphere over an arc depends only on the roots at its ends, as for $n=1$, so that $h_i^2=1$ though the spheres carried wind once more round the ends of $\Delta_i$ each time $z$ goes round $z_i$; there each $h(\Delta_i)$ is drawn along the arcs of the basis that join its ends.</p>
-  <p>The <strong>monodromy group</strong> is generated by $h_1,\dots,h_\mu$. For odd $n$ these are reflections, and they generate the Weyl group of $\mathrm{A}_\mu$, the symmetric group on $\mu+1$ letters; for $n=1$ it permutes the $\mu+1$ points of $V_z$. For $n=2$ the group is infinite: for $\mu=2$, $V_z$ is a torus with a hole and the group is $\mathrm{SL}_2(\ZZ)$.</p>
-  <p>Once round all the critical values is the <strong>classical monodromy</strong>, $h=h_1h_2\cdots h_\mu$ for a distinguished basis [@arnold1988]. For $f=x^{\mu+1}+y_2^2+\cdots+y_n^2$ its eigenvalues are $(-1)^{n-1}\mathrm{e}^{2\pi\mathrm{i}k/(\mu+1)}$ for $k=1,\dots,\mu$; in the basis the page opens with it takes $\Delta_1,\dots,\Delta_{\mu-1}$ to $\pm\Delta_2,\dots,\pm\Delta_\mu$.</p>
+  <p>A loop that $a$ travels is a product of the loops $\tau_i$ and their inverses, which generate the fundamental group of the plane without the critical values, a free group. The <strong>monodromy</strong> of the loop is the automorphism $h$ it gives; if it is $\tau_{i_1}^{\pm1}$, then $\tau_{i_2}^{\pm1}$, and so on, then $h=\cdots h_{i_2}^{\pm1}h_{i_1}^{\pm1}$, which preserves the intersection form. Next to the picture at the top, $h(\Delta_i)$ is $\Delta_i$ carried along the path of $a$ since it was picked up (or along the loop chosen in the bar), written in the basis at $a$, with the path closed up by the straight segment back to its start. The picture shows these cycles (with $\Delta_i$ in the bar, the basis instead): their arcs are dragged along with the roots and pulled tight once $a$ rests, a number beside an arc saying how many of its strands run together there, and while $h$ is the identity they are drawn as the basis. For odd $n$ the class of a sphere over an arc depends only on the roots at its ends, as for $n=1$, so that $h_i^2=1$ though the spheres carried wind once more round the ends of $\Delta_i$ each time $a$ goes round $a_i$; there each $h(\Delta_i)$ is drawn along the arcs of the basis that join its ends.</p>
+  <p>The <strong>monodromy group</strong> is generated by $h_1,\dots,h_d$. For odd $n$ these are reflections, and they generate the Weyl group of $\mathrm{A}_d$, the symmetric group on $d+1$ letters; for $n=1$ it permutes the $d+1$ points of $X_a$. For $n=2$ the group is infinite: for $d=2$, $X_a$ is a torus with a hole and the group is $\mathrm{SL}_2(\ZZ)$.</p>
+  <p>Once round all the critical values is the <strong>classical monodromy</strong>, $h=h_1h_2\cdots h_d$ for a distinguished basis [@arnold1988]. For $f=x^{d+1}+y_2^2+\cdots+y_n^2$ its eigenvalues are $(-1)^{n-1}\mathrm{e}^{2\pi\mathrm{i}k/(d+1)}$ for $k=1,\dots,d$; in the basis the page opens with it takes $\Delta_1,\dots,\Delta_{d-1}$ to $\pm\Delta_2,\dots,\pm\Delta_d$.</p>
 </section>
 </div>
 </div>

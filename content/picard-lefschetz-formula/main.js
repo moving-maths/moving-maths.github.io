@@ -1,6 +1,6 @@
 // Picard–Lefschetz formula: the plane of x, shaded by |p(x) − z| (or coloured by the phase of
 // p(x) − z), with the roots of
-// p(x) = z (where the level set V_z degenerates) and the vanishing cycles along the straight paths
+// p(x) = z (where the level set X_z degenerates) and the vanishing cycles along the straight paths
 // from z to the critical values; the plane of values, with the critical values, those paths, the
 // Stokes rays where the cycles jump, and z; the cycles carried along with z, and the intersection
 // form. The mathematics is in lefschetz.js; the figures in the text are in figures.js.
@@ -844,7 +844,7 @@
   const rootsNow = () => (model.atVal !== null ? PL.roots(model.P, state.z[0], state.z[1], model.rts) : model.rts);
 
   /* ---------- the plane of x in 3D ----------
-   * For n = 2 the curve V_z over the plane of x, a double cover branched at the roots, as two sheets
+   * For n = 2 the curve X_z over the plane of x, a double cover branched at the roots, as two sheets
    * that pass through each other along cuts from the roots (surface.js), with the vanishing cycles
    * on it: over each point of an arc its two points, one on each sheet, so a circle through the
    * roots at its ends. For n = 3 the same picture, the two points ±y over x standing for the circle
@@ -1029,7 +1029,7 @@
       const c = state.crit[i], p = toScreen(c);
       g.setAttribute('transform', 'translate(' + p[0].toFixed(1) + ',' + p[1].toFixed(1) + ')');
       g.querySelector('.handle-point').style.stroke = cycVar(i, 'text');
-      g.setAttribute('aria-label', 'Critical point c' + (i + 1) + ' at ' + fmtC(c) + '. The arrow keys move it.');
+      g.setAttribute('aria-label', 'Critical point x' + (i + 1) + ' at ' + fmtC(c) + '. The arrow keys move it.');
     });
   }
 
@@ -1038,7 +1038,7 @@
   const TRAIL_HOLD = 2500, TRAIL_FADE = 900;
   function drawZ() {
     const { ctx } = MM.fitCanvas(zcv), V = view(frame.zv, zcv), vals = model.P.vals, z = state.z, red = MM.color('red');
-    drawAxes(ctx, V, ['$\\mathrm{Re}\\,z$', '$\\mathrm{Im}\\,z$']);
+    drawAxes(ctx, V, ['$\\mathrm{Re}\\,a$', '$\\mathrm{Im}\\,a$']);
     // the Stokes rays: z_k seen from z on the way to z_j
     const far = 4 * frame.zv.R;
     vals.forEach((zj, j) => vals.forEach((zk, k) => {
@@ -1074,12 +1074,12 @@
         if (trail.done) requestAnimationFrame(() => { if (trail && !anim) drawZ(); });
       }
     }
-    vals.forEach((v, j) => MM.canvasLabel(ctx, '$z_{' + (j + 1) + '}$', V.X(v[0]), V.Y(v[1]) - 11, { size: 14, align: 'center', baseline: 'bottom', color: cyc(j, 'text') }));
+    vals.forEach((v, j) => MM.canvasLabel(ctx, '$a_{' + (j + 1) + '}$', V.X(v[0]), V.Y(v[1]) - 11, { size: 14, align: 'center', baseline: 'bottom', color: cyc(j, 'text') }));
     placeVals(V);
     const zx = V.X(z[0]), zy = V.Y(z[1]);
     zh.style.transform = 'translate(' + zx.toFixed(1) + 'px,' + zy.toFixed(1) + 'px)';
-    MM.canvasLabel(ctx, '$z$', zx + 13, zy + 13, { size: 15, align: 'left', baseline: 'top', color: MM.color('ink') });
-    zh.setAttribute('aria-valuetext', 'z = ' + fmtC(z) + (model.atVal !== null ? ', at z' + (model.atVal + 1) : ''));
+    MM.canvasLabel(ctx, '$a$', zx + 13, zy + 13, { size: 15, align: 'left', baseline: 'top', color: MM.color('ink') });
+    zh.setAttribute('aria-valuetext', 'a = ' + fmtC(z) + (model.atVal !== null ? ', at a' + (model.atVal + 1) : ''));
   }
 
   // the critical values: handle points over the plane of values, ringed in their cycles' colours
@@ -1101,7 +1101,7 @@
       const v = model.P.vals[i];
       g.setAttribute('transform', 'translate(' + V.X(v[0]).toFixed(1) + ',' + V.Y(v[1]).toFixed(1) + ')');
       g.querySelector('.handle-point').style.stroke = cycVar(i, 'text');
-      g.setAttribute('aria-label', 'Critical value z' + (i + 1) + ' at ' + fmtC(v) + '. The arrow keys move it.');
+      g.setAttribute('aria-label', 'Critical value a' + (i + 1) + ' at ' + fmtC(v) + '. The arrow keys move it.');
     });
   }
 
@@ -1117,34 +1117,34 @@
     });
     return s || '$0$';
   }
-  const fTex = () => 'f=p(x)' + ['', '+y_2^2', '+y_2^2+y_3^2'][state.n - 1];
+  const fTex = () => ['f(x)=p(x)', 'f(x,y)=p(x)+y^2', 'f(x,y_2,y_3)=p(x)+y_2^2+y_3^2'][state.n - 1];
   const SUB = [
-    'For $n=1$, $V_z$ is the roots of $p(x)=z$, and a vanishing cycle is the difference of two of them.',
-    'For $n=2$, $V_z$ is a curve, a double cover of the plane of $x$ branched at the roots of $p(x)=z$, with the two points $y=\\pm\\sqrt{z-p(x)}$ over each other point; a vanishing cycle is the circle over an arc.',
-    'For $n=3$, $V_z$ is a surface fibred over the plane of $x$ by the conics $y_2^2+y_3^2=z-p(x)$, which degenerate at the roots of $p(x)=z$; a vanishing cycle is the sphere made of their circles over an arc.',
+    'For $n=1$, $X_a$ is the roots of $p(x)=a$, and a vanishing cycle is the difference of two of them.',
+    'For $n=2$, $X_a$ is a curve, a double cover of the plane of $x$ branched at the roots of $p(x)=a$, with the two points $y=\\pm\\sqrt{a-p(x)}$ over each other point; a vanishing cycle is a circle that maps to an arc in the plane of $x$.',
+    'For $n=3$, $X_a$ is a surface fibred over the plane of $x$ by the conics $y_2^2+y_3^2=a-p(x)$, which degenerate at the roots of $p(x)=a$; a vanishing cycle is the sphere made of their circles over an arc.',
   ];
   const SUB3 = [
     'In 3D its two sheets are drawn one over the other (the heights are not to scale), meeting at the roots and passing through each other along a cut from each root.',
-    'In 3D the picture is the curve of $n=2$, its two sheets one over the other: the two points $\\pm y$ over $x$ stand for the circle $y_2^2+y_3^2=z-p(x)$ seen edge on, and a vanishing sphere for the disc that its circle of $n=2$ bounds.',
+    'In 3D the picture is the curve of $n=2$, its two sheets one over the other: the two points $\\pm y$ over $x$ stand for the circle $y_2^2+y_3^2=a-p(x)$ seen edge on, and a vanishing sphere for the disc that its circle of $n=2$ bounds.',
   ];
   function drawReadouts() {
     const n = state.n, mu = state.mu, S0 = model.ref.S[n], B = model.B[n];
     MM.setHTML($('title'), '$' + fTex() + '$');
-    MM.setHTML($('sub'), SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
+    MM.setHTML($('sub'), 'The polynomial $p$ has degree $d+1$ and $d$ critical points. ' + SUB[n - 1] + (is3d() ? ' ' + SUB3[n - 2] : ''));
     // (not while something is dragged: the legend's lines come and go, and the plane of values,
     // under it, would move under the pointer)
     if (!drag) { const L = legendHTML(); if ($('legend').dataset.html !== L) { $('legend').dataset.html = L; MM.setHTML($('legend'), L); } }
     if (!$('zlegend').dataset.done) { MM.setHTML($('zlegend'), zLegendHTML()); $('zlegend').dataset.done = '1'; }
     // where z is: on a critical value, on a Stokes ray, or just across one
     let note = '';
-    if (model.atVal !== null) note = '$z=z_{' + (model.atVal + 1) + '}$: ' + D(model.atVal) + ' has shrunk to the point $c_{' + (model.atVal + 1) + '}$, where $V_z$ is singular.';
+    if (model.atVal !== null) note = '$a=a_{' + (model.atVal + 1) + '}$: ' + D(model.atVal) + ' has shrunk to the point $x_{' + (model.atVal + 1) + '}$, where $X_a$ is singular.';
     else if (model.onRay) {
       const { j, k } = model.onRay, S = PL.matmul(PL.transpose(B), PL.matmul(S0, B)), t = S[j][k];
       const e = PL.eps(n), hk = t ? '$' + (e * t > 0 ? '+' : '-') + (Math.abs(t) === 1 ? '' : Math.abs(t)) + '$' + D(k) : '';
-      note = 'On a Stokes ray: the path to $z_{' + (j + 1) + '}$ runs through $z_{' + (k + 1) + '}$, and ' + D(j) + ' runs into $c_{' + (k + 1) + '}$. Across the ray, ' + D(j) + ' changes by $h_{' + (k + 1) + '}^{\\pm1}$: by ' + (t ? hk + ' or its negative' : 'nothing, as $\\langle\\Delta_{' + (j + 1) + '},\\Delta_{' + (k + 1) + '}\\rangle=0$') + '.';
+      note = 'On a Stokes ray: the path to $a_{' + (j + 1) + '}$ runs through $a_{' + (k + 1) + '}$, and ' + D(j) + ' runs into $x_{' + (k + 1) + '}$. Across the ray, ' + D(j) + ' changes by $h_{' + (k + 1) + '}^{\\pm1}$: by ' + (t ? hk + ' or its negative' : 'nothing, as $\\langle\\Delta_{' + (j + 1) + '},\\Delta_{' + (k + 1) + '}\\rangle=0$') + '.';
     } else if (model.flash && performance.now() - model.flash.at < 2500) {
       const { j, k, s } = model.flash;
-      note = 'Across the Stokes ray, ' + D(j) + ' became $h_{' + (k + 1) + '}^{' + (s > 0 ? '-1' : '1') + '}$ of what it was: the path to $z_{' + (j + 1) + '}$ now passes on the other side of $z_{' + (k + 1) + '}$.';
+      note = 'Across the Stokes ray, ' + D(j) + ' became $h_{' + (k + 1) + '}^{' + (s > 0 ? '-1' : '1') + '}$ of what it was: the path to $a_{' + (j + 1) + '}$ now passes on the other side of $a_{' + (k + 1) + '}$.';
     }
     MM.setHTML($('note'), note);
     $('note-block').hidden = !note;
@@ -1155,7 +1155,7 @@
     for (let j = 0; j < mu; j++) rows.push('<p>$h($' + D(j) + '$)=$ ' + combo(Hinv.map((r) => r[j])) + '</p>');
     MM.setHTML($('mono'), triv ? '<p>$h=\\mathrm{id}$</p>' : rows.join(''));
     const e = PL.eps(n);
-    MM.setHTML($('rule'), '$h_i(a)=a' + (e < 0 ? '-' : '+') + '\\langle a,\\Delta_i\\rangle\\,\\Delta_i$');
+    MM.setHTML($('rule'), '$h_i(\\gamma)=\\gamma' + (e < 0 ? '-' : '+') + '\\langle\\gamma,\\Delta_i\\rangle\\,\\Delta_i$');
     // the intersection form of the basis at z
     const S = PL.matmul(PL.transpose(B), PL.matmul(S0, B)), box = $('form'), key = n + ':' + JSON.stringify(S);
     if (box.dataset.key !== key) {
@@ -1171,20 +1171,20 @@
       three('<path d="M2 10Q13 14.5 24 10" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.3;stroke-dasharray:3 2.5"/><path d="M2 8Q13 3.5 24 8" style="fill:none;stroke:var(--cy-1-line);stroke-width:2.4"/>'),
       three('<path d="M2 9Q13 0 24 9Q13 18 2 9Z" style="fill:none;stroke:var(--cy-1-line);stroke-width:2"/><ellipse cx="13" cy="9" rx="2.2" ry="4.5" style="fill:none;stroke:var(--cy-1-line);stroke-width:1.1"/>'),
     ][state.n - 1];
-    const what = state.carried ? 'the cycles $h(\\Delta_i)$ carried along with $z$' : 'vanishing cycles $\\Delta_i$';
-    return item(cyclesMark, state.arcs ? 'the arcs of ' + what.replace(/^the /, '') : what)
+    const what = state.carried ? 'vanishing cycles' : 'vanishing cycles $\\Delta_i$';
+    return item(cyclesMark, state.arcs ? 'arcs of the ' + what : what)
       + (countsShown ? item('<svg class="pl-key" viewBox="0 0 26 18" aria-hidden="true"><path d="M1 13H25" style="stroke:var(--cy-1-line);stroke-width:2.2"/><text x="13" y="8" text-anchor="middle" style="font:600 11px var(--sans);fill:var(--cy-1-text)">2</text></svg>', 'how many strands run together') : '')
-      + (faintShown ? item(three('<path d="M1 9H25" style="stroke:var(--cy-1);stroke-width:1.4;opacity:.4"/><circle class="handle-point" cx="13" cy="9" r="4.6" style="stroke:var(--cy-1-text);stroke-width:1.6"/>'), 'the basis $\\Delta_i$ at $z$, through the $c_i$') : '')
-      + (is3d() ? item('<span class="pl-sheets"></span>', state.n === 2 ? 'the curve $V_z$' : 'the circles of $V_z$ over the plane of $x$, edge on')
-        : state.view === 'phase' ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-z|$ is small'))
-      + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $V_z$' : 'the roots of $p(x)=z$')
-      + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $c_i$');
+      + (faintShown ? item(three('<path d="M1 9H25" style="stroke:var(--cy-1);stroke-width:1.4;opacity:.4"/><circle class="handle-point" cx="13" cy="9" r="4.6" style="stroke:var(--cy-1-text);stroke-width:1.6"/>'), 'the basis $\\Delta_i$ at $a$, through the $x_i$') : '')
+      + (is3d() ? item('<span class="pl-sheets"></span>', state.n === 2 ? 'the curve $X_a$' : 'the circles of $X_a$ over the plane of $x$, edge on')
+        : state.view === 'phase' ? '' : item('<span class="pl-shade"></span>', 'where $|p(x)-a|$ is small'))
+      + item('<svg class="pl-key" viewBox="-11 -9 22 18" aria-hidden="true"><circle r="3.8" style="fill:var(--ink)"/></svg>', state.n === 1 ? 'the points of $X_a$' : 'where $p(x)=a$')
+      + item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="8" style="stroke:var(--cy-1-text);stroke-width:2.2"/><text class="handle-num" y="3.9">1</text></svg>', 'critical points $x_i$');
   }
   // the key to the plane of values, under it
   function zLegendHTML() {
     const item = (mark, text) => '<span class="legend-item">' + mark + text + '</span>';
-    return item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="6.5" style="stroke:var(--cy-1-text);stroke-width:2.2"/></svg>', 'critical values $z_i=p(c_i)$')
-      + item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--cy-1-line);--line-width:2.2"><path d="M1 5H21"/></svg>', 'paths from $z$')
+    return item('<svg class="pl-key" viewBox="-11 -10 22 20" aria-hidden="true"><circle class="handle-point" r="6.5" style="stroke:var(--cy-1-text);stroke-width:2.2"/></svg>', 'critical values $a_i=p(x_i)$')
+      + item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--cy-1-line);--line-width:2.2"><path d="M1 5H21"/></svg>', 'paths from $a$')
       + item('<svg class="legend-line" viewBox="0 0 22 10" aria-hidden="true" style="--c:var(--red);--line-width:1.4"><path d="M1 5H21"/></svg>', 'Stokes rays');
   }
 
@@ -1475,7 +1475,7 @@
   function stopTravel() { if (anim) { const fin = anim.done; anim = null; if (trail) trail.done = performance.now() - TRAIL_HOLD; if (fin) fin(); } }
   const menu = $('round');
   function setMenu() {
-    menu.items = model.P.vals.map((_, i) => ({ value: String(i), label: 'Once round $z_{' + (i + 1) + '}$' })).concat([{ value: 'all', label: 'Once round all of them' }]);
+    menu.items = model.P.vals.map((_, i) => ({ value: String(i), label: 'Once round $a_{' + (i + 1) + '}$' })).concat([{ value: 'all', label: 'Once round all of them' }]);
   }
   menu.addEventListener('change', (e) => {
     const i = e.detail.value === 'all' ? 'all' : +e.detail.value;

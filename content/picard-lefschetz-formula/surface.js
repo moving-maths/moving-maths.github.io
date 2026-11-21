@@ -1,4 +1,4 @@
-/* The main picture in 3D (loaded after lefschetz.js, before main.js): the level set V_z for n = 2,
+/* The main picture in 3D (loaded after lefschetz.js, before main.js): the level set X_z for n = 2,
    the curve y² = z − p(x), as a double cover of the plane of x branched at the roots of p(x) = z,
    drawn as in the books: two sheets, one over the other, which pass through each other along cuts,
    a ray from each root outwards. The heights are not to scale. Off the cuts, the branch y_ref of

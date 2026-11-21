@@ -14,7 +14,7 @@
 
   /* =====================================================================
      The level set near a critical point, in 3D.
-     Near c_i, f = z_i + x² + y_2² + ⋯ + y_n² in suitable coordinates, so V_z there is the quadric
+     Near c_i, f = z_i + x² + y_2² + ⋯ + y_n² in suitable coordinates, so X_z there is the quadric
      x² + y_2² + ⋯ = ε, ε = z − z_i. With θ = arg √ε and every coordinate turned by e^{−iθ}, its
      real points are the sphere of radius |√ε| (two points, a circle, a sphere), the vanishing cycle.
        n = 1: the two points ±√ε in the plane of x;
@@ -31,28 +31,41 @@
     const cp = Math.cos(v3.pitch), sp = Math.sin(v3.pitch);
     return [c.cx + x1 * c.k, c.cy - (p[2] * cp + y1 * sp) * c.k, y1 * cp - p[2] * sp];
   }
-  function shade(rgb, f) { return 'rgb(' + rgb.map((x) => Math.round(clamp(x * f, 0, 255))).join(',') + ')'; }
   const rgbOf = (name) => MM.color(name).match(/[\d.]+/g).slice(0, 3).map(Number);
   const mix = (a, b, t) => a.map((x, i) => x + (b[i] - x) * t);
   // For n = 2 the heights are flattened, so that the curve lies over the disc as a double cover:
   // two sheets, one white and one light blue, joined along the waist.
   const FLAT = 0.22;
+  const PLANE_ALPHA = 0.6;   // the plane of x, which the parts of the curve under it show through
   // The curve (n = 2) as a grid of points and its faces, each with its sheet's colour, lit from
   // above by the slope of the face, and the grid lines along its edges (lines of constant σ and
-  // τ: confocal hyperbolas and ellipses over the disc); kept until ε changes, so that turning the
-  // picture only projects the points again.
+  // τ: confocal hyperbolas and ellipses over the disc), each a smooth curve of SUBG pieces worked
+  // out from the parametrisation; and whether the face is under the plane of x (heights change sign
+  // only along lines of the grid). Kept until ε changes, so that turning the picture only projects
+  // the points again.
+  const SUBG = 4, CORNER = [[0, 0], [1, 0], [1, 1], [0, 1]];
   let geo = null;
   function geometry(s, th) {
     const key = s + ':' + th;
     if (geo && geo.key === key) return geo;
     const ct = Math.cos(th), st = Math.sin(th), pts = [], faces = [];
-    const sheets = [rgbOf('surface'), mix(rgbOf('surface'), rgbOf('cy-1'), 0.16)];
+    const sheets = [rgbOf('surface'), mix(rgbOf('surface'), rgbOf('cy-1'), 0.16)], ink = rgbOf('ink');
     const height = (x, y) => [x[0], x[1], FLAT * (ct * y[0] + st * y[1])];   // over x, at Re(e^{−iθ} y)
-    const face = (v, sheet, lines) => {
+    // (param: the point at grid position (a, b), fractional between the corners of a face)
+    let param = null;
+    const face = (v, sheet, lines, a, b) => {
       const [A, B, C, D] = v.map((i) => pts[i]);
       const d1 = [C[0] - A[0], C[1] - A[1], C[2] - A[2]], d2 = [D[0] - B[0], D[1] - B[1], D[2] - B[2]];
       const nz = d1[0] * d2[1] - d1[1] * d2[0], nl = Math.hypot(d1[1] * d2[2] - d1[2] * d2[1], d1[2] * d2[0] - d1[0] * d2[2], nz) || 1;
-      faces.push({ v, fill: shade(sheets[sheet], 0.9 + 0.1 * Math.abs(nz / nl)), lines });
+      const curves = lines.map(([i, j]) => {
+        const P = CORNER[i], Q = CORNER[j], out = [];
+        for (let k = 0; k <= SUBG; k++) { const t = k / SUBG; out.push(param(a + P[0] + (Q[0] - P[0]) * t, b + P[1] + (Q[1] - P[1]) * t)); }
+        return out;
+      });
+      // (its grid lines in an opaque grey mixed from its own colour, so that the pieces of a line,
+      // drawn face by face with round ends, overlap without gaps or darker dots)
+      const lit = sheets[sheet].map((x) => clamp(x * (0.9 + 0.1 * Math.abs(nz / nl)), 0, 255)), css = (rgb) => 'rgb(' + rgb.map(Math.round).join(',') + ')';
+      faces.push({ v, fill: css(lit), line: css(mix(lit, ink, 0.32)), lines: curves, under: A[2] + B[2] + C[2] + D[2] < 0 });
     };
     if (s > 1e-9) {
       // x = √ε cos w, y = √ε sin w (w = σ + iτ), out to |x| = 1; τ > 0 and τ < 0 are the two
@@ -63,7 +76,8 @@
         const cw = [Math.cos(sg) * Math.cosh(ta), -Math.sin(sg) * Math.sinh(ta)], sw = [Math.sin(sg) * Math.cosh(ta), Math.cos(sg) * Math.sinh(ta)];
         return [[se[0] * cw[0] - se[1] * cw[1], se[0] * cw[1] + se[1] * cw[0]], [se[0] * sw[0] - se[1] * sw[1], se[0] * sw[1] + se[1] * sw[0]]];
       };
-      for (let a = 0; a < NS; a++) for (let b = 0; b <= NT; b++) pts.push(height(...at(a / NS * TAU, -T + 2 * T * b / NT)));
+      param = (a, b) => height(...at(a / NS * TAU, -T + 2 * T * b / NT));
+      for (let a = 0; a < NS; a++) for (let b = 0; b <= NT; b++) pts.push(param(a, b));
       const id = (a, b) => (a % NS) * (NT + 1) + b, onS = (a) => a % 3 === 0, onT = (b) => b % 5 === 0 && b !== NT / 2;
       for (let a = 0; a < NS; a++) for (let b = 0; b < NT; b++) {
         // the edges on grid lines: [from, to] as corners 0–3 of the face
@@ -72,7 +86,7 @@
         if (onT(b + 1)) lines.push([3, 2]);
         if (onS(a)) lines.push([0, 3]);
         if (onS(a + 1)) lines.push([1, 2]);
-        face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], b < NT / 2 ? 1 : 0, lines);
+        face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], b < NT / 2 ? 1 : 0, lines, a, b);
       }
     } else {
       // the node: the two planes y = ±ix, the sheets of τ → ±∞, which cross along the line of
@@ -80,21 +94,26 @@
       const NR = 6, NA = 36;
       for (const sg of [1, -1]) {
         const o = pts.length, id = (a, b) => o + (a % NA) * (NR + 1) + b;
-        for (let a = 0; a < NA; a++) for (let b = 0; b <= NR; b++) {
+        param = (a, b) => {
           const rr = R3 * b / NR, x = [rr * Math.cos(th + a / NA * TAU), rr * Math.sin(th + a / NA * TAU)];
-          pts.push(height(x, [-sg * x[1], sg * x[0]]));
-        }
+          return height(x, [-sg * x[1], sg * x[0]]);
+        };
+        for (let a = 0; a < NA; a++) for (let b = 0; b <= NR; b++) pts.push(param(a, b));
         for (let a = 0; a < NA; a++) for (let b = 0; b < NR; b++) {
           const lines = [];
           if (b % 2 === 1) lines.push([0, 1]);
           if ((b + 1) % 2 === 1 || b + 1 === NR) lines.push([3, 2]);
           if (a % 3 === 0) lines.push([0, 3]);
           if ((a + 1) % 3 === 0) lines.push([1, 2]);
-          face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], sg > 0 ? 0 : 1, lines);
+          face([id(a, b), id(a + 1, b), id(a + 1, b + 1), id(a, b + 1)], sg > 0 ? 0 : 1, lines, a, b);
         }
       }
     }
-    geo = { key, pts, faces, T: s > 1e-9 ? Math.acosh(Math.max(1.0001, R3 / s)) : 0, NT: 20 };
+    // the faces that share a corner with each face
+    const byV = pts.map(() => []);
+    faces.forEach((f, i) => f.v.forEach((j) => byV[j].push(i)));
+    faces.forEach((f, i) => { f.nb = [...new Set(f.v.flatMap((j) => byV[j]))].filter((k) => k !== i); });
+    geo = { key, pts, faces, T: s > 1e-9 ? Math.acosh(Math.max(1.0001, R3 / s)) : 0, NT: 20, NS: 36 };
     return geo;
   }
   function draw3() {
@@ -103,14 +122,15 @@
     const [er, ei] = v3.eps, r = Math.hypot(er, ei);
     if (r > 1e-9) v3.theta = Math.atan2(ei, er) / 2;
     const th = v3.theta, ct = Math.cos(th), st = Math.sin(th), s = Math.sqrt(r);
-    // the disc of the plane of x
-    const ring = [];
-    for (let q = 0; q <= 96; q++) ring.push(proj([R3 * Math.cos(q / 96 * TAU), R3 * Math.sin(q / 96 * TAU), 0], c));
-    ctx.fillStyle = MM.rgba('sunken', 0.75);
-    ctx.beginPath(); ring.forEach((p, k) => (k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.fill();
-    ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1; ctx.stroke();
-    // the axes, under the surface; their names, over it (drawn last)
+    // the disc of the plane of x, with its axes (their names are drawn last, over everything); for
+    // n = 2 it is translucent and lies between the parts of the curve under it and over it
     const names = [];
+    const plane = (alpha) => {
+      ctx.fillStyle = MM.rgba('sunken', alpha); ctx.beginPath();
+      for (let q = 0; q <= 96; q++) { const P = proj([R3 * Math.cos(q / 96 * TAU), R3 * Math.sin(q / 96 * TAU), 0], c); if (q) ctx.lineTo(P[0], P[1]); else ctx.moveTo(P[0], P[1]); }
+      ctx.fill(); ctx.strokeStyle = MM.color('rule'); ctx.lineWidth = 1; ctx.stroke();
+      axes();
+    };
     const ax = (a, b, name, side) => {
       const A = proj(a, c), B = proj(b, c);
       ctx.strokeStyle = MM.rgba('ink', 0.3); ctx.lineWidth = 1;
@@ -118,15 +138,17 @@
       // (side: the name beside the end, to its right, rather than beyond it)
       names.push(() => MM.canvasLabel(ctx, name, side ? B[0] + 6 : B[0] + (B[0] - A[0]) * 0.06, side ? B[1] : B[1] + (B[1] - A[1]) * 0.06, { size: 13, align: side ? 'left' : 'center', baseline: 'middle', color: MM.color('ink-3') }));
     };
-    if (n === 3) {
-      ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
-      ax([0, -1.05, 0], [0, 1.05, 0], '$\\mathrm{Re}\\,y_2$', true);
-      ax([0, 0, -1.05], [0, 0, 1.25], '$\\mathrm{Re}\\,y_3$');
-    } else {
-      ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
-      ax([0, -1.15, 0], [0, 1.15, 0], '$\\mathrm{Im}\\,x$');
-      if (n === 2) ax([0, 0, -0.45], [0, 0, 0.5], '$\\mathrm{Re}(\\mathrm{e}^{-\\mathrm{i}\\theta}y)$', true);
-    }
+    const axes = () => {
+      if (n === 3) {
+        ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
+        ax([0, -1.05, 0], [0, 1.05, 0], '$\\mathrm{Re}\\,y_2$', true);
+        ax([0, 0, -1.05], [0, 0, 1.25], '$\\mathrm{Re}\\,y_3$');
+      } else {
+        ax([-1.15, 0, 0], [1.15, 0, 0], '$\\mathrm{Re}\\,x$');
+        ax([0, -1.15, 0], [0, 1.15, 0], '$\\mathrm{Im}\\,x$');
+      }
+    };
+    if (n !== 2) plane(0.75);
     const col = MM.color('cy-1-line'), colText = MM.color('cy-1-text');
     const bp = [[s * ct, s * st, 0], [-s * ct, -s * st, 0]];
     const singular = () => { const O = proj([0, 0, 0], c); ctx.fillStyle = MM.color('red'); ctx.beginPath(); ctx.arc(O[0], O[1], 5, 0, TAU); ctx.fill(); };
@@ -164,40 +186,66 @@
     } else {
       // n = 2: the faces from the back to the front, each with its grid lines, and the vanishing
       // cycle, the waist, among them, nearer than the surface it lies on by about the size of the
-      // faces next to it (which would otherwise hide it)
+      // faces next to it (which would otherwise hide it); those under the plane of x first, then the
+      // plane, translucent, then those over it (the other way round when it is seen from below)
       const g = geometry(s, th), N = g.pts.length, SX = new Float64Array(N), SY = new Float64Array(N), SD = new Float64Array(N);
       g.pts.forEach((p, i) => { const q = proj(p, c); SX[i] = q[0]; SY[i] = q[1]; SD[i] = q[2]; });
-      const items = g.faces.map((f) => ({ d: (SD[f.v[0]] + SD[f.v[1]] + SD[f.v[2]] + SD[f.v[3]]) / 4, f }));
+      const items = g.faces.map((f, fi) => ({ d: (SD[f.v[0]] + SD[f.v[1]] + SD[f.v[2]] + SD[f.v[3]]) / 4, f, fi }));
       if (r > 1e-9) {
         const bias = Math.max(0.06 * Math.max(s, 0.2), 1.2 * s * Math.sinh(2 * g.T / g.NT));
         for (let q = 0; q < 96; q++) {
           const a = q / 96 * TAU, b = (q + 1) / 96 * TAU;
           const PA = proj([s * Math.cos(a) * ct, s * Math.cos(a) * st, FLAT * s * Math.sin(a)], c), PB = proj([s * Math.cos(b) * ct, s * Math.cos(b) * st, FLAT * s * Math.sin(b)], c);
-          items.push({ d: (PA[2] + PB[2]) / 2 - bias, seg: [PA, PB] });
+          // (and never before the faces it is an edge of, faces a·NT + NT/2 − 1 and a·NT + NT/2 for
+          // the one or two columns a of faces that it runs along)
+          let near = Infinity;
+          const own = [];
+          for (const u of [q / 96, (q + 1) / 96 - 1e-9]) { const fa = Math.floor(u * g.NS) % g.NS * g.NT + g.NT / 2; own.push(fa - 1, fa); near = Math.min(near, items[fa - 1].d, items[fa].d); }
+          near -= 1e-9;
+          items.push({ d: Math.min((PA[2] + PB[2]) / 2 - bias, near), seg: [PA, PB], own, under: Math.sin(a) + Math.sin(b) < 0 });
         }
       }
-      items.sort((u, w) => w.d - u.d);
-      const grid = MM.rgba('ink', 0.32);
-      items.forEach((it) => {
-        if (it.f) {
-          // a face, a little larger than it is, so that no seams show between faces
-          const v = it.f.v, mx = (SX[v[0]] + SX[v[1]] + SX[v[2]] + SX[v[3]]) / 4, my = (SY[v[0]] + SY[v[1]] + SY[v[2]] + SY[v[3]]) / 4;
-          ctx.fillStyle = it.f.fill; ctx.beginPath();
-          for (let k = 0; k < 4; k++) {
-            const dx = SX[v[k]] - mx, dy = SY[v[k]] - my, l = Math.hypot(dx, dy) || 1, x = SX[v[k]] + dx / l * 0.45, y = SY[v[k]] + dy / l * 0.45;
-            if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-          }
-          ctx.fill();
-          if (it.f.lines.length) {
-            ctx.strokeStyle = grid; ctx.lineWidth = 0.9; ctx.beginPath();
-            it.f.lines.forEach(([i, j]) => { ctx.moveTo(SX[v[i]], SY[v[i]]); ctx.lineTo(SX[v[j]], SY[v[j]]); });
-            ctx.stroke();
-          }
-        } else {
-          ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
-          ctx.moveTo(it.seg[0][0], it.seg[0][1]); ctx.lineTo(it.seg[1][0], it.seg[1][1]); ctx.stroke();
+      items.forEach((it) => { if (it.f) it.under = it.f.under; });
+      // A face is filled a little larger than it is, so that no seams show between faces; that
+      // would cover the ends of the grid lines of the faces round it, so its own grid lines wait
+      // until the faces that share a corner with it are filled, and a piece of the waist until the
+      // grid lines of its two faces are drawn.
+      const fill = (f) => {
+        const v = f.v, mx = (SX[v[0]] + SX[v[1]] + SX[v[2]] + SX[v[3]]) / 4, my = (SY[v[0]] + SY[v[1]] + SY[v[2]] + SY[v[3]]) / 4;
+        ctx.fillStyle = f.fill; ctx.beginPath();
+        for (let k = 0; k < 4; k++) {
+          const dx = SX[v[k]] - mx, dy = SY[v[k]] - my, l = Math.hypot(dx, dy) || 1, x = SX[v[k]] + dx / l * 0.45, y = SY[v[k]] + dy / l * 0.45;
+          if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
         }
-      });
+        ctx.fill();
+      };
+      const lines = (f) => {
+        if (!f.lines.length) return;
+        ctx.strokeStyle = f.line; ctx.lineWidth = 0.9; ctx.beginPath();
+        f.lines.forEach((line) => line.forEach((p, k) => { const q = proj(p, c); if (k) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }));
+        ctx.stroke();
+      };
+      const waist = (it) => {
+        ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath();
+        ctx.moveTo(it.seg[0][0], it.seg[0][1]); ctx.lineTo(it.seg[1][0], it.seg[1][1]); ctx.stroke();
+      };
+      const paint = (list) => {
+        list.sort((u, w) => w.d - u.d);
+        const pos = new Map(), when = new Map(), after = list.map(() => []);
+        list.forEach((it, k) => { if (it.f) pos.set(it.fi, k); });
+        list.forEach((it, k) => { if (it.f) { let R = k; it.f.nb.forEach((j) => { if (pos.has(j)) R = Math.max(R, pos.get(j)); }); when.set(it.fi, R); after[R].push(it); } });
+        list.forEach((it, k) => { if (!it.f) { let R = k; it.own.forEach((j) => { if (when.has(j)) R = Math.max(R, when.get(j)); }); after[R].push(it); } });
+        list.forEach((it, k) => {
+          if (it.f) fill(it.f);
+          after[k].forEach((u) => (u.f ? lines(u.f) : null));
+          after[k].forEach((u) => (u.f ? null : waist(u)));
+        });
+      };
+      // the side of the plane away from the eye, the plane, translucent, then the near side
+      const back = items.filter((it) => it.under === Math.sin(v3.pitch) > 0), front = items.filter((it) => it.under !== Math.sin(v3.pitch) > 0);
+      paint(back);
+      plane(PLANE_ALPHA);
+      paint(front);
       // the vanishing circle again, thin and dashed, so that its hidden half shows (where it is seen,
       // the solid line is under it)
       if (r > 1e-9) {
@@ -242,12 +290,10 @@
     ctx.beginPath(); ctx.moveTo(zx, zy); ctx.lineTo(cx, cy); ctx.stroke();
     ctx.fillStyle = MM.color('cy-1');
     ctx.beginPath(); ctx.arc(cx, cy, 5, 0, TAU); ctx.fill();
-    MM.canvasLabel(ctx, '$z_i$', cx + 8, cy - 8, { size: 14, align: 'left', baseline: 'bottom', color: MM.color('cy-1-text') });
+    MM.canvasLabel(ctx, '$a_i$', cx + 8, cy - 8, { size: 14, align: 'left', baseline: 'bottom', color: MM.color('cy-1-text') });
     const hEl = $('v3-z');
     if (hEl) hEl.style.transform = 'translate(' + zx.toFixed(1) + 'px,' + zy.toFixed(1) + 'px)';
-    MM.canvasLabel(ctx, '$z$', zx + 12, zy + 12, { size: 14, align: 'left', baseline: 'top', color: MM.color('ink') });
-    const r = Math.hypot(v3.eps[0], v3.eps[1]);
-    MM.setHTML($('v3-val'), r < 1e-9 ? '$z=z_i$' : '$|z-z_i|=' + r.toFixed(2) + '$');
+    MM.canvasLabel(ctx, '$a$', zx + 12, zy + 12, { size: 14, align: 'left', baseline: 'top', color: MM.color('ink') });
   }
   function epsFromDial(e) {
     const cv = v3.dial, [px, py] = localXY(e, cv), W = cv.clientWidth, H = cv.clientHeight, R = Math.min(W, H) / 2 - 12;
@@ -401,9 +447,22 @@
   }
 
   /* ---------- the whole ---------- */
+  // its caption, for the n in the bar
+  const V3CAP = [
+    'in coordinates in which $f=a_i+x^2$, as $a$ comes to $a_i$: the two points $\\pm\\sqrt{a-a_i}$.',
+    'in coordinates in which $f=a_i+x^2+y^2$, as $a$ comes to $a_i$. It is the curve $x^2+y^2=a-a_i$, a double cover of the disc $|x|\\le1$ branched at $\\pm\\sqrt{a-a_i}$, whose two sheets, white and blue, meet along the vanishing circle.',
+    'in coordinates in which $f=a_i+x^2+y_2^2+y_3^2$, as $a$ comes to $a_i$: its vanishing sphere.',
+  ];
+  function caption3() {
+    const box = $('v3-cap'), n = nNow();
+    if (!box || box.dataset.n === String(n)) return;
+    box.dataset.n = String(n);
+    MM.setHTML(box, 'The level set $X_a$ near a critical point $x_i$, ' + V3CAP[n - 1] + ' At $a=a_i$ the cycle has shrunk to the singular point.');
+  }
+
   function update() {
     ['dyn', 'eig'].forEach((id) => { if ($(id)) delete $(id).dataset.key; });
-    draw3(); drawDial(); drawDynkin(); drawEigen();
+    caption3(); draw3(); drawDial(); drawDynkin(); drawEigen();
   }
   window.PLFigures = {
     // (after each drawing of the main picture: the figures that show its basis)
@@ -415,7 +474,7 @@
       { label: 'Eigenvalues', element: $('eig'), selected: false },
     ].filter((p) => p.element),
   };
-  window.addEventListener('pl:n', () => { redraw3(); drawDynkin(); drawEigen(); });
+  window.addEventListener('pl:n', () => { caption3(); redraw3(); drawDynkin(); drawEigen(); });
   const ro = new ResizeObserver(() => update());
   [v3.cv, v3.dial, $('dyn') && $('dyn').parentNode].forEach((e) => { if (e) ro.observe(e); });
   MM.onFonts(update);

@@ -1,7 +1,8 @@
 /* Picard–Lefschetz formula.
-   Wide: the plane of x on the left; on the right the function and the legend, the plane of values
-   with the handle of z, the monodromy and the intersection form.
-   Phone: the plane of x, the plane of values (so that both show while z moves), then the rest. */
+   Wide: the plane of x on the left; on the right the function, the legend and what the level sets
+   are, the plane of values with the handle of a, the monodromy and the intersection form.
+   Phone: the plane of x, the function and the legend, the plane of values (close under them, so
+   that the picture shows while a moves), what the level sets are, then the rest. */
 
 /* One colour for each vanishing cycle Δ_i, its path γ_i, its critical point and critical value;
    main.js reads the same names through MM.color. */
@@ -36,10 +37,10 @@ body {
 .pl { --split-main: 1.25fr; --split-below: 40px; }
 @media (max-width: 899.98px) {
   .pl > .split-main, .pl > .split-side { display: contents; }
-  .pl .pl-main { order: 0; }
-  .pl .pl-zblock { order: 1; border-top: 0; padding-top: 0; }
-  .pl .side-head { order: 2; }
-  .pl .side-block:not(.side-head):not(.pl-zblock) { order: 3; }
+  .pl .side-head { order: 1; }
+  .pl .pl-zblock { order: 2; }
+  .pl .pl-about { order: 3; }
+  .pl .side-block:not(.side-head):not(.pl-zblock):not(.pl-about) { order: 4; }
 }
 
 /* ---------- the plane of x ---------- */
@@ -77,7 +78,6 @@ body {
 .pl-dialbox { position: relative; width: 170px; margin: 0 auto; }
 .pl-dialbox canvas { display: block; width: 170px; height: 170px; }
 .pl-dialh { --handle-size: 36px; cursor: grab; }
-.pl-dialval { margin: 2px 0 0; text-align: center; font-size: 14px; color: var(--ink-2); }
 .pl-twval { margin-top: 6px; }
 .pl-zblock .legend { margin-top: 10px; }
 .pl-dynbox { display: flex; justify-content: center; }

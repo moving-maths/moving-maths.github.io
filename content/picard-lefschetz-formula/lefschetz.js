@@ -3,7 +3,7 @@
 
    f = p(x) + y_2^2 + ⋯ + y_n^2 is a morsification of the singularity A_mu, x^{mu+1}: p is monic of
    degree mu + 1, with distinct critical points c_1, …, c_mu and critical values z_i = p(c_i). The level
-   set V_z = f^{-1}(z) lies over the plane of x, and its fibre over x degenerates where p(x) = z. A path
+   set X_z = f^{-1}(z) lies over the plane of x, and its fibre over x degenerates where p(x) = z. A path
    in the plane of values from z to z_j lifts through c_j to an arc between two roots of p(x) = z, and
    the vanishing cycle along the path lies over that arc: the two roots (n = 1), the two points
    ±√(z − p(x)) over each point of the arc, joined at its ends (n = 2), or the circles of the quadric
@@ -195,7 +195,7 @@
    * the outgoing branch at their points (the same on both halves: they lie over the same points of
    * the path), the start of the + half now, and e, the direction of √(z − p(x)) at the ends: there
    * the cycle passes through the branch point in the direction e at the − end and −e at the + end
-   * (in the coordinate y of V_z there, for n = 2). */
+   * (in the coordinate y of X_z there, for n = 2). */
   function lift(P, j, s, dir, Y, h) {
     const n = s.length / 2 - 1, c = P.crit[j], v = P.vals[j], a = P.a[j], out = [0, 0, 0, 0];
     const zx = s[0], zy = s[1];
