@@ -29,6 +29,8 @@ body {
   --tile-thin-fill: var(--tile-thin);
   --tile-kite-fill: var(--tile-thick);
   --tile-dart-fill: var(--tile-thin);
+  --pen-larger-2: color-mix(in srgb, var(--edge) 56%, var(--surface));  /* the tiles two and four levels up */
+  --pen-larger-4: color-mix(in srgb, var(--edge) 30%, var(--surface));
   --arc-1: var(--c5);
   --arc-2: var(--c3);
 }

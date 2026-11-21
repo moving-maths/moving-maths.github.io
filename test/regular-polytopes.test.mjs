@@ -266,25 +266,24 @@ test('Penrose tilings: halves of tiles meet across their cuts, φ times as many 
   }
 });
 
-test('Penrose tilings: the larger tiles as patches of whole tiles, each the size of a larger tile', () => {
-  const area = (t) => Math.abs((t[2][0] - t[1][0]) * (t[3][1] - t[1][1]) - (t[2][1] - t[1][1]) * (t[3][0] - t[1][0])) / 2;
+test('Penrose tilings: a larger tile’s edges run along the edges and axes of the tiles below, never across them', () => {
+  const onSeg = (p, [a, b]) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], u = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy);
+    return u > -1e-9 && u < 1 + 1e-9 && Math.hypot(a[0] + u * dx - p[0], a[1] + u * dy - p[1]) < 1e-7;
+  };
   for (const kind of ['p3', 'p2']) {
-    const L = 11, levels = PEN.cover(kind, PEN.sun(kind, Math.pow(PHI, L)), [-26, 26, -26, 26], L);
+    const L = 9, levels = PEN.cover(kind, PEN.sun(kind, Math.pow(PHI, L)), [-5, 5, -5, 5], L);
+    const fine = levels[L], edges = fine.flatMap((t) => PEN.sides(kind, t)), axes = fine.map((t) => (kind === 'p3' ? [t[2], t[3]] : [t[1], t[3]]));
     for (const up of [1, 2, 4]) {
-      const list = levels[L], ids = PEN.patches(kind, levels, L, up), whole = PEN.tiles(kind, list);
-      // both halves of a tile in one patch
-      list.forEach((_, i) => assert.equal(ids[i], ids[whole[i]]));
-      // the larger tiles' areas, and the patches' near the middle
-      const big = levels[L - up], bw = PEN.tiles(kind, big), sizes = new Map(), patch = new Map();
-      big.forEach((t, i) => sizes.set(bw[i], (sizes.get(bw[i]) || 0) + area(t)));
-      const both = [...new Set([...sizes.values()].map((a) => +a.toFixed(6)))].sort((a, b) => b - a).slice(0, 2);
-      list.forEach((t, i) => { const e = patch.get(ids[i]) || { a: 0, r: 0 }; e.a += area(t); e.r = Math.max(e.r, ...[1, 2, 3].map((k) => Math.hypot(...t[k]))); patch.set(ids[i], e); });
-      let inner = 0;
-      for (const e of patch.values()) if (e.r < 22) { inner++; assert.ok(both.some((a) => Math.abs(a - e.a) < 1e-6 * a), kind + ' up ' + up + ': a patch of area ' + e.a); }
-      assert.ok(inner >= 3, kind + ' up ' + up + ': ' + inner + ' patches in the middle');
-      // the outline: edges of the small tiles only
-      const seg = PEN.outline(kind, levels, L, up);
-      assert.ok(seg.length > 0);
+      let alongAxis = 0;
+      for (const t of levels[L - up]) for (const [a, b] of PEN.sides(kind, t)) for (let s = 1; s < 24; s++) {
+        const u = s / 24, p = [a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])];
+        if (Math.abs(p[0]) > 3 || Math.abs(p[1]) > 3 || edges.some((e) => onSeg(p, e))) continue;
+        assert.ok(axes.some((e) => onSeg(p, e)), kind + ' up ' + up + ': a larger edge crosses a tile at ' + p);
+        alongAxis++;
+      }
+      // (so some tiles below are cut into halves by it: the larger tiles are made of tiles and halves)
+      assert.ok(alongAxis > 0);
     }
   }
 });
@@ -397,4 +396,40 @@ test('sections of the 4-polytopes: their volumes add up to the 4-volume, and the
       if (j === 3) assert.equal(first.faces.length, FIRST[key][1]);
     }
   }
+});
+
+test('sections recognised as Wythoff’s polyhedra or their duals, and Coxeter’s simplified sections', () => {
+  const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0), unit = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
+  // the section of {p,q,r} (x at corner 0) at t from corner j, with the walls other than j in that order
+  function section(ms, j, order, t) {
+    const M = P.model(ms), W = P.wythoff(P.chambers(M), M.corners[0]);
+    const cells = W.cells.map((c) => { const vs = new Set(); c.faces.forEach((fi) => W.faces[fi].v.forEach((v) => vs.add(v))); return { normal: unit([0, 1, 2, 3].map((a) => [...vs].reduce((s, v) => s + W.pos[4 * v + a], 0))), faces: c.faces.map((fi) => W.faces[fi].v) }; });
+    const u = M.corners[j].map((x) => -x), E = [];
+    for (const v of [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]) { let x = v.slice(); for (const b of [u, ...E]) { const c = dot(x, b); x = x.map((y, i) => y - c * b[i]); } if (Math.hypot(...x) > 1e-6 && E.length < 3) E.push(unit(x)); }
+    // (t: 'mid', a level's index, or [i]: between levels i and i + 1)
+    const S = P.sections(W.pos, 4, cells, u, E), sec = S.at(t === 'mid' ? (S.lo + S.hi) / 2 : Array.isArray(t) ? (S.levels[t[0]] + S.levels[t[0] + 1]) / 2 : S.levels[t], true);
+    const walls = order.map((i) => E.map((e) => dot(e, M.r[i])));
+    const pts = [...sec.pts.values()], faces = sec.faces.map((f) => ({ n: f.n, d: dot(f.n, sec.pts.get(f.ids[0])) }));
+    return { full: P.recognise(walls, pts, faces), simple: P.recognise(walls, sec.onVerts.map((v) => sec.pts.get(v)), []), n: pts.length };
+  }
+  const near = (r, w, dual) => r && r.dual === dual && r.w.every((x, i) => Math.abs(x - w[i]) < 1e-9);
+  // the tesseract from a vertex: the middle section is the octahedron, r{3,3}
+  assert.ok(near(section([4, 3, 3], 0, [1, 2, 3], 'mid').full, [0, 1, 0], false));
+  // the tesseract from a cell: a cube
+  assert.ok(near(section([4, 3, 3], 3, [0, 1, 2], 'mid').full, [1, 0, 0], false));
+  // the 24-cell from a vertex, in the middle: the rhombic dodecahedron, the dual of the cuboctahedron
+  const m24 = section([3, 4, 3], 0, [3, 2, 1], 'mid');
+  assert.ok(near(m24.full, [0, 1, 0], true));
+  // the 24-cell from a cell, in the middle: the cuboctahedron
+  assert.ok(near(section([3, 4, 3], 3, [0, 1, 2], 'mid').full, [0, 1, 0], false));
+  // the 600-cell from a vertex, at the middle level: 42 points, not one of Wythoff's, but its 30
+  // vertices there are those of an icosidodecahedron [Coxeter, §13.1]
+  const m600 = section([3, 3, 5], 0, [3, 2, 1], 4);
+  assert.equal(m600.full, null);
+  assert.equal(m600.n, 42);
+  assert.ok(near(m600.simple, [0, 1, 0], false));
+  // two kinds of vertex: the 24-cell's sections from a vertex between its second and third levels
+  const two = section([3, 4, 3], 0, [3, 2, 1], [1]);
+  assert.equal(two.n, 32);
+  assert.equal(two.full, null);
 });
