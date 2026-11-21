@@ -1028,8 +1028,45 @@
     return { hgt, levels, at, lo: levels[0], hi: levels[levels.length - 1] };
   }
 
+  // A convex polyhedron with its centre at the origin, as one of Wythoff's: `walls`, the unit
+  // normals of three mirrors through the origin among its symmetries (positive inside their
+  // chamber); `pts` its vertices; `faces` its faces, each { n: outward unit normal, d: distance }.
+  // If its vertices are the images of one vertex under the reflections, that vertex's distances
+  // from the walls (Wythoff's point x, up to scale); else, if its faces are the images of one face,
+  // the distances of that face's normal (the x of the polyhedron it is the dual of); else nothing.
+  function recognise(walls, pts, faces) {
+    const refl = (n, p) => { const d = 2 * dotN(n, p); return p.map((x, i) => x - d * n[i]); };
+    const near = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 1e-7;
+    const inC = (p) => walls.every((n) => dotN(n, p) > -1e-9);
+    // the images of p0, if they are exactly the points of list
+    function one(list) {
+      const p0 = list.find(inC);
+      if (!p0) return null;
+      const orbit = [p0], queue = [p0];
+      while (queue.length) {
+        const p = queue.pop();
+        for (const n of walls) {
+          const q = refl(n, p);
+          if (orbit.some((o) => near(o, q))) continue;
+          if (orbit.length >= list.length) return null;
+          orbit.push(q); queue.push(q);
+        }
+      }
+      return orbit.length === list.length && list.every((p) => orbit.some((o) => near(o, p))) ? p0 : null;
+    }
+    const w = (p) => { const v = walls.map((n) => Math.max(0, dotN(n, p))), m = Math.max(...v); return v.map((x) => (x < 1e-9 * m ? 0 : x / m)); };
+    const v0 = pts.length ? one(pts) : null;
+    if (v0) return { w: w(v0), dual: false };
+    const d0 = faces.length ? faces[0].d : 0;
+    if (faces.length && faces.every((f) => Math.abs(f.d - d0) < 1e-7 * Math.max(1, d0))) {
+      const n0 = one(faces.map((f) => f.n));
+      if (n0) return { w: w(n0), dual: true };
+    }
+    return null;
+  }
+
   root.Polytopes = {
-    coxeterElement, petrie, coxeterPlane, sections,
+    coxeterElement, petrie, coxeterPlane, sections, recognise,
     identity, mul, apply, solve, cholesky, jacobi, linear, triangle, geometry, curvature, model, chambers, wythoff, place, snub,
     dual, planes, polar, laves, dual4, faceMiddle, configuration, vertexConfig, least, confKey, uniform, snubPoint, wallsOf, real, groupOrder,
     nameByConfig, dualName, regName, symbol3, name4, elongated, octet, gon, adj, DUALS, REGULAR, POLY4, INF,
