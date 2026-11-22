@@ -991,6 +991,40 @@ test('on a phone, a tap on the Coxeter diagram after turning the polyhedron ring
   } finally { await close(); }
 });
 
+test('the Penrose tiling pans its drawn tiles and is the same as drawn afresh; its link keeps the arcs and larger tiles (regular polytopes)', async () => {
+  // The tiles are drawn once into a canvas larger than the view, which the picture moves as it pans.
+  const { page, problems, close } = await open('/regular-polytopes/?t=penrose&c=1&a=1&l=1');
+  try {
+    assert.equal(await page.evaluate(() => document.getElementById('arcs').hasAttribute('pressed') && document.getElementById('larger').hasAttribute('pressed')), true);
+    const stage = page.locator('#stage'), b = await stage.boundingBox(), y = b.y + b.height / 2;
+    const picture = () => page.evaluate(() => document.getElementById('flat').toDataURL());
+    const before = await picture();
+    await page.mouse.move(b.x + 40, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(b.x + 40 + 10 * i, y + (i > 6 ? 6 : i)); // (whole pixels)
+    await page.mouse.up();
+    const panned = await picture();
+    assert.notEqual(panned, before, 'the tiling moves');
+    // drawn afresh where it is (colours off and on again)
+    await page.locator('#colours').click();
+    await page.locator('#colours').click();
+    // (to the antialiasing: a few levels of a pixel's value where the tiles around differ)
+    const off = await page.evaluate(async ([x, y]) => {
+      const load = (u) => new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.src = u; });
+      const [a, b] = [await load(x), await load(y)], c = document.createElement('canvas');
+      c.width = a.width; c.height = a.height;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.drawImage(a, 0, 0); const d1 = g.getImageData(0, 0, c.width, c.height).data;
+      g.clearRect(0, 0, c.width, c.height); g.drawImage(b, 0, 0); const d2 = g.getImageData(0, 0, c.width, c.height).data;
+      let worst = 0;
+      for (let i = 0; i < d1.length; i++) worst = Math.max(worst, Math.abs(d1[i] - d2[i]));
+      return worst;
+    }, [panned, await picture()]);
+    assert.ok(off <= 64, 'the same as drawn afresh, to ' + off + ' levels');
+    assert.deepEqual(problems, []);
+  } finally { await close(); }
+});
+
 test('the chamber holds x at a dot on the edge of a grey chamber with the pointer outside it (regular polytopes)', async () => {
   // Outside where x may be, x stays on the edge; a dot there holds it when x comes near it, though
   // the pointer itself is farther from it than the holding distance.
