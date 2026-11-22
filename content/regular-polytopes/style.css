@@ -105,3 +105,20 @@ body {
 .rp-ch-ring { fill: none; stroke-width: 1.4; }
 .rp-ch-ring.same { stroke: var(--accent); }
 .rp-ch-ring.like { stroke: var(--ink-3); stroke-opacity: .5; }
+
+/* the figure in the text: a flag of the cube and its chamber, its walls' numbers to click */
+.rp-ff { display: block; width: 100%; max-width: 340px; height: auto; margin: 0 auto; overflow: visible; }
+.rp-ff-edge { fill: none; stroke: var(--edge); stroke-width: 1.4; stroke-linecap: round; }
+.rp-ff-edge.back { stroke-dasharray: 3 3; stroke-opacity: .45; stroke-width: 1; }
+.rp-ff-mirror { fill: none; stroke: var(--wall-line); stroke-width: 1; }
+.rp-ff-face { fill: color-mix(in srgb, var(--accent) 7%, transparent); stroke: none; }
+.rp-ff-face.back { fill-opacity: .5; }
+.rp-ff-chamber { fill: var(--cell-mid); stroke: var(--ink-2); stroke-width: 1.4; stroke-linejoin: round; }
+.rp-ff-chamber.back { fill-opacity: .55; stroke-dasharray: 3 3; }
+.rp-ff-flag { fill: none; stroke: var(--edge); stroke-width: 3.4; stroke-linecap: round; }
+.rp-ff-vertex { fill: var(--edge); }
+.rp-ff-lab { font-size: 12.5px; fill: var(--ink-2); text-anchor: middle; }
+.rp-ff-wl { cursor: pointer; outline: none; transition: opacity .15s; }
+.rp-ff-wl circle { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1; }
+.rp-ff-wl:hover circle, .rp-ff-wl:focus-visible circle { stroke: var(--accent); stroke-width: 1.8; }
+.rp-ff-wl text { font-size: 13px; text-anchor: middle; fill: var(--ink); pointer-events: none; }

@@ -349,6 +349,64 @@ test('Petrie polygons: their sides, the zigzag, how many there are, and the Coxe
   }
 });
 
+test('Petrie polygons from the definition alone: one way on from each start, g/2h of them', () => {
+  // In rank 3, every two consecutive sides but no three lie in one face; in rank 4, every three
+  // but no four lie in a Petrie polygon of one cell. Walk from every path that starts one, trying
+  // every way on: there is always exactly one, so a polygon is fixed by its start (a flag).
+  const H = { '3,3': 4, '4,3': 6, '3,4': 6, '5,3': 10, '3,5': 10, '3,3,3': 5, '4,3,3': 8, '3,3,4': 8, '3,4,3': 12, '5,3,3': 30, '3,3,5': 30 };
+  for (const key of Object.keys(H)) {
+    const ms = key.split(',').map(Number), M = P.model(ms), T = P.chambers(M), n = M.n, m = n - 1;
+    const W = P.wythoff(T, M.corners[0]);
+    const nb = Array.from({ length: W.V }, () => new Set());
+    for (let i = 0; i < W.edges.length; i += 3) { nb[W.edges[i]].add(W.edges[i + 1]); nb[W.edges[i + 1]].add(W.edges[i]); }
+    // the faces in which a, b, c are consecutive corners, and the cells of each face
+    const corner = new Map();
+    W.faces.forEach((f, fi) => f.v.forEach((b, i, v) => {
+      const a = v[(i + v.length - 1) % v.length], c = v[(i + 1) % v.length];
+      for (const k of [a + ',' + b + ',' + c, c + ',' + b + ',' + a]) corner.set(k, [...(corner.get(k) || []), fi]);
+    }));
+    const fo = (a, b, c) => corner.get(a + ',' + b + ',' + c) || [];
+    const cellsOf = W.faces.map(() => []);
+    if (n === 4) W.cells.forEach((c, ci) => c.faces.forEach((f) => cellsOf[f].push(ci)));
+    // the cells in which a-b-c-d is a Petrie path: a, b, c in one face of it, b, c, d in another
+    const cp = (a, b, c, d) => {
+      const out = new Set();
+      for (const f1 of fo(a, b, c)) for (const f2 of fo(b, c, d)) if (f1 !== f2) for (const k of cellsOf[f1]) if (cellsOf[f2].includes(k)) out.add(k);
+      return out;
+    };
+    // does the path's last side keep to the definition with the sides before it?
+    const ok = (s) => {
+      const L = s.length;
+      if (n === 3) { const [a, b, c] = s.slice(L - 3); return fo(a, b, c).length > 0 && (L < 4 || !fo(s[L - 4], a, b).some((f) => fo(a, b, c).includes(f))); }
+      const [a, b, c, d] = s.slice(L - 4), K = cp(a, b, c, d);
+      if (!K.size || L < 5) return K.size > 0;
+      const K0 = cp(s[L - 5], a, b, c);
+      return ![...K].some((k) => K0.has(k));
+    };
+    let starts = [...Array(W.V).keys()].map((v) => [v]);
+    for (let L = 1; L <= m; L++) starts = starts.flatMap((s) => [...nb[s[L - 1]]].filter((w) => w !== s[L - 2]).map((w) => [...s, w]));
+    starts = starts.filter(ok);
+    assert.equal(starts.length, T.N, key + ': one start for each flag');
+    const polygons = new Set();
+    for (const s of starts) {
+      const path = s.slice();
+      for (;;) {
+        const on = [...nb[path[path.length - 1]]].filter((w) => w !== path[path.length - 2] && ok([...path.slice(-m - 1), w]));
+        assert.equal(on.length, 1, key + ': one way on');
+        path.push(on[0]);
+        const L = path.length;
+        if (s.every((v, i) => path[L - m - 1 + i] === v)) break;
+        assert.ok(L < 100);
+      }
+      const cyc = path.slice(0, path.length - m - 1);
+      assert.equal(cyc.length, H[key]);
+      assert.equal(new Set(cyc).size, H[key], key + ': distinct vertices');
+      polygons.add(cyc.map((v, i) => [v, cyc[(i + 1) % cyc.length]].sort((x, y) => x - y).join('-')).sort().join(' '));
+    }
+    assert.equal(polygons.size, T.N / (2 * H[key]), key + ': g/2h polygons');
+  }
+});
+
 test('sections of the 4-polytopes: their volumes add up to the 4-volume, and the first is the element', () => {
   const dot = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0), unit = (v) => { const l = Math.hypot(...v); return v.map((x) => x / l); };
   // 4-volumes with circumradius 1: edges √(5/2), 1, √2, 1

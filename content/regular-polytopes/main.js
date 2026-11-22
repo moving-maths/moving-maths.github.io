@@ -3465,7 +3465,119 @@
   syncZoom();
   draw();
   tick();
-  MM.onFonts(() => { $('coxeter').dataset.key = ''; if (ch) ch.fullKey = ''; draw(); });
+
+  /* ---------- the figure in the text: a flag of the cube and its chamber ---------- */
+  // The cube [−1, 1]³ in a parallel view, the mirrors on its near faces, and one flag: a vertex v,
+  // the edge from v along the axis a, and the face across the axis b that contains the edge. Its
+  // chamber has its corners at v, the edge's middle and the face's centre, and wall i opposite
+  // corner i. A click on wall i (Enter or Space on its number) reflects the flag in it: the
+  // chamber folds over the wall onto the next one, and only the flag's element of dimension i
+  // changes. When the chamber lands on a far face, the cube turns to show it.
+  const flagFigure = (function () {
+    const svg = $('flag-fig');
+    if (!svg) return null;
+    const W = 340, H = 290, K = 76;
+    let Rv = mm(rotX(0.42), rotY(-0.62)), eye = Rv[2], spin = null;
+    const at = (p) => { const q = mv(Rv, p); return [W / 2 + K * q[0], H / 2 + 2 - K * q[1]]; };
+    // a view of the flag's face from in front, a little towards its vertex, the world's y kept up
+    function viewOf(f) {
+      const n = [0, 0, 0]; n[f.b] = f.v[f.b];
+      const e = norm(n.map((x, k) => x + 0.55 * f.v[k])), xr = norm(cross([0, 1, 0], e));
+      return [xr, cross(e, xr), e];
+    }
+    const line = (A, B) => { const a = at(A), b = at(B); return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1) + 'L' + b[0].toFixed(1) + ' ' + b[1].toFixed(1); };
+    const corners = (f) => { const m = f.v.slice(), c = [0, 0, 0]; m[f.a] = 0; c[f.b] = f.v[f.b]; return [f.v, m, c]; };
+    // s_i: 0 the other end of the edge, 1 the other edge of the face at v, 2 the other face on the edge
+    function reflect(f, i) {
+      const d = 3 - f.a - f.b, v = f.v.slice();
+      if (i === 0) { v[f.a] = -v[f.a]; return { v, a: f.a, b: f.b }; }
+      return i === 1 ? { v, a: d, b: f.b } : { v, a: f.a, b: d };
+    }
+    let flag = { v: [1, 1, 1], a: 0, b: 2 }, fold = null;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    const body = MM.svg('g', {}, svg), knobs = [0, 1, 2].map((i) => {
+      const g = MM.svg('g', { class: 'rp-ff-wl', role: 'button', tabindex: '0', 'aria-label': 'Reflect the flag in wall ' + i }, svg);
+      MM.svg('circle', { r: 10.5 }, g);
+      MM.svgLabel(MM.svg('text', { y: 4.5 }, g), '$' + i + '$');
+      g.addEventListener('click', () => start(i));
+      g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(i); } });
+      return g;
+    });
+    function draw() {
+      body.textContent = '';
+      const el = (name, attrs) => MM.svg(name, attrs, body), f = fold ? fold.from : flag;
+      const frontFace = (b, sg) => eye[b] * sg > 1e-9;
+      // the flag's face, lightly tinted, and the mirrors on the near faces
+      const fb = f.b, fs = f.v[fb], [fa, fd] = [0, 1, 2].filter((k) => k !== fb), fp = (u, w) => { const p = [0, 0, 0]; p[fb] = fs; p[fa] = u; p[fd] = w; return p; };
+      el('path', { class: 'rp-ff-face' + (frontFace(fb, fs) ? '' : ' back'), d: [fp(-1, -1), fp(1, -1), fp(1, 1), fp(-1, 1)].map((p, k) => (k ? 'L' : 'M') + at(p).map((x) => x.toFixed(1)).join(' ')).join('') + 'Z' });
+      let mirrors = '';
+      for (const b of [0, 1, 2]) for (const sg of [1, -1]) {
+        if (!frontFace(b, sg)) continue;
+        const [a, d] = [0, 1, 2].filter((k) => k !== b), pt = (u, w) => { const p = [0, 0, 0]; p[b] = sg; p[a] = u; p[d] = w; return p; };
+        mirrors += line(pt(-1, 0), pt(1, 0)) + line(pt(0, -1), pt(0, 1)) + line(pt(-1, -1), pt(1, 1)) + line(pt(-1, 1), pt(1, -1));
+      }
+      el('path', { class: 'rp-ff-mirror', d: mirrors });
+      // the cube's edges, the far ones dashed
+      let near = '', far = '';
+      for (let a = 0; a < 3; a++) for (const s1 of [1, -1]) for (const s2 of [1, -1]) {
+        const [b, d] = [0, 1, 2].filter((k) => k !== a), A = [0, 0, 0], B = [0, 0, 0];
+        A[a] = -1; B[a] = 1; A[b] = B[b] = s1; A[d] = B[d] = s2;
+        if (frontFace(b, s1) || frontFace(d, s2)) near += line(A, B); else far += line(A, B);
+      }
+      el('path', { class: 'rp-ff-edge back', d: far });
+      el('path', { class: 'rp-ff-edge', d: near });
+      // the chamber (folding over a wall), its walls and the corners' names
+      const C = fold ? fold.tri(fold.e) : corners(f), q = C.map(at), back = !fold && !frontFace(f.b, f.v[f.b]);
+      el('path', { class: 'rp-ff-chamber' + (back ? ' back' : ''), d: 'M' + q.map((p) => p.map((x) => x.toFixed(1)).join(' ')).join('L') + 'Z' });
+      // the flag: its edge and vertex
+      const m = f.v.slice(); m[f.a] = -m[f.a];
+      el('path', { class: 'rp-ff-flag', d: line(f.v, m) });
+      const v = at(f.v);
+      el('circle', { class: 'rp-ff-vertex', cx: v[0], cy: v[1], r: 4.2 });
+      const g = [(q[0][0] + q[1][0] + q[2][0]) / 3, (q[0][1] + q[1][1] + q[2][1]) / 3];
+      const out = (p, k) => { const dx = p[0] - g[0], dy = p[1] - g[1], l = Math.hypot(dx, dy) || 1; return [p[0] + k * dx / l, p[1] + k * dy / l]; };
+      if (!fold && !spin) ['vertex', 'edge', 'face'].forEach((word, k) => { const p = out(q[k], 20); MM.svgLabel(el('text', { class: 'rp-ff-lab halo', x: p[0].toFixed(1), y: (p[1] + 4).toFixed(1) }), word); });
+      knobs.forEach((kb, i) => {
+        const [A, B] = [0, 1, 2].filter((k) => k !== i).map((k) => q[k]), mid = out([(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], 15);
+        kb.setAttribute('transform', 'translate(' + mid[0].toFixed(1) + ' ' + mid[1].toFixed(1) + ')');
+        kb.style.opacity = fold || spin ? 0.4 : '';
+      });
+    }
+    function start(i) {
+      if (fold || spin) return;
+      const C = corners(flag), to = reflect(flag, i), X1 = corners(to)[i], [A, B] = [0, 1, 2].filter((k) => k !== i).map((k) => C[k]), X = C[i];
+      // a turn about the wall: half a turn within a face (over its outside), a quarter onto the next face
+      const ax = norm(B.map((x, k) => x - A[k])), turnX = (t) => { const r = mv(axisTurn(ax, t), X.map((x, k) => x - A[k])); return r.map((x, k) => x + A[k]); };
+      const th = i === 2 ? Math.PI / 2 : Math.PI;
+      let sg = Math.hypot(...turnX(th).map((x, k) => x - X1[k])) < 1e-6 ? 1 : -1;
+      if (i !== 2 && dot(turnX(-th / 2), turnX(-th / 2)) > dot(turnX(th / 2), turnX(th / 2))) sg = -1;
+      const tri = (e) => { const P = turnX(sg * th * e), out = []; out[i] = P; [0, 1, 2].filter((k) => k !== i).forEach((k) => { out[k] = C[k]; }); return out; };
+      fold = { from: flag, to, tri, e: 0, t0: performance.now(), dur: MM.reduceMotion() ? 0 : 480 };
+      requestAnimationFrame(step);
+    }
+    function step(now) {
+      if (fold) {
+        const t = fold.dur ? Math.min(1, (now - fold.t0) / fold.dur) : 1;
+        fold.e = t * t * (3 - 2 * t);
+        if (t >= 1) {
+          flag = fold.to; fold = null;
+          // (on a face turned away, or nearly: the cube turns to show it)
+          const n = [0, 0, 0]; n[flag.b] = flag.v[flag.b];
+          if (dot(eye, n) < 0.35) spin = { from: Rv, to: viewOf(flag), t0: now, dur: MM.reduceMotion() ? 0 : 600 };
+        }
+      } else if (spin) {
+        const t = spin.dur ? Math.min(1, (now - spin.t0) / spin.dur) : 1;
+        Rv = t >= 1 ? spin.to : slerp3(spin.from, spin.to, t * t * (3 - 2 * t));
+        eye = Rv[2];
+        if (t >= 1) spin = null;
+      }
+      if (fold || spin) requestAnimationFrame(step);
+      draw();
+    }
+    draw();
+    return { draw };
+  })();
+  MM.onFonts(() => { $('coxeter').dataset.key = ''; if (ch) ch.fullKey = ''; draw(); if (flagFigure) flagFigure.draw(); });
 
   /* ---------- links, reset and Save image ---------- */
   // a rotation of R⁴ as a pair of unit quaternions (a, b): v ↦ a v b, eight numbers
