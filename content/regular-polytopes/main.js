@@ -1203,43 +1203,111 @@
   const PEN_LEVELS = 30; // the sun's edges are φ^30 times the finest tiles': as far as the picture can go
   const PEN_FADE = 260;  // ms: one level of tiles fading into the next
   const PEN_STAY = 0.12; // how far past its range (in levels) the zoom goes before the next level comes in
-  const PEN_CELL = 160;  // CSS pixels: the side of the grid's cells (cellPaths)
-  let penShown = null, penFrame = 0, penLayer = null;  // the level drawn, and the one it is fading from
-  // The paths of the tiling, one to a cell of a grid PEN_CELL pixels square. Firefox on Android
-  // draws the canvas on the GPU, and it gets a path wrong that has thousands of pieces across the
-  // whole picture: it leaves part of it out, or fills the whole box round it in its colour. at(x, y):
-  // the path of the cell of the point (x, y); each(fn): fn on every path.
-  function cellPaths() {
-    const m = new Map();
-    return {
-      at(x, y) { const k = Math.floor(x / PEN_CELL) + ',' + Math.floor(y / PEN_CELL); let path = m.get(k); if (!path) m.set(k, (path = new Path2D())); return path; },
-      each(fn) { m.forEach((path) => fn(path)); },
-    };
+  const PEN_REST = 150;  // ms after a zoom before the tiles are drawn sharp at the new scale
+  // Each level of tiles shown is drawn once into a canvas of its own, a margin larger than the
+  // view, and the picture is that canvas put on with one drawImage: moved as the view pans, scaled
+  // while it zooms. It is drawn again when the view leaves it, when the scale has gone far from
+  // its own or the zoom has rested, and when what it shows changes. It is drawn in software
+  // (willReadFrequently): Firefox on Android draws a canvas on the GPU, and once the other
+  // pictures have drawn on it for a while, the hundreds of small paths of the tiles leave part of
+  // the picture white, or make it flash as it moves.
+  let penShown = null, penFrame = 0, penRest = 0, penStill = false;  // the level drawn, and the one it is fading from
+  const penCaches = new Map(); // level → { cv, img, key, c, s, W, H, M, bw, bh }
+  function penDrop() {
+    for (const C of penCaches.values()) if (C.img !== C.cv && C.img.close) C.img.close();
+    penCaches.clear();
   }
-  // draw(c) on the picture at the alpha `alpha`: below 1, opaque into a second canvas and from it onto
-  // the picture, so that where the paths of neighbouring cells overlap it is no darker
-  function withAlpha(ctx, alpha, draw) {
-    if (alpha <= 0.002) return;
-    if (alpha >= 0.998) { draw(ctx); return; }
-    const cv = ctx.canvas;
-    if (!penLayer) penLayer = document.createElement('canvas');
-    if (penLayer.width !== cv.width || penLayer.height !== cv.height) { penLayer.width = cv.width; penLayer.height = cv.height; }
-    const c = penLayer.getContext('2d');
-    c.setTransform(1, 0, 0, 1, 0, 0);
-    c.clearRect(0, 0, cv.width, cv.height);
-    c.setTransform(ctx.getTransform());
-    c.lineCap = ctx.lineCap;
-    c.lineJoin = ctx.lineJoin;
-    draw(c);
-    ctx.save();
+  // the tiles of one level, their fills, edges, the larger tiles and the arcs, into ctx (W × H CSS
+  // pixels, s pixels a unit, the point c of the plane in the middle)
+  function paintPenrose(ctx, level, W, H, s, c) {
+    const pen = state.pen, kind = pen.tiles;
+    const box = [c[0] - W / 2 / s - 1, c[0] + W / 2 / s + 1, c[1] - H / 2 / s - 1, c[1] + H / 2 / s + 1];
+    const levels = PEN.cover(kind, PEN.sun(kind, Math.pow(PHI, PEN_LEVELS)), box, level), tiles = levels[level] || [];
+    const at = (p) => [W / 2 + (p[0] - c[0]) * s, H / 2 - (p[1] - c[1]) * s];
+    if (state.colours) {
+      const colours = [MM.color(kind === 'p3' ? 'tile-thin' : 'tile-kite'), MM.color(kind === 'p3' ? 'tile-thick' : 'tile-dart')];
+      for (const k of [0, 1]) {
+        const path = new Path2D();
+        for (const tri of tiles) {
+          if (tri[0] !== k) continue;
+          const a = at(tri[1]), b = at(tri[2]), cc = at(tri[3]);
+          path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); path.lineTo(a[0], a[1]);
+        }
+        ctx.fillStyle = colours[k];
+        ctx.fill(path);
+        // (the two halves of a tile meet without a seam: the same colour drawn over the cut)
+        ctx.strokeStyle = colours[k];
+        ctx.lineWidth = 0.7;
+        ctx.stroke(path);
+      }
+    }
+    if (pen.larger) {
+      // The tiles two and four levels up, in lighter, wider lines under the tiles' edges: they are
+      // made of tiles and halves of tiles, so where one of their edges passes through a tile it
+      // runs along its axis, and the tile still shows whole.
+      for (const [up, width, col] of [[4, 7, 'pen-larger-4'], [2, 3.6, 'pen-larger-2']]) {
+        if (level - up < 0) continue;
+        const path = new Path2D();
+        for (const tri of levels[level - up]) for (const [A, B] of PEN.sides(kind, tri)) { const a = at(A), b = at(B); path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); }
+        ctx.strokeStyle = MM.color(col);
+        ctx.lineWidth = width;
+        ctx.stroke(path);
+      }
+    }
+    // edges: a tile's edges, not the cut between its halves (P3: apex–b and apex–c; P2: apex–b and b–c)
+    const path = new Path2D();
+    for (const tri of tiles) {
+      const a = at(tri[1]), b = at(tri[2]), cc = at(tri[3]);
+      if (kind === 'p3') { path.moveTo(b[0], b[1]); path.lineTo(a[0], a[1]); path.lineTo(cc[0], cc[1]); }
+      else { path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); }
+    }
+    ctx.strokeStyle = MM.rgba('edge', pen.arcs ? 0.45 : 1);
+    ctx.lineWidth = 1.1;
+    ctx.stroke(path);
+    if (pen.arcs) drawArcs(ctx, kind, tiles, at, s);
+  }
+  // Level `level`'s cache for the view (w × h, s pixels a unit, round state.pen.c), drawn afresh if
+  // it does not cover the view at a scale near its own; with where it goes on the picture: its
+  // top left corner (X0, Y0) and its scale k.
+  function penCache(level, key, w, h, s) {
+    const pen = state.pen;
+    let C = penCaches.get(level);
+    if (C && C.key === key) {
+      const k = s / C.s, X0 = w / 2 - k * (C.W / 2 + (pen.c[0] - C.c[0]) * C.s), Y0 = h / 2 - k * (C.H / 2 - (pen.c[1] - C.c[1]) * C.s);
+      if (k > 1 / 1.5 && k < 1.5 && X0 <= 0.01 && Y0 <= 0.01 && X0 + k * C.W >= w - 0.01 && Y0 + k * C.H >= h - 0.01) return { C, k, X0, Y0 };
+    }
+    // (a margin of a quarter of the view, less at the large pixel ratios of Save image)
+    const dpr = MM.pixelRatio(), M = Math.round(Math.max(0, Math.min(0.25 * Math.max(w, h), (4096 / dpr - Math.max(w, h)) / 2)));
+    // (after a pan out of it, the new one reaches further ahead, 0.6 M, the way the view went)
+    let c = pen.c.slice();
+    if (C && C.key === key && C.s === s) {
+      const dx = pen.c[0] - C.c[0], dy = pen.c[1] - C.c[1], l = Math.hypot(dx, dy) * s;
+      // (by whole pixels of the screen, so that the picture does not shift as it is drawn again)
+      const by = (v) => Math.round(v * s * 0.6 * M / l * dpr) / dpr / s;
+      if (l > 0) c = [c[0] + by(dx), c[1] + by(dy)];
+    }
+    if (!C) C = { cv: document.createElement('canvas') };
+    if (C.img && C.img !== C.cv && C.img.close) C.img.close();
+    Object.assign(C, { key, c, s, W: w + 2 * M, H: h + 2 * M, M, img: C.cv });
+    C.bw = Math.max(1, Math.round(C.W * dpr)); C.bh = Math.max(1, Math.round(C.H * dpr));
+    if (C.cv.width !== C.bw || C.cv.height !== C.bh) { C.cv.width = C.bw; C.cv.height = C.bh; }
+    const ctx = C.cv.getContext('2d', { willReadFrequently: true });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(penLayer, 0, 0);
-    ctx.restore();
+    ctx.clearRect(0, 0, C.bw, C.bh);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineJoin = ctx.lineCap = 'round';
+    paintPenrose(ctx, level, C.W, C.H, s, C.c);
+    penCaches.set(level, C);
+    // (once the browser has made it an image ready for drawing, the frames draw that)
+    if (window.createImageBitmap) {
+      const at = C.c;
+      createImageBitmap(C.cv).then((bm) => { if (penCaches.get(level) === C && C.c === at && C.img === C.cv) C.img = bm; else bm.close(); }, () => { /* the canvas it stays */ });
+    }
+    return { C, k: 1, X0: w / 2 - (C.W / 2 + (pen.c[0] - c[0]) * s), Y0: h / 2 - (C.H / 2 - (pen.c[1] - c[1]) * s) };
   }
   function drawPenrose() {
     const { ctx, w, h } = frameCanvas();
-    const pen = state.pen, s = Math.min(w, h) / 2 / pen.span;   // pixels per unit (the finest tiles' edge)
+    const pen = state.pen, s = Math.min(w, h) / 2 / pen.span, dpr = MM.pixelRatio();   // pixels per unit (the finest tiles' edge)
     // The level whose tiles' edges are TILE pixels long, as a real number λ (the sun is level 0).
     // One level is drawn, its tiles' edges between TILE·φ^−0.15 and TILE·φ^0.85 pixels long, kept
     // a little past that (PEN_STAY) so that a pinch that wavers at the end of the range does not
@@ -1250,109 +1318,64 @@
     const kind = pen.tiles, now = performance.now();
     let target = Math.floor(lam + 0.15);
     if (penShown && penShown.kind === kind && lam >= penShown.level - 0.15 - PEN_STAY && lam < penShown.level + 0.85 + PEN_STAY) target = penShown.level;
-    if (!penShown || penShown.kind !== kind) penShown = { level: target, from: null, t0: 0, kind };
+    if (penStill) { /* (Save image: the level for this size alone, below) */ }
+    else if (!penShown || penShown.kind !== kind) penShown = { level: target, from: null, t0: 0, kind };
     else if (target !== penShown.level) {
       const near = Math.abs(target - penShown.level) === 1 && !MM.reduceMotion();
       const back = near && penShown.from === target ? Math.min(1, (now - penShown.t0) / PEN_FADE) : 1;
       penShown = { level: target, from: near ? penShown.level : null, t0: now - (1 - back) * PEN_FADE, kind };
     }
     let a = 1;
-    if (penShown.from !== null) {
+    if (!penStill && penShown.from !== null) {
       a = Math.min(1, (now - penShown.t0) / PEN_FADE);
       if (a >= 1) penShown.from = null;
       else if (!penFrame) penFrame = requestAnimationFrame(() => { penFrame = 0; if (state.kind === 'penrose') drawPenrose(); });
     }
-    const L = penShown.level, F = penShown.from;
-    const box = [pen.c[0] - w / 2 / s - 1, pen.c[0] + w / 2 / s + 1, pen.c[1] - h / 2 / s - 1, pen.c[1] + h / 2 / s + 1];
-    const top = PEN.sun(kind, Math.pow(PHI, PEN_LEVELS));
-    const levels = PEN.cover(kind, top, box, F === null ? L : Math.max(L, F));
-    const at = (p) => [w / 2 + (p[0] - pen.c[0]) * s, h / 2 - (p[1] - pen.c[1]) * s];
-    // the coarser of the two levels, the finer, and how far the finer is shown
+    const L = penStill ? target : penShown.level, F = penStill ? null : penShown.from;
+    // the coarser of the two levels, the finer, and how far the finer is shown: over the coarser,
+    // which stays whole under it if the tiles are filled, and fades out if not
     const coarse = F === null ? L : Math.min(L, F), fine = coarse + 1;
     const u = F === null ? 0 : smooth(0, 1, F < L ? a : 1 - a);
-    const coarseT = levels[coarse] || [], fineT = F === null ? [] : levels[fine] || [];
-    const colours = [MM.color(kind === 'p3' ? 'tile-thin' : 'tile-kite'), MM.color(kind === 'p3' ? 'tile-thick' : 'tile-dart')];
-    // fills: the coarser level's, and the finer level's over them as it comes in
-    const fillT = (list, alpha) => {
-      if (!state.colours) return;
-      withAlpha(ctx, alpha, (c) => {
-        for (const k of [0, 1]) {
-          const cells = cellPaths();
-          for (const tri of list) {
-            if (tri[0] !== k) continue;
-            const A = at(tri[1]), b = at(tri[2]), cc = at(tri[3]), path = cells.at(A[0], A[1]);
-            path.moveTo(A[0], A[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); path.lineTo(A[0], A[1]);
-          }
-          c.fillStyle = colours[k];
-          cells.each((path) => c.fill(path));
-          // (the two halves of a tile meet without a seam: the same colour drawn over the cut)
-          c.strokeStyle = colours[k];
-          c.lineWidth = 0.7;
-          cells.each((path) => c.stroke(path));
-        }
-      });
+    const key = [kind, state.colours, pen.arcs, pen.larger, dpr, w, h].join('|');
+    let scaled = false;
+    const show = (level, alpha) => {
+      if (alpha <= 0.002) return;
+      const { C, k, X0, Y0 } = penCache(level, key, w, h, s);
+      // (unscaled, on whole pixels, so that the tiles' lines stay sharp)
+      const x = k === 1 ? Math.round(X0 * dpr) / dpr : X0, y = k === 1 ? Math.round(Y0 * dpr) / dpr : Y0;
+      if (k !== 1) scaled = true;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(C.img, x, y, k * C.bw / dpr, k * C.bh / dpr);
+      ctx.globalAlpha = 1;
     };
-    // edges: a tile's edges, not the cut between its halves (P3: apex–b and apex–c; P2: apex–b and b–c)
-    const edges = (list, width, alpha) => withAlpha(ctx, alpha, (c) => {
-      const cells = cellPaths();
-      for (const tri of list) {
-        const A = at(tri[1]), b = at(tri[2]), cc = at(tri[3]), path = cells.at(A[0], A[1]);
-        if (kind === 'p3') { path.moveTo(b[0], b[1]); path.lineTo(A[0], A[1]); path.lineTo(cc[0], cc[1]); }
-        else { path.moveTo(A[0], A[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); }
-      }
-      c.strokeStyle = MM.color('edge');
-      c.lineWidth = width;
-      cells.each((path) => c.stroke(path));
-    });
-    fillT(coarseT, 1);
-    fillT(fineT, u);
-    if (pen.larger) {
-      // The tiles two and four levels up, in lighter, wider lines under the tiles' edges: they are
-      // made of tiles and halves of tiles, so where one of their edges passes through a tile it
-      // runs along its axis, and the tile still shows whole.
-      for (const [up, width, col] of [[4, 7, 'pen-larger-4'], [2, 3.6, 'pen-larger-2']]) {
-        for (const [base, alpha] of [[coarse, 1 - u], [fine, u]]) {
-          if (base - up < 0) continue;
-          withAlpha(ctx, alpha, (c) => {
-            const cells = cellPaths();
-            for (const tri of levels[base - up]) for (const [A, B] of PEN.sides(kind, tri)) { const a0 = at(A), b0 = at(B), path = cells.at(a0[0], a0[1]); path.moveTo(a0[0], a0[1]); path.lineTo(b0[0], b0[1]); }
-            c.strokeStyle = MM.color(col);
-            c.lineWidth = width;
-            cells.each((path) => c.stroke(path));
-          });
-        }
-      }
-    }
-    const faint = pen.arcs ? 0.45 : 1;
-    edges(coarseT, 1.1, faint * (1 - u));
-    edges(fineT, 1.1, faint * u);
-    if (pen.arcs) { drawArcs(ctx, kind, coarseT, at, s, 1 - u); drawArcs(ctx, kind, fineT, at, s, u); }
+    show(coarse, F === null || state.colours ? 1 : 1 - u);
+    if (F !== null) show(fine, u);
+    for (const [lv, C] of penCaches) if (lv !== coarse && (F === null || lv !== fine)) { if (C.img !== C.cv && C.img.close) C.img.close(); penCaches.delete(lv); }
+    // drawn sharp at the new scale once the zoom has rested
+    clearTimeout(penRest);
+    if (scaled) penRest = setTimeout(() => { for (const C of penCaches.values()) C.key = ''; if (state.kind === 'penrose') drawPenrose(); }, PEN_REST);
     ctx.strokeStyle = MM.color('rule');
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.roundRect(0.5, 0.5, w - 1, h - 1, 6); ctx.stroke();
     handle.hidden = true;
   }
-  // the arcs of the matching rules, as short straight segments (cellPaths: no curves for Firefox
-  // on Android either)
-  function drawArcs(ctx, kind, list, at, s, alpha) {
-    withAlpha(ctx, alpha, (c) => {
-      for (const colour of [0, 1]) {
-        const cells = cellPaths();
-        for (const tri of list) {
-          const [v, r] = PEN.ARCS[kind][tri[0]][colour], u = PEN.unit(kind, tri), Vt = tri.slice(1), cv = Vt[v];
-          const o = Vt.filter((_, i) => i !== v), R = r * u * s;
-          const a0 = Math.atan2(-(o[0][1] - cv[1]), o[0][0] - cv[0]), a1 = Math.atan2(-(o[1][1] - cv[1]), o[1][0] - cv[0]);
-          let d = a1 - a0;
-          d -= TAU * Math.round(d / TAU);
-          const C = at(cv), n = Math.max(2, Math.min(48, Math.ceil(Math.abs(d) * R / 3))), path = cells.at(C[0], C[1]);
-          path.moveTo(C[0] + R * Math.cos(a0), C[1] + R * Math.sin(a0));
-          for (let k = 1; k <= n; k++) { const t = a0 + d * k / n; path.lineTo(C[0] + R * Math.cos(t), C[1] + R * Math.sin(t)); }
-        }
-        c.strokeStyle = MM.color(colour ? 'arc-2' : 'arc-1');
-        c.lineWidth = 1.3;
-        cells.each((path) => c.stroke(path));
+  function drawArcs(ctx, kind, list, at, s) {
+    for (const colour of [0, 1]) {
+      const path = new Path2D();
+      for (const tri of list) {
+        const [v, r] = PEN.ARCS[kind][tri[0]][colour], u = PEN.unit(kind, tri), Vt = tri.slice(1), c = Vt[v];
+        const o = Vt.filter((_, i) => i !== v), R = r * u;
+        const a0 = Math.atan2(-(o[0][1] - c[1]), o[0][0] - c[0]), a1 = Math.atan2(-(o[1][1] - c[1]), o[1][0] - c[0]);
+        let d = a1 - a0;
+        d -= TAU * Math.round(d / TAU);
+        const C = at(c);
+        path.moveTo(C[0] + R * s * Math.cos(a0), C[1] + R * s * Math.sin(a0));
+        path.arc(C[0], C[1], R * s, a0, a0 + d, d < 0);
       }
-    });
+      ctx.strokeStyle = MM.color(colour ? 'arc-2' : 'arc-1');
+      ctx.lineWidth = 1.3;
+      ctx.stroke(path);
+    }
   }
 
   /* ---------- rank four: in space ---------- */
@@ -2933,6 +2956,7 @@
   let example = null;
   function draw() {
     const k = state.kind;
+    if (k !== 'penrose' && penCaches.size) penDrop();
     if (k === 'polygon') drawPolygon();
     else if (k === 'sphere') {
       if (state.view3 === 'stereo') drawStereo();
@@ -3773,7 +3797,7 @@
   };
   const nums = MM.example.numbers(4);
   example = MM.example({
-    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', o: 'flag', p: 'flag', j: 'text', k: 'int', s: 'number', v: 'rotation', u: rotation4, z: 'number' },
+    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', o: 'flag', p: 'flag', a: 'flag', l: 'flag', j: 'text', k: 'int', s: 'number', v: 'rotation', u: rotation4, z: 'number' },
     view: ['v', 'u', 'z'],
     get() {
       const it = current(), k = state.kind;
@@ -3789,6 +3813,7 @@
       if (it && k === 'space') { w = state.four.w; dd = state.four.dual; }
       return {
         t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate, o: state.rotate4, p: state.petrie,
+        a: k === 'penrose' && state.pen.arcs, l: k === 'penrose' && state.pen.larger,
         j: k === 'sphere' ? state.view3 : k === 'space' ? (state.four.view !== 'space' ? state.four.view : state.four.proj) : k === 'penrose' ? (state.pen.tiles === 'p2' ? 'kites' : 'rhombs') : 'solid',
         k: k === 'sphere' ? state.three.from : state.four.from, s: +(k === 'sphere' ? state.three.t : state.four.t).toFixed(4),
         v: k === 'space' ? state.four.R3 : state.R3, u: state.four.rot,
@@ -3850,6 +3875,9 @@
         state.four.t = Number.isFinite(x.s) ? clamp(x.s, -1, 1) : 0;
       }
       if (k === 'penrose') state.pen.tiles = x.j === 'kites' ? 'p2' : 'p3';
+      // (the arcs and the larger tiles: as the link says for the tiling, and off on Reset)
+      if (k === 'penrose' || named.has('a')) state.pen.arcs = !!x.a;
+      if (k === 'penrose' || named.has('l')) state.pen.larger = !!x.l;
       if (named.has('v')) { if (k === 'space') { state.four.turn = turnOf(x.v, upFrame4()); state.four.R3 = turnR3_4(); } else { state.R3 = x.v; if (state.view3 !== 'stereo') turnFrom(x.v); } }
       if (named.has('u') && k === 'space') state.four.rot = x.u;
       if (k === 'space') state.four.zoom = named.has('z') ? clamp(x.z / 3.2, ZOOM4_OUT, ZOOM4) : 1;
@@ -3870,6 +3898,8 @@
         draw();
       },
     },
-    redraw: () => draw(),
+    // (Save image passes options while it draws the pictures its own way: the tiles then show the
+    // level for that size at once, with no fade, and the page keeps its own)
+    redraw: (o) => { penStill = !!o; try { draw(); } finally { penStill = false; } },
   });
 })();
