@@ -81,6 +81,7 @@ body {
 .rp-ch-arc { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
 .rp-ch-dot { fill: var(--ink-3); }
 .rp-ch-dot.snub { fill: var(--ink-3); opacity: .8; }
+.rp-ch-dot.echo { opacity: .22; }  /* a point of C mirrored into a grey chamber */
 .rp-ch-tint { stroke: none; }
 .rp-ch-label { font-size: 12.5px; text-anchor: middle; fill: var(--ink-2); }
 .rp-chamber-handle { cursor: grab; outline: none; }

@@ -145,7 +145,7 @@
       // Coxeter plane, or its sections by the hyperplanes u·y = t perpendicular to the direction of
       // the corner `from` of C (t in [−1, 1], the vertices at distance at most 1)
       view: 'space', from: 0, t: 0 },
-    colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(), petrie: false,
+    colours: false, mirrors: false, view3: 'solid', rotate: !MM.reduceMotion(), rotate4: false, petrie: false,
     upFlip: false,             // the solid stands on the Petrie polygon's or the sections' axis the other way up
     mirrorHi: null,            // the mirror picked on the sphere: { g: the group's key, key: the mirror's (mirrorKey) }
     // the solid turns like a turntable about an axis kept upright (see upFrame): th about it, ph
@@ -870,6 +870,19 @@
   }
   const turnR3_4 = () => mm(mm(rotX(state.four.turn.ph), rotY(state.four.turn.th)), upFrame4());
   function turnBy4(a, b) { const t = state.four.turn; t.th += a; t.ph = clamp(t.ph + b, -1.55, 1.55); state.four.R3 = turnR3_4(); }
+  // A 4-polytope in space turns in 3D (on the turntable), in 4D (in the plane of the turntable's
+  // axis and the fourth axis, the one the projections take away: the cells rise through the
+  // middle of the picture, from below to above), or both at once at the same speed, a double
+  // rotation, in which every point moves on a great circle.
+  const TURN4 = 0.1; // (radians a second, on the turntable and in 4D alike)
+  const spinsIn4 = () => state.kind === 'space' && !state.four.special && state.four.view === 'space' && space4().kind === 'sphere';
+  const rotating4 = () => state.rotate4 && spinsIn4();
+  function spinW(d) {
+    const u = upFrame4()[1], U = [u[0], u[1], u[2], 0], c = Math.cos(d), s = Math.sin(d), W = [0, 0, 0, 1];
+    // U → cU + sW, W → cW − sU (the middle of the picture, −W, moving up)
+    const G = [0, 1, 2, 3].map((i) => [0, 1, 2, 3].map((j) => (i === j) + (c - 1) * (U[i] * U[j] + W[i] * W[j]) + s * (W[i] * U[j] - U[i] * W[j])));
+    state.four.rot = ortho(mm(G, state.four.rot));
+  }
   // the sphere turned so that the direction u of the model faces the eye (the middle of the
   // stereographic picture), in steps; the solid by its turntable
   function centreSphere(u) {
@@ -1188,18 +1201,37 @@
 
   /* ---------- Penrose ---------- */
   const PEN_LEVELS = 30; // the sun's edges are φ^30 times the finest tiles': as far as the picture can go
+  const PEN_FADE = 260;  // ms: one level of tiles fading into the next
+  let penShown = null, penFrame = 0;  // the level drawn, and the one it is fading from
   function drawPenrose() {
     const { ctx, w, h } = frameCanvas();
     const pen = state.pen, s = Math.min(w, h) / 2 / pen.span;   // pixels per unit (the finest tiles' edge)
-    // The level whose tiles' edges are TILE pixels long, as a real number λ (the sun is level 0):
-    // the level below it is drawn, and the one above it comes in as λ grows (0 ≤ t < 1).
+    // The level whose tiles' edges are TILE pixels long, as a real number λ (the sun is level 0).
+    // One level is drawn, its tiles' edges between TILE·φ^−0.15 and TILE·φ^0.85 pixels long; when
+    // the zoom passes into the next, the next fades in over a moment, so that at rest the picture
+    // never shows two levels at once.
     const TILE = w < 500 ? 22 : 28, lam = Math.max(1, Math.min(PEN_LEVELS - 1e-6, PEN_LEVELS + Math.log(s / TILE) / Math.log(PHI)));
-    const fine = Math.floor(lam) + 1, t = lam - Math.floor(lam);
+    const kind = pen.tiles, target = Math.floor(lam + 0.15), now = performance.now();
+    if (!penShown || penShown.kind !== kind) penShown = { level: target, from: null, t0: 0, kind };
+    else if (target !== penShown.level) {
+      const near = Math.abs(target - penShown.level) === 1 && !MM.reduceMotion();
+      penShown = { level: target, from: near ? penShown.level : null, t0: now, kind };
+    }
+    let a = 1;
+    if (penShown.from !== null) {
+      a = Math.min(1, (now - penShown.t0) / PEN_FADE);
+      if (a >= 1) penShown.from = null;
+      else if (!penFrame) penFrame = requestAnimationFrame(() => { penFrame = 0; if (state.kind === 'penrose') drawPenrose(); });
+    }
+    const L = penShown.level, F = penShown.from;
     const box = [pen.c[0] - w / 2 / s - 1, pen.c[0] + w / 2 / s + 1, pen.c[1] - h / 2 / s - 1, pen.c[1] + h / 2 / s + 1];
-    const kind = pen.tiles, top = PEN.sun(kind, Math.pow(PHI, PEN_LEVELS));
-    const levels = PEN.cover(kind, top, box, fine);
+    const top = PEN.sun(kind, Math.pow(PHI, PEN_LEVELS));
+    const levels = PEN.cover(kind, top, box, F === null ? L : Math.max(L, F));
     const at = (p) => [w / 2 + (p[0] - pen.c[0]) * s, h / 2 - (p[1] - pen.c[1]) * s];
-    const fineT = levels[fine] || [], coarseT = levels[fine - 1] || [];
+    // the coarser of the two levels, the finer, and how far the finer is shown
+    const coarse = F === null ? L : Math.min(L, F), fine = coarse + 1;
+    const u = F === null ? 0 : smooth(0, 1, F < L ? a : 1 - a);
+    const coarseT = levels[coarse] || [], fineT = F === null ? [] : levels[fine] || [];
     const colours = [MM.color(kind === 'p3' ? 'tile-thin' : 'tile-kite'), MM.color(kind === 'p3' ? 'tile-thick' : 'tile-dart')];
     // fills: the coarser level's, and the finer level's over them as it comes in
     const fillT = (list, alpha) => {
@@ -1236,9 +1268,6 @@
       ctx.stroke(path);
       ctx.globalAlpha = 1;
     };
-    // the finer level comes in over the last part of the step: the coarser tiles' edges cut
-    // across the finer tiles, so the two are not shown together for long
-    const u = smooth(0.7, 1, t);
     fillT(coarseT, 1);
     fillT(fineT, u);
     if (pen.larger) {
@@ -1247,7 +1276,7 @@
       // runs along its axis, and the tile still shows whole.
       ctx.lineCap = ctx.lineJoin = 'round';
       for (const [up, width, col] of [[4, 7, 'pen-larger-4'], [2, 3.6, 'pen-larger-2']]) {
-        for (const [base, alpha] of [[fine - 1, 1 - u], [fine, u]]) {
+        for (const [base, alpha] of [[coarse, 1 - u], [fine, u]]) {
           if (alpha <= 0.002 || base - up < 0) continue;
           const path = new Path2D();
           for (const tri of levels[base - up]) for (const [A, B] of PEN.sides(kind, tri)) { const a = at(A), b = at(B); path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); }
@@ -2182,11 +2211,13 @@
     el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-c' }, ch.gShapes);
     ch.cornerTint = el('g', {}, ch.gShapes);
     el('polygon', { points: ptsAttr(A.map(F.px)), class: 'rp-ch-side' }, ch.gShapes);
-    // the special points: the uniform points in C, the snub's in each flap, and the far corner of
-    // each flap (x there gives the same as at the corner of C it mirrors)
-    const snubW = weights(M.walls(snubPoint(g)));
-    ch.specials = RINGS3.map((r) => ({ w: r.slice(), flap: -1 })).concat([0, 1, 2].map((i) => ({ w: snubW, flap: i })), [0, 1, 2].map((k) => ({ w: [0, 1, 2].map((j) => +(j === k)), flap: k })));
-    for (const sp of ch.specials) { const q = ch.toPx(sp.w, sp.flap); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: sp.flap >= 0 && sp.w === snubW ? 'rp-ch-dot snub' : 'rp-ch-dot' }, ch.gDots); }
+    // the special points: the uniform points in C, the snub's in each flap, and the images in each
+    // flap of the uniform points of C on the other walls, its far corner and the points on its
+    // outer sides (x there gives the same as at the point of C it mirrors: lighter)
+    const snubW = weights(M.walls(snubPoint(g))), echoes = [];
+    for (let i = 0; i < 3; i++) for (const r of RINGS3) if (r[i] && r.some((v) => !v)) echoes.push({ w: r.slice(), flap: i, echo: true });
+    ch.specials = RINGS3.map((r) => ({ w: r.slice(), flap: -1 })).concat([0, 1, 2].map((i) => ({ w: snubW, flap: i })), echoes);
+    for (const sp of ch.specials) { const q = ch.toPx(sp.w, sp.flap); el('circle', { cx: q[0].toFixed(1), cy: q[1].toFixed(1), r: 2.6, class: 'rp-ch-dot' + (sp.echo ? ' echo' : sp.flap >= 0 ? ' snub' : '') }, ch.gDots); }
     ch.same = {
       w: ch.specials.map((sp) => sp.w), flap: ch.specials.map((sp) => sp.flap), at: (i) => ch.toPx(ch.specials[i].w, ch.specials[i].flap),
       key: ch.specials.map((sp) => { const on = sp.w.map((v) => v === 0), c = P.vertexConfig(M, on, sp.flap >= 0 && !on.some(Boolean)); return P.confKey(c.sizes) + (c.ideal ? '|i' : ''); }),
@@ -2887,6 +2918,7 @@
       : t3.r === 2 ? 'Schläfli symbol $\\{p,q\\} = \\{' + tx(t3.p) + ',' + tx(t3.q) + '\\}$'
         : 'Triangle group $(p\\;q\\;r) = (' + [t3.p, t3.q, t3.r].map(tx).join('\\;') + ')$';
     if (!sch.hidden && sch.dataset.text !== schText) { sch.dataset.text = schText; MM.setHTML(sch, schText); }
+    $('rotate4').hidden = !spinsIn4();
     $('rotate').hidden = !((k === 'sphere' && state.view3 !== 'stereo') || (k === 'space' && v4 !== 'coxeter'));
     canvas.setAttribute('aria-label', {
       polygon: 'The polygon', sphere: state.view3 === 'stereo' ? 'The tiling of the sphere, projected stereographically to the plane' : state.view3 === 'sections' ? 'The polyhedron, turning in space, with its section by a plane' : 'The polyhedron, turning in space',
@@ -2902,7 +2934,8 @@
   /* ---------- animation ---------- */
   let raf = 0, lastT = 0, morphing = null;
   const visible = MM.whenVisible([stage], (on) => { if (on) tick(); });
-  const turning = () => state.rotate && ((state.kind === 'sphere' && state.view3 !== 'stereo') || (state.kind === 'space' && view4() !== 'coxeter'));
+  const turntable = () => state.rotate && ((state.kind === 'sphere' && state.view3 !== 'stereo') || (state.kind === 'space' && view4() !== 'coxeter'));
+  const turning = () => turntable() || rotating4();
   function animating() { return morphing || flight || turning(); }
   function tick() {
     if (raf || !visible()) return;
@@ -2926,7 +2959,10 @@
     if (turning() && dt && !dragging && !(drag && drag.active)) {
       // (about the screen's upright axis: the picture turns level, whatever the drags have done)
       if (state.kind === 'sphere') state.turn.th += 0.16 * dt;
-      else state.four.turn.th += 0.1 * dt;
+      else {
+        if (turntable()) state.four.turn.th += TURN4 * dt;
+        if (rotating4()) spinW(TURN4 * dt);
+      }
     }
     draw();
     if (animating()) tick(); else lastT = 0;
@@ -2975,6 +3011,7 @@
     $('colours').pressed = state.colours;
     $('mirrors').pressed = state.mirrors;
     $('rotate').pressed = state.rotate;
+    $('rotate4').pressed = state.rotate4;
     $('arcs').pressed = state.pen.arcs;
     $('larger').pressed = state.pen.larger;
     $('view3').value = state.view3;
@@ -3183,7 +3220,8 @@
       path(d, disc ? { 'stroke-width': it.p === 3 || it.q === INF || it.r !== 2 ? 0.4 : 0.6 } : { 'stroke-width': 0.9, 'clip-path': 'url(#rp-mini-' + it.id + ')' });
       return;
     }
-    // rank four: the edges in the picture of the space, a cell in the middle, seen from the side
+    if (!it.special && P.model(it.ms).kind === 'sphere') { mini4(svg, it, path); return; }
+    // the honeycombs: the edges in the picture of the space, a cell in the middle, seen from the side
     let pos, edges, kind, frame;
     if (it.special) { const O = P.octet(2.2), D = P.dual4(O); pos = D.pos; edges = D.edges; kind = 'plane'; frame = 2.4; }
     else {
@@ -3213,6 +3251,71 @@
     }
     if (kind === 'hyperbolic') elx('circle', { cx: S / 2, cy: S / 2, r: 19, fill: 'none', stroke: 'currentColor', 'stroke-width': 0.8, opacity: 0.55 }, svg);
     path(d, { 'stroke-width': kind === 'sphere' ? (it.ms.includes(5) ? 0.35 : 0.7) : 0.5 });
+  }
+  // A regular 4-polytope, projected stereographically from the middle of a cell as the page draws
+  // it, seen a little from above, each edge an arc of a circle drawn as cubic curves. The 5-cell,
+  // the tesseract, the 16-cell and the 24-cell whole, without the edges that reach far out
+  // (towards the point at infinity), so that the curved cells round the middle show; the 120-cell
+  // and the 600-cell, only the middle cell and a few layers of cells round it.
+  function mini4(svg, it, path) {
+    const S = 44, g = group4(it.ms), M = g.M, W = P.wythoff(g.T, M.point(it.w)), few = it.ms.includes(5);
+    const sg = (p) => { const d = 1 - p[3]; return [p[0] / d, p[1] / d, p[2] / d]; };
+    const f2 = (x) => x.toFixed(2);
+    // the smooth path of a curve in the icon, t from 0 to 1: cubic pieces with its tangents
+    function curve(at) {
+      const h = 1e-4, tan = (t) => { const p = at(t + h), q = at(t - h); return [(p[0] - q[0]) / (2 * h), (p[1] - q[1]) / (2 * h)]; };
+      const t0 = tan(0), t1 = tan(1), turn = Math.acos(clamp((t0[0] * t1[0] + t0[1] * t1[1]) / (Math.hypot(...t0) * Math.hypot(...t1) || 1), -1, 1));
+      const n = Math.max(1, Math.ceil(turn / 0.5));
+      let d = 'M' + at(0).map(f2).join(' ');
+      for (let j = 0; j < n; j++) {
+        const s0 = j / n, s1 = (j + 1) / n, p0 = at(s0), p1 = at(s1), d0 = tan(s0), d1 = tan(s1), l = (s1 - s0) / 3;
+        d += 'C' + [p0[0] + l * d0[0], p0[1] + l * d0[1], p1[0] - l * d1[0], p1[1] - l * d1[1], p1[0], p1[1]].map(f2).join(' ');
+      }
+      return d;
+    }
+    const slerp = (A, B, s) => {
+      const om = Math.acos(clamp(dot(A, B), -1, 1)), a = Math.sin((1 - s) * om) / Math.sin(om), b = Math.sin(s * om) / Math.sin(om);
+      return A.map((x, i) => a * x + b * B[i]);
+    };
+    // (the picture as the page starts it, tipped towards the eye)
+    const R4 = mm([[...rotX(0.5)[0], 0], [...rotX(0.5)[1], 0], [...rotX(0.5)[2], 0], [0, 0, 0, 1]], startRot(it.ms));
+    const pts = Array.from({ length: W.V }, (_, v) => mv(R4, norm([0, 1, 2, 3].map((j) => W.pos[4 * v + j]))));
+    if (!few) {
+      const k = 8.5, LIM = 2.4;
+      const at2 = (p) => { const q = sg(p); return [S / 2 + k * q[0], S / 2 - k * q[1]]; };
+      let d = '';
+      for (let i = 0; i < W.edges.length; i += 3) {
+        const A = pts[W.edges[i]], B = pts[W.edges[i + 1]];
+        // (not where it reaches out past LIM from the middle, nor through the point at infinity)
+        let out = false;
+        for (let t = 0; t <= 12 && !out; t++) { const p = slerp(A, B, t / 12); if (1 - p[3] < 1e-6 || Math.hypot(p[0], p[1]) / (1 - p[3]) > LIM) out = true; }
+        if (!out) d += curve((t) => at2(slerp(A, B, t)));
+      }
+      path(d, { 'stroke-width': 0.7 });
+      return;
+    }
+    // the cell in the middle and layers of neighbours round it (cells that share a face with the
+    // last layer): two for the 120-cell, six for the 600-cell, whose cells are smaller; their edges
+    const cellVerts = W.cells.map((cl) => [...new Set(cl.faces.flatMap((f) => W.faces[f].v))]);
+    let mid = 0, best = Infinity;
+    cellVerts.forEach((vs, i) => { const w = vs.reduce((t, v) => t + pts[v][3], 0) / vs.length; if (w < best) { best = w; mid = i; } });
+    const cellsOfFace = new Map();
+    W.cells.forEach((cl, i) => cl.faces.forEach((f) => cellsOfFace.set(f, [...(cellsOfFace.get(f) || []), i])));
+    const inNear = new Set([mid]), layers = it.ms[0] === 5 ? 2 : 6;
+    for (let layer = 0, front = [mid]; layer < layers; layer++) {
+      const next = [];
+      for (const ci of front) for (const f of W.cells[ci].faces) for (const cj of cellsOfFace.get(f)) if (!inNear.has(cj)) { inNear.add(cj); next.push(cj); }
+      front = next;
+    }
+    const edges = new Map();
+    for (const ci of inNear) for (const f of W.cells[ci].faces) { const v = W.faces[f].v; v.forEach((a, i) => { const b = v[(i + 1) % v.length]; edges.set(Math.min(a, b) * 1e5 + Math.max(a, b), [a, b]); }); }
+    // fitted to the icon, round the middle cell's middle
+    const used = [...new Set([...edges.values()].flat())], o = sg(norm(cellVerts[mid].reduce((t, v) => t.map((x, i) => x + pts[v][i]), [0, 0, 0, 0])));
+    const fit = Math.max(...used.map((v) => { const q = sg(pts[v]); return Math.hypot(q[0] - o[0], q[1] - o[1]); })), k = 18.5 / fit;
+    const at2 = (p) => { const q = sg(p); return [S / 2 + k * (q[0] - o[0]), S / 2 - k * (q[1] - o[1])]; };
+    let d = '';
+    for (const [a, b] of edges.values()) d += curve((t) => at2(slerp(pts[a], pts[b], t)));
+    path(d, { 'stroke-width': it.ms[0] === 5 ? 0.4 : 0.45 });
   }
   function clipCircle(svg, id) { MM.svg('circle', { cx: 22, cy: 22, r: 19.5 }, MM.svg('clipPath', { id: 'rp-mini-' + id }, MM.svg('defs', {}, svg))); }
 
@@ -3410,6 +3513,7 @@
   $('colours').addEventListener('change', (e) => { state.colours = e.detail.pressed; draw(); });
   $('mirrors').addEventListener('change', (e) => { state.mirrors = e.detail.pressed; draw(); });
   $('rotate').addEventListener('change', (e) => { state.rotate = e.detail.pressed; lastT = 0; tick(); draw(); });
+  $('rotate4').addEventListener('change', (e) => { state.rotate4 = e.detail.pressed; lastT = 0; tick(); draw(); });
   $('arcs').addEventListener('change', (e) => { state.pen.arcs = e.detail.pressed; draw(); });
   $('larger').addEventListener('change', (e) => { state.pen.larger = e.detail.pressed; draw(); });
   $('tiles').addEventListener('change', (e) => { state.pen.tiles = e.detail.value; draw(); });
@@ -3607,7 +3711,7 @@
   };
   const nums = MM.example.numbers(4);
   example = MM.example({
-    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', p: 'flag', j: 'text', k: 'int', s: 'number', v: 'rotation', u: rotation4, z: 'number' },
+    fields: { t: 'text', w: nums, f: 'int', d: 'flag', c: 'flag', m: 'flag', r: 'flag', o: 'flag', p: 'flag', j: 'text', k: 'int', s: 'number', v: 'rotation', u: rotation4, z: 'number' },
     view: ['v', 'u', 'z'],
     get() {
       const it = current(), k = state.kind;
@@ -3622,7 +3726,7 @@
       if (it && (k === 'sphere' || k === 'plane' || k === 'hyperbolic') && !state.three.special) { w = state.three.w; fl = complex3().snubbed ? state.three.flap : -1; dd = state.three.dual; }
       if (it && k === 'space') { w = state.four.w; dd = state.four.dual; }
       return {
-        t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate, p: state.petrie,
+        t, w, f: fl, d: dd, c: state.colours, m: state.mirrors, r: state.rotate, o: state.rotate4, p: state.petrie,
         j: k === 'sphere' ? state.view3 : k === 'space' ? (state.four.view !== 'space' ? state.four.view : state.four.proj) : k === 'penrose' ? (state.pen.tiles === 'p2' ? 'kites' : 'rhombs') : 'solid',
         k: k === 'sphere' ? state.three.from : state.four.from, s: +(k === 'sphere' ? state.three.t : state.four.t).toFixed(4),
         v: k === 'space' ? state.four.R3 : state.R3, u: state.four.rot,
@@ -3670,6 +3774,7 @@
       state.colours = x.c;
       state.mirrors = x.m;
       state.rotate = x.r && !MM.reduceMotion();
+      state.rotate4 = !!x.o && !MM.reduceMotion();
       if (k === 'sphere') {
         state.view3 = ['stereo', 'sections'].includes(x.j) ? x.j : 'solid';
         state.three.from = x.k >= 0 && x.k <= 2 ? x.k : 0;

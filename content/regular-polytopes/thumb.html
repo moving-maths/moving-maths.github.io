@@ -1,10 +1,11 @@
 <!-- The card image (npm run thumbs): on the left a solid of Wythoff's construction, the
      rhombicosidodecahedron of the group [5,3], in outline with its far edges dashed and its faces
      lightly coloured by the part of the dodecahedron they come from (faces, vertices, edges); on
-     the right the triheptagonal tiling r{7,3} of the hyperbolic plane in the Poincaré disc, coloured
-     the same way. Both computed with the page's polytopes.js and drawn as the page draws them
-     (Colours on), with heavier marks. -->
+     the right a Penrose tiling by thick and thin rhombs round its sun, cropped to a disc. Computed
+     with the page's polytopes.js and penrose.js and drawn as the page draws them (Colours on),
+     with heavier marks. -->
 <script src="polytopes.js"></script>
+<script src="penrose.js"></script>
 <script>
 (function () {
   const P = window.Polytopes, W = MMThumb.W, H = MMThumb.H, TAU = 2 * Math.PI;
@@ -42,62 +43,37 @@
     ctx.globalAlpha = 1;
     stroke(all.filter((e) => e.f.some((fi) => front[fi])), [], MM.color('edge'), 4);
 
-    // the triheptagonal tiling in the disc: its faces over a ground of their mean colour (as the page
-    // draws it: the faces too small to draw show it near the rim), the edges thinner towards the rim
-    const Mh = P.model([7, 3]), Th = P.chambers(Mh, 6), Wh = P.wythoff(Th, P.uniform(Mh, [0, 1, 0]));
-    const ox = 890, oy = H / 2, K = 262;
-    const disc = (v) => { const q = Math.sqrt(Math.max(0, v[2] * v[2] - v[0] * v[0] - v[1] * v[1])), k = 1 / (v[2] + q); return [ox + K * v[0] * k, oy - K * v[1] * k]; };
-    const vtx = (v) => [Wh.pos[3 * v], Wh.pos[3 * v + 1], Wh.pos[3 * v + 2]];
-    const geo = (A, B) => {
-      const c = [A[1] * B[2] - A[2] * B[1], A[2] * B[0] - A[0] * B[2], A[0] * B[1] - A[1] * B[0]], m = [c[0], c[1], -c[2]], l = Math.hypot(m[0], m[1]);
-      if (Math.abs(m[2]) < 1e-9 * l) return null;
-      const k = l / Math.abs(m[2]);
-      return { x: ox + K * m[0] / m[2], y: oy - K * m[1] / m[2], r: K * Math.sqrt(Math.max(0, k * k - 1)) };
-    };
-    const edgeTo = (path, a, b) => {
-      const p = disc(vtx(a)), q = disc(vtx(b)), g = geo(vtx(a), vtx(b));
-      if (!g || g.r > 40 * K || Math.hypot(q[0] - p[0], q[1] - p[1]) < 2) { path.lineTo(q[0], q[1]); return; }
-      const a0 = Math.atan2(p[1] - g.y, p[0] - g.x);
-      let d = Math.atan2(q[1] - g.y, q[0] - g.x) - a0;
-      d -= TAU * Math.round(d / TAU);
-      path.arc(g.x, g.y, g.r, a0, a0 + d, d < 0);
-    };
+    // a Penrose tiling by rhombs in a disc, round the sun in its middle, coloured as the page
+    // colours it: each half-tile filled (and stroked, so the halves meet without a seam), then the
+    // tiles' edges, not the cuts between their halves
+    const PEN = window.Penrose, ox = 890, oy = H / 2, K = 243, EDGE = 40, LEVELS = 5;  // (the disc a little larger than the solid)
+    const lv = PEN.cover('p3', PEN.sun('p3', EDGE * Math.pow((1 + Math.sqrt(5)) / 2, LEVELS)), [-K - 2, K + 2, -K - 2, K + 2], LEVELS)[LEVELS];
+    const px = (p) => [ox + p[0], oy - p[1]];
     ctx.save();
     ctx.beginPath(); ctx.arc(ox, oy, K, 0, TAU); ctx.clip();
-    // the mean colour: each kind of face by its share of the faces' area near the middle
-    const area = (pts) => { let a = 0; pts.forEach((p, i) => { const q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }); return Math.abs(a) / 2; };
-    const share = [0, 0, 0];
-    for (const fc of Wh.faces) {
-      const pts = fc.v.map((v) => disc(vtx(v))), c = pts.reduce((t, p) => [t[0] + p[0] / pts.length, t[1] + p[1] / pts.length], [0, 0]), r = Math.hypot(c[0] - ox, c[1] - oy) / K;
-      if (r < 0.6) share[fc.k] += area(pts) / (1 - r * r) ** 2;
+    ['tile-thin', 'tile-thick'].forEach((col, k) => {
+      const path = new Path2D();
+      for (const t of lv) {
+        if (t[0] !== k) continue;
+        const [A, B, C] = t.slice(1).map(px);
+        path.moveTo(A[0], A[1]); path.lineTo(B[0], B[1]); path.lineTo(C[0], C[1]); path.lineTo(A[0], A[1]);
+      }
+      ctx.fillStyle = ctx.strokeStyle = MM.color(col);
+      ctx.lineWidth = 1.4;
+      ctx.fill(path); ctx.stroke(path);
+    });
+    const tileEdges = new Path2D();
+    for (const t of lv) {
+      const [A, B, C] = t.slice(1).map(px);
+      tileEdges.moveTo(B[0], B[1]); tileEdges.lineTo(A[0], A[1]); tileEdges.lineTo(C[0], C[1]);
     }
-    const rgb = [0, 0, 0], tot = share.reduce((a, b) => a + b, 0);
-    share.forEach((a, k) => { if (a) MM.color(FILL[k]).match(/[\d.]+/g).slice(0, 3).forEach((v, i) => { rgb[i] += a * v / tot; }); });
-    ctx.fillStyle = 'rgb(' + rgb.map(Math.round).join(',') + ')';
-    ctx.fillRect(ox - K, oy - K, 2 * K, 2 * K);
-    const fills = [new Path2D(), new Path2D(), new Path2D()];
-    for (const fc of Wh.faces) {
-      const p0 = disc(vtx(fc.v[0]));
-      fills[fc.k].moveTo(p0[0], p0[1]);
-      fc.v.forEach((v, i) => edgeTo(fills[fc.k], v, fc.v[(i + 1) % fc.v.length]));
-    }
-    fills.forEach((path, k) => { ctx.fillStyle = MM.color(FILL[k]); ctx.fill(path); });
-    const bands = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
-    for (let i = 0; i < Wh.edges.length; i += 3) {
-      const a = Wh.edges[i], b = Wh.edges[i + 1], p = disc(vtx(a)), q = disc(vtx(b));
-      if (Math.hypot(q[0] - p[0], q[1] - p[1]) < 1.2) continue;
-      const mx = ((p[0] + q[0]) / 2 - ox) / K, my = ((p[1] + q[1]) / 2 - oy) / K, room = 1 - mx * mx - my * my;
-      const k = room > 0.5 ? 0 : room > 0.25 ? 1 : room > 0.1 ? 2 : 3;
-      bands[k].moveTo(p[0], p[1]);
-      edgeTo(bands[k], a, b);
-    }
-    bands.forEach((path, k) => { ctx.strokeStyle = MM.rgba('edge', [1, 0.9, 0.75, 0.6][k]); ctx.lineWidth = [3.6, 2.6, 1.7, 1][k]; ctx.stroke(path); });
+    ctx.strokeStyle = MM.color('edge');
+    ctx.lineWidth = 3;
+    ctx.stroke(tileEdges);
     ctx.restore();
     ctx.strokeStyle = MM.color('ink-3');
     ctx.lineWidth = 2;
-    ctx.setLineDash([10, 8]);
     ctx.beginPath(); ctx.arc(ox, oy, K, 0, TAU); ctx.stroke();
-    ctx.setLineDash([]);
   }
   MM.onFonts(draw);
 })();
