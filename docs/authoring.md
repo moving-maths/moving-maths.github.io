@@ -126,7 +126,7 @@ The readouts are blocks (`.side-block`) with a hairline between them. The first,
 }
 ```
 
-A second picture in the readouts that goes with the main one (a plane of values beside a plane of x) comes right under it on a phone, without a rule, before the head, so that both show in one screen while a handle is dragged; the main picture's legend stays under it, and the second picture may be a little smaller there for the two to fit: Stokes phenomenon, Configuration spaces, Picard–Lefschetz formula. Don't fold the head away instead: the legend is needed to read the picture.
+A second picture in the readouts that goes with the main one (a plane of values beside a plane of x) comes right under it on a phone, without a rule, before the head, so that both show in one screen while a handle is dragged; the main picture's legend stays under it, and the second picture may be a little smaller there for the two to fit: Stokes phenomenon, Configuration spaces, Picard–Lefschetz formula, Hilbert schemes. Don't fold the head away instead: the legend is needed to read the picture.
 
 Set the proportion of the columns on the page's class (`.my { --split-main: 1.25fr; }`, the readouts' column being `1fr`). `.split-fit` goes on the picture, or on the box that holds it and the handles placed over it: on a short window it narrows the picture so that the whole column shows under the control bar. Tell it the picture's shape with `--fit-ratio` (width over height, `1` by default) and the height of what follows it in the column with `--split-below` (64px by default). A picture column taller than the window anyway (two pictures, say) scrolls with the page.
 

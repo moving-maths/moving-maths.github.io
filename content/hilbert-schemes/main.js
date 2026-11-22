@@ -244,30 +244,35 @@
   }
   // a polynomial (exact terms, the leading one first) as TeX, or as plain text: its factors x − r
   // and y − s at the coordinates of the points first, then what is left, term by term
-  function texPoly(terms, plain) {
+  function texPoly(terms, plain) { return polyParts(terms, plain).join(''); }
+  // the same as a list of pieces the line may break between: each factor, and each term of
+  // what is left, with its sign (split: in TeX after an empty group, so that it stays binary)
+  function polyParts(terms, plain, split) {
     const { factors, rest } = takeFactors(terms);
     const one = rest.length === 1 && !rest[0].m[0] && !rest[0].m[1] && Q.num(rest[0].c) === 1;
-    const s = factors.map(({ v, root, mult }) => {
+    const fs = factors.map(({ v, root, mult }) => {
       const r = Q.num(root), name = v ? 'y' : 'x', e = mult > 1 ? (plain ? '^' + mult : '^{' + mult + '}') : '';
       if (r === 0) return name + e;
       const f = '(' + name + (r > 0 ? (plain ? ' − ' : '-') : (plain ? ' + ' : '+')) + (plain ? plainNum(Math.abs(r)) : texNum(Math.abs(r))) + ')';
       return f + e;
-    }).join('');
+    });
     // a single linear factor needs no brackets of its own
-    if (one && factors.length === 1 && factors[0].mult === 1 && s[0] === '(') return s.slice(1, -1);
-    if (one && s) return s;
-    const body = expand(rest, plain);
-    return s ? s + (rest.length > 1 ? '(' + body + ')' : body) : body;
+    if (one && fs.length === 1 && factors[0].mult === 1 && fs[0][0] === '(') return [fs[0].slice(1, -1)];
+    if (one && fs.length) return fs;
+    const ts = termParts(rest, plain, split);
+    if (!fs.length) return ts;
+    if (ts.length < 2) return fs.concat(ts);
+    return fs.concat(['(' + ts[0]], ts.slice(1, -1), [ts[ts.length - 1] + ')']);
   }
-  function expand(terms, plain) {
-    let s = '';
-    terms.forEach((t, i) => {
+  function expand(terms, plain) { return termParts(terms, plain).join(''); }
+  function termParts(terms, plain, split) {
+    const out = terms.map((t, i) => {
       const c = Q.num(t.c), a = Math.abs(c), m = plain ? (t.m[0] || t.m[1] ? plainMono(t.m) : '') : texMono(t.m);
       const num = m && Math.abs(a - 1) < 1e-12 ? '' : plain ? plainNum(a) : texNum(a);
-      const sign = c < 0 ? (i ? (plain ? ' − ' : '-') : (plain ? '−' : '-')) : (i ? (plain ? ' + ' : '+') : '');
-      s += sign + num + m;
+      const sign = c < 0 ? (i ? (plain ? ' − ' : split ? '{}-' : '-') : (plain ? '−' : '-')) : (i ? (plain ? ' + ' : split ? '{}+' : '+') : '');
+      return sign + num + m;
     });
-    return s || '0';
+    return out.length ? out : ['0'];
   }
 
   /* ---------- the plane ---------- */
@@ -1217,35 +1222,56 @@
 
   const formulaEl = $('formula');
   let genButtons = [], shownGens = '';
+  function texSpan(cls, tex) {
+    const e = document.createElement('span');
+    e.className = cls;
+    MM.setHTML(e, '$' + tex + '$');
+    return e;
+  }
+  // When the ideal does not fit on one line, each generator starts a line of its own (.is-stacked)
+  function fitFormula() {
+    formulaEl.classList.remove('is-stacked');
+    const g = formulaEl.querySelectorAll('.hs-glue');
+    if (g.length > 1 && g[g.length - 1].getBoundingClientRect().top - g[0].getBoundingClientRect().top > 4) formulaEl.classList.add('is-stacked');
+  }
+  let formulaW = 0;
+  new ResizeObserver(() => { const w = formulaEl.clientWidth; if (w !== formulaW) { formulaW = w; fitFormula(); } }).observe(formulaEl);
+  // The ideal, each generator a control made of pieces (its factors and terms) that the line
+  // breaks between, never inside; I = ( keeps to the first piece, and the comma or the bracket
+  // after a generator to its last. The lines after the first start under the first generator,
+  // and when the generators each start a line, the lines that go on with one a little further in.
   function drawFormula() {
-    const texts = model.gens.map((g) => texPoly(g.terms));
-    const sig = texts.join('|');
+    const parts = model.gens.map((g) => polyParts(g.terms, false, true));
+    const sig = parts.map((p) => p.join('')).join('|');
     if (sig !== shownGens) {
       shownGens = sig;
       formulaEl.textContent = '';
-      const open = document.createElement('span');
-      MM.setHTML(open, '$I=\\bigl($');
-      formulaEl.appendChild(open);
+      const last = model.gens.length - 1;
+      let open = null;
       genButtons = model.gens.map((g, i) => {
-        if (i) {
-          const comma = document.createElement('span');
-          MM.setHTML(comma, '$,\\:$');
-          formulaEl.appendChild(comma);
-          formulaEl.appendChild(document.createElement('wbr'));
-        }
-        const b = document.createElement('button');
-        b.type = 'button';
+        const b = document.createElement('span');
         b.className = 'hs-gen';
+        b.setAttribute('role', 'button');
+        b.tabIndex = 0;
         b.style.setProperty('--c', 'var(--' + genColor(i) + ')');
-        MM.setHTML(b, '$' + texts[i] + '$');
         b.setAttribute('aria-label', 'The generator ' + texPoly(g.terms, true) + ', with leading term ' + plainMono(g.lead) + '; picks out its curve');
-        b.addEventListener('click', () => { state.pick = state.pick === g.key ? null : g.key; changed(true); });
+        parts[i].forEach((tex, k) => {
+          const glue = document.createElement('span');
+          glue.className = 'hs-glue';
+          if (!i && !k) glue.appendChild(open = texSpan('hs-punct', 'I=\\bigl('));
+          glue.appendChild(texSpan('hs-part', tex));
+          if (k === parts[i].length - 1) glue.appendChild(texSpan('hs-punct', i < last ? ',\\:' : '\\bigr)'));
+          if (i || k) b.appendChild(document.createElement('wbr'));
+          b.appendChild(glue);
+        });
+        const pick = () => { state.pick = state.pick === g.key ? null : g.key; changed(true); };
+        b.addEventListener('click', (e) => { if (!e.target.closest('.hs-punct')) pick(); });
+        b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
         formulaEl.appendChild(b);
         return b;
       });
-      const close = document.createElement('span');
-      MM.setHTML(close, '$\\bigr)$');
-      formulaEl.appendChild(close);
+      formulaEl.style.setProperty('--hang', (open ? open.getBoundingClientRect().width : 0) + 'px');
+      fitFormula();
     }
     model.gens.forEach((g, i) => { if (genButtons[i]) genButtons[i].setAttribute('aria-pressed', String(state.pick === g.key)); });
   }

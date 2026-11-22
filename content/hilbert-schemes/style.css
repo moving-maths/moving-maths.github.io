@@ -1,6 +1,6 @@
 /* Hilbert schemes of points.
-   Phone: the plane, the strip of monomial ideals, then the name, the ideal, the
-   staircase and the readouts. Wide: the plane and the strip on the left; on the
+   Phone: the plane and its legend, the ideal and the staircase, then the name, the
+   strip of monomial ideals and the readouts. Wide: the plane and the strip on the left; on the
    right the name and legend, the ideal, the staircase with its weight, the
    readouts. What the figure is about follows as page text, each section with a
    figure of the ideal in view. */
@@ -21,6 +21,24 @@ body {
 }
 
 .hs { --split-main: 1.2fr; }
+/* On a phone the legend of the plane comes under it, and the ideal with its staircase right
+   after, so that both pictures show at once while the points are dragged; then the name,
+   the strip and the readouts. */
+@media (max-width: 899.98px) {
+  .hs { gap: 14px; }
+  .hs > .split-main, .hs > .split-side, .hs .side-head { display: contents; }
+  .hs .side-head > .legend { order: 1; margin-top: 0; }
+  .hs .hs-pres { order: 2; border-top: 0; padding-top: 0; border-bottom: 1px solid var(--rule-2); padding-bottom: 16px; }
+  /* (the staircase before the formula, which for five or six points runs to several lines) */
+  .hs .hs-pres { display: flex; flex-direction: column; align-items: flex-start; }
+  .hs .hs-pres > .label { order: -2; }
+  .hs #stair { order: -1; }
+  .hs .hs-formula { margin: 6px 0 0; }
+  .hs .side-title { order: 3; margin: 0; }
+  .hs .side-head > .side-sub { order: 4; }
+  .hs .strip-block { order: 5; margin-top: 0; }
+  .hs .side-block:not(.side-head):not(.hs-pres) { order: 6; }
+}
 
 /* ---------- the plane ---------- */
 .hs-planebox { position: relative; aspect-ratio: 1; --split-below: 120px; }
@@ -84,14 +102,19 @@ body {
 .hs-how { font-family: var(--sans); font-size: var(--text-label); }
 
 /* the ideal, each generator in the colour of its curve; a click picks out its curve */
-.hs-formula { margin: 0 0 4px; font-size: 16px; line-height: 2; overflow-wrap: anywhere; }
-.hs-gen {
-  appearance: none; border: 0; border-bottom: 1px dotted currentColor; margin: 0; padding: 0 2px; font: inherit; line-height: inherit;
-  color: var(--c, var(--ink)); background: none; border-radius: 4px 4px 0 0; cursor: pointer; max-width: 100%; text-align: left;
-}
-.hs-gen:hover { background: var(--sunken); }
-.hs-gen[aria-pressed="true"] { background: var(--sunken); border-bottom-style: solid; }
+/* (its pieces, .hs-glue, break between them, never inside; the lines after the first hang
+   under the first generator, --hang being the width of I = ( ) */
+.hs-formula { margin: 0 0 4px; font-size: 16px; line-height: 1.85; padding-left: var(--hang, 0px); text-indent: calc(-1 * var(--hang, 0px)); }
+.hs-glue { white-space: nowrap; }
+.hs-formula.is-stacked .hs-gen { display: block; padding-left: 1em; text-indent: -1em; text-wrap: balance; }
+.hs-formula.is-stacked .hs-gen:first-child { text-indent: calc(-1em - var(--hang, 0px)); }
+.hs-gen { color: var(--c, var(--ink)); border-radius: 3px; }
 .hs-gen:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* the underline just under the maths, under the factors and terms, not the punctuation */
+.hs-part { border-bottom: 1px dotted currentColor; padding-bottom: 2px; cursor: pointer; }
+.hs-punct { color: var(--ink); }
+.hs-gen:hover .hs-part, .hs-gen[aria-pressed="true"] .hs-part { background: var(--sunken); }
+.hs-gen[aria-pressed="true"] .hs-part { border-bottom-style: solid; }
 
 /* the staircase, the corners, and the weight on its dial */
 #stair { display: block; max-width: 100%; height: auto; margin: 4px 0 0; overflow: visible; }
