@@ -34,6 +34,20 @@ body {
 .pl-sheets { display: inline-block; width: 15px; height: 13px; border-radius: 3px; flex: none; border: 1px solid var(--rule); background: linear-gradient(var(--surface) 50%, color-mix(in srgb, var(--land) 20%, var(--surface)) 50%); }
 
 .pl { --split-main: 1.25fr; --split-below: 40px; }
+/* On a phone the legend of the plane of x comes under it, and the plane of values (a little
+   smaller) right after, so that both pictures show at once while a is dragged; then the name
+   and what the level sets are, and the rest. */
+@media (max-width: 899.98px) {
+  .pl { gap: 14px; }
+  .pl > .split-main, .pl > .split-side, .pl .side-head { display: contents; }
+  .pl-main > .hint { margin-top: -6px; }
+  .pl .side-head > .legend { order: 1; margin-top: 0; }
+  .pl .pl-zblock { order: 2; border-top: 0; padding-top: 0; border-bottom: 1px solid var(--rule-2); padding-bottom: 16px; }
+  .pl .pl-zplane { max-width: 250px; }
+  .pl .side-title { order: 3; margin: 0; }
+  .pl .pl-about { order: 4; margin: 0; }
+  .pl .side-block:not(.side-head):not(.pl-zblock) { order: 5; }
+}
 
 /* ---------- the plane of x ---------- */
 .pl-xplane { position: relative; }
