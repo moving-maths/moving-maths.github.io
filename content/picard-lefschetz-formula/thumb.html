@@ -1,37 +1,27 @@
-<!-- The card image (npm run thumbs): the page's two pictures as it opens (μ = 3, n = 3), computed
-     with lefschetz.js as main.js computes them, with heavier marks so that they read at card size.
-     Left, the plane of x, shaded by |p(x) − z| with its level lines, the roots of p(x) = z, the
-     vanishing spheres over the arcs of the straight paths (their outlines, a few of their circles
-     and their orientations) and the critical points. Right, the plane of values: the Stokes rays,
-     the straight paths from z to the critical values, the critical values and the handle z. -->
+<!-- The card image (npm run thumbs): the main picture, the plane of x, for d = 3 and n = 3 with the
+     value a where the page opens, computed with lefschetz.js as main.js computes it, with heavier
+     marks so that it reads at card size, across the whole card: shaded by |p(x) − a| with its level
+     lines, the roots of p(x) = a, the vanishing spheres over the arcs of the straight paths (their
+     outlines, a few of their circles and their orientations) and the critical points. (In the
+     script, z is the value a, as in main.js.) -->
 <script src="lefschetz.js"></script>
 <script>
 (function () {
   const W = MMThumb.W, H = MMThumb.H, cx = MMThumb.canvas(), PL = window.Lefschetz, TAU = 2 * Math.PI;
   const crit = [[-0.918, -0.239], [0.1, -0.241], [0.818, 0.48]];
   const P = PL.poly(crit), dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  // the page's windows (main.js, fit): the plane of values round the critical values and z, the
-  // plane of x round the roots of p(x) = w for w in it
+  // the value where the page opens (main.js)
   let Rc = 1e-3;
   P.vals.forEach((v) => { Rc = Math.max(Rc, Math.hypot(v[0], v[1])); });
-  const z = [0, -1.25 * Rc], zv = { cx: 0, cy: -0.15 * Rc, R: Math.max(1.6 * Rc, 1.2 * Math.hypot(z[0], z[1] + 0.15 * Rc)) };
-  let Rx = 0, guess = null;
-  for (let k = 0; k < 96; k++) {
-    const t = k / 96 * TAU;
-    guess = PL.roots(P, zv.cx + 1.2 * zv.R * Math.cos(t), zv.cy + 1.2 * zv.R * Math.sin(t), guess);
-    guess.forEach((q) => { Rx = Math.max(Rx, Math.hypot(q[0], q[1])); });
-  }
-  crit.forEach((c) => { Rx = Math.max(Rx, 1.15 * Math.hypot(c[0], c[1])); });
-  const xv = { cx: 0, cy: 0, R: 1.04 * Rx };
-  // the two squares on the card
-  const box = (v, x0, y0, side) => {
-    const k = side / (2 * v.R);
-    return { k, x0, y0, side, X: (x) => x0 + side / 2 + (x - v.cx) * k, Y: (y) => y0 + side / 2 - (y - v.cy) * k, x: (px) => v.cx + (px - x0 - side / 2) / k, y: (py) => v.cy - (py - y0 - side / 2) / k };
-  }
-  const XB = box(xv, 40, 35, 560), ZB = box(zv, 650, 65, 500);
+  const z = [0, -1.25 * Rc];
+  // the whole card, round the roots of p(x) = z and the critical points, with room for the spheres
+  const rts = PL.roots(P, z[0], z[1]), pts = rts.concat(crit);
+  const bx0 = Math.min(...pts.map((q) => q[0])), bx1 = Math.max(...pts.map((q) => q[0])), by0 = Math.min(...pts.map((q) => q[1])), by1 = Math.max(...pts.map((q) => q[1]));
+  const kx = Math.min((W - 2 * 110) / (bx1 - bx0), (H - 2 * 75) / (by1 - by0)), mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+  const XB = { k: kx, x0: 0, y0: 0, w: W, h: H, X: (x) => W / 2 + (x - mx) * kx, Y: (y) => H / 2 - (y - my) * kx, x: (px) => mx + (px - W / 2) / kx, y: (py) => my - (py - H / 2) / kx };
 
   // the cycles along the straight paths from z, oriented as on the page
-  const rts = PL.roots(P, z[0], z[1]), h = 2 / XB.k;
+  const h = 2 / XB.k;
   const raw = P.vals.map((v, j) => {
     const r = Math.sqrt(dist(z, v)), ph = Math.atan2(z[1] - v[1], z[0] - v[0]);
     const A = PL.lift(P, j, [z[0], z[1], v[0], v[1]], [1, 0], [r * Math.cos(ph / 2), r * Math.sin(ph / 2)], h);
@@ -79,8 +69,8 @@
     // critical points, with its level lines, those through the critical points darker (main.js,
     // landImage)
     cx.save();
-    cx.beginPath(); cx.rect(XB.x0, XB.y0, XB.side, XB.side); cx.clip();
-    const sig = 0.4 * Rc, G0 = 5, nx = Math.ceil(XB.side / G0) + 1, ny = nx, G = new Float64Array(nx * ny), e = [0, 0, 0, 0];
+    cx.beginPath(); cx.rect(XB.x0, XB.y0, XB.w, XB.h); cx.clip();
+    const sig = 0.4 * Rc, G0 = 5, nx = Math.ceil(XB.w / G0) + 1, ny = Math.ceil(XB.h / G0) + 1, G = new Float64Array(nx * ny), e = [0, 0, 0, 0];
     const g = (x, y) => { PL.evalPD(P, x, y, e); return Math.asinh(Math.hypot(e[0] - z[0], e[1] - z[1]) / sig); };
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) G[j * nx + i] = g(XB.x(XB.x0 + i * G0), XB.y(XB.y0 + j * G0));
     const lv = P.vals.map((v) => Math.asinh(dist(v, z) / sig)).sort((a, b) => a - b), mid = lv[lv.length >> 1];
@@ -148,33 +138,6 @@
       cx.fillStyle = MM.color('handle'); cx.strokeStyle = MM.color('cy-' + (j + 1) + '-text'); cx.lineWidth = 4.5;
       cx.beginPath(); cx.arc(XB.X(c[0]), XB.Y(c[1]), 15, 0, TAU); cx.fill(); cx.stroke();
     });
-    cx.restore();
-
-    // the plane of values: axes, Stokes rays, the paths from z, the critical values, z
-    const Z = ZB;
-    cx.save();
-    cx.beginPath(); cx.rect(Z.x0, Z.y0, Z.side, Z.side); cx.clip();
-    cx.strokeStyle = MM.rgba('ink', 0.3); cx.lineWidth = 2;
-    cx.beginPath();
-    cx.moveTo(Z.x0, Z.Y(0)); cx.lineTo(Z.x0 + Z.side, Z.Y(0));
-    cx.moveTo(Z.X(0), Z.y0); cx.lineTo(Z.X(0), Z.y0 + Z.side);
-    cx.stroke();
-    const vals = P.vals, far = 4 * zv.R;
-    cx.strokeStyle = MM.rgba('red', 0.5); cx.lineWidth = 2.8;
-    vals.forEach((zj, j) => vals.forEach((zk, k) => {
-      if (j === k) return;
-      const L = dist(zk, zj);
-      cx.beginPath(); cx.moveTo(Z.X(zk[0]), Z.Y(zk[1])); cx.lineTo(Z.X(zk[0] + (zk[0] - zj[0]) / L * far), Z.Y(zk[1] + (zk[1] - zj[1]) / L * far)); cx.stroke();
-    }));
-    vals.forEach((v, j) => {
-      cx.strokeStyle = MM.color('cy-' + (j + 1) + '-line'); cx.lineWidth = 5;
-      cx.beginPath(); cx.moveTo(Z.X(z[0]), Z.Y(z[1])); cx.lineTo(Z.X(v[0]), Z.Y(v[1])); cx.stroke();
-    });
-    vals.forEach((v, j) => { cx.fillStyle = MM.color('cy-' + (j + 1)); cx.beginPath(); cx.arc(Z.X(v[0]), Z.Y(v[1]), 12, 0, TAU); cx.fill(); });
-    const hx = Z.X(z[0]), hy = Z.Y(z[1]);
-    cx.fillStyle = MM.color('surface'); cx.beginPath(); cx.arc(hx, hy, 24, 0, TAU); cx.fill();
-    cx.strokeStyle = MM.color('handle-ring'); cx.lineWidth = 4.5; cx.beginPath(); cx.arc(hx, hy, 24, 0, TAU); cx.stroke();
-    cx.fillStyle = MM.color('handle'); cx.beginPath(); cx.arc(hx, hy, 16, 0, TAU); cx.fill();
     cx.restore();
   }
   MM.onFonts(draw);

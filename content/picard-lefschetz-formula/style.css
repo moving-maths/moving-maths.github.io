@@ -1,8 +1,7 @@
 /* Picard–Lefschetz formula.
-   Wide: the plane of x on the left; on the right the function, the legend and what the level sets
+   Wide: the plane of x on the left; on the right the function, its legend and what its level sets
    are, the plane of values with the handle of a, the monodromy and the intersection form.
-   Phone: the plane of x, the function and the legend, the plane of values (close under them, so
-   that the picture shows while a moves), what the level sets are, then the rest. */
+   Phone: the plane of x, then the same blocks in the same order. */
 
 /* One colour for each vanishing cycle Δ_i, its path γ_i, its critical point and critical value;
    main.js reads the same names through MM.color. */
@@ -35,13 +34,6 @@ body {
 .pl-sheets { display: inline-block; width: 15px; height: 13px; border-radius: 3px; flex: none; border: 1px solid var(--rule); background: linear-gradient(var(--surface) 50%, color-mix(in srgb, var(--land) 20%, var(--surface)) 50%); }
 
 .pl { --split-main: 1.25fr; --split-below: 40px; }
-@media (max-width: 899.98px) {
-  .pl > .split-main, .pl > .split-side { display: contents; }
-  .pl .side-head { order: 1; }
-  .pl .pl-zblock { order: 2; }
-  .pl .pl-about { order: 3; }
-  .pl .side-block:not(.side-head):not(.pl-zblock):not(.pl-about) { order: 4; }
-}
 
 /* ---------- the plane of x ---------- */
 .pl-xplane { position: relative; }
@@ -60,6 +52,8 @@ body {
 .pl-zh:active { cursor: grabbing; }
 
 /* ---------- readouts ---------- */
+/* what the level sets are, under the legend: text to read, smaller than a subtitle */
+.pl-about { margin: 12px 0 0; font-size: 14px; line-height: 1.55; color: var(--ink); }
 .pl-mono { font-size: 15px; line-height: 1.7; color: var(--ink-2); }
 .pl-mono p { margin: 0; }
 .pl-rule { margin: 6px 0 0; color: var(--ink-3); font-size: 14px; }
@@ -78,7 +72,6 @@ body {
 .pl-dialbox { position: relative; width: 170px; margin: 0 auto; }
 .pl-dialbox canvas { display: block; width: 170px; height: 170px; }
 .pl-dialh { --handle-size: 36px; cursor: grab; }
-.pl-twval { margin-top: 6px; }
 .pl-zblock .legend { margin-top: 10px; }
 .pl-dynbox { display: flex; justify-content: center; }
 .pl-eigbox { display: flex; justify-content: center; }

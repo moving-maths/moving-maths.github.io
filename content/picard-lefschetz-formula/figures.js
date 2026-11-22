@@ -361,6 +361,13 @@
     const key = JSON.stringify([W, n, S, vals]);
     if (svg.dataset.key === key) return;
     svg.dataset.key = key;
+    // its caption, for the n in the bar
+    const cap = $('dyn-cap');
+    if (cap && cap.dataset.n !== String(n)) {
+      cap.dataset.n = String(n);
+      MM.setHTML(cap, 'The Dynkin diagram of the basis in the picture at the top: a node for each $\\Delta_i$, placed as its critical value, and '
+        + (n === 2 ? 'an arrow from $i$ to $j$ where $\\langle\\Delta_i,\\Delta_j\\rangle=1$.' : 'an edge where $\\langle\\Delta_i,\\Delta_j\\rangle\\ne0$, dashed where it is $' + (n === 1 ? '1' : '-1') + '$.'));
+    }
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.style.width = W + 'px'; svg.style.height = H + 'px';
     svg.textContent = '';
     const P = vals.map((v) => [W / 2 + (v[0] - (x0 + x1) / 2) * k, H / 2 - (v[1] - (y0 + y1) / 2) * k]);
@@ -370,14 +377,14 @@
       if (!t) continue;
       const g = el('g', {}, svg), [a, b] = t > 0 || n % 2 ? [P[i], P[j]] : [P[j], P[i]];
       const l = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / l, uy = (b[1] - a[1]) / l;
-      el('line', { x1: a[0] + ux * 13, y1: a[1] + uy * 13, x2: b[0] - ux * 13, y2: b[1] - uy * 13, stroke: 'var(--ink)', 'stroke-width': 1.8, 'stroke-dasharray': n % 2 && t * (n === 1 ? -1 : 1) < 0 ? '5 4' : 'none' }, g);
+      el('line', { x1: a[0] + ux * 11, y1: a[1] + uy * 11, x2: b[0] - ux * 11, y2: b[1] - uy * 11, stroke: 'var(--ink)', 'stroke-width': 1.8, 'stroke-dasharray': n % 2 && t * (n === 1 ? -1 : 1) < 0 ? '5 4' : 'none' }, g);
       if (n % 2 === 0) { const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2; el('path', { d: 'M' + (mx - ux * 6 - uy * 5) + ' ' + (my - uy * 6 + ux * 5) + 'L' + (mx + ux * 4) + ' ' + (my + uy * 4) + 'L' + (mx - ux * 6 + uy * 5) + ' ' + (my - uy * 6 - ux * 5), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 1.8 }, g); }
-      if (Math.abs(t) > 1) { const lbl = el('text', { x: (a[0] + b[0]) / 2 - uy * 12, y: (a[1] + b[1]) / 2 + ux * 12 + 4, 'text-anchor': 'middle', 'font-size': 14 }, g); MM.svgLabel(lbl, '$' + Math.abs(t) + '$'); }
+      if (Math.abs(t) > 1) el('text', { x: (a[0] + b[0]) / 2 - uy * 12, y: (a[1] + b[1]) / 2 + ux * 12 + 4, 'text-anchor': 'middle', style: 'font:600 13px var(--sans);fill:var(--ink)' }, g).textContent = String(Math.abs(t));
     }
     P.forEach((p, i) => {
+      // (its number in Inter, in its cycle's colour, as on the handles of the main picture)
       el('circle', { cx: p[0], cy: p[1], r: 11, fill: 'var(--surface)', stroke: 'var(--cy-' + (i + 1) + '-text)', 'stroke-width': 2.4 }, svg);
-      const t = el('text', { x: p[0], y: p[1] + 5, 'text-anchor': 'middle', 'font-size': 14, fill: 'var(--cy-' + (i + 1) + '-text)' }, svg);
-      MM.svgLabel(t, '$' + (i + 1) + '$');
+      el('text', { x: p[0], y: p[1] + 4.6, 'text-anchor': 'middle', style: 'font:600 13px var(--sans);fill:var(--cy-' + (i + 1) + '-text)' }, svg).textContent = String(i + 1);
     });
   }
 
@@ -443,7 +450,9 @@
     // its order
     let P = PL.eye(mu), ord = 0;
     for (let k = 1; k <= 2 * N; k++) { P = PL.matmul(P, H); if (P.every((r, i) => r.every((x, j) => x === +(i === j)))) { ord = k; break; } }
-    MM.setHTML($('eig-val'), ord ? '$h$ has order $' + ord + '$.' : '');
+    // the caption, with the ticks for this d and n, and the order
+    const nth = ['', '', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'][N] || '$(' + N + ')$-th';
+    MM.setHTML($('eig-cap'), 'The eigenvalues of the classical monodromy $h$ on the unit circle, with ticks at ' + (n % 2 ? 'the ' : 'minus the ') + nth + ' roots of unity' + (ord ? '; $h$ has order $' + ord + '$.' : '.'));
   }
 
   /* ---------- the whole ---------- */
