@@ -1202,20 +1202,59 @@
   /* ---------- Penrose ---------- */
   const PEN_LEVELS = 30; // the sun's edges are φ^30 times the finest tiles': as far as the picture can go
   const PEN_FADE = 260;  // ms: one level of tiles fading into the next
-  let penShown = null, penFrame = 0;  // the level drawn, and the one it is fading from
+  const PEN_STAY = 0.12; // how far past its range (in levels) the zoom goes before the next level comes in
+  const PEN_CELL = 160;  // CSS pixels: the side of the grid's cells (cellPaths)
+  let penShown = null, penFrame = 0, penLayer = null;  // the level drawn, and the one it is fading from
+  // The paths of the tiling, one to a cell of a grid PEN_CELL pixels square. Firefox on Android
+  // draws the canvas on the GPU, and it gets a path wrong that has thousands of pieces across the
+  // whole picture: it leaves part of it out, or fills the whole box round it in its colour. at(x, y):
+  // the path of the cell of the point (x, y); each(fn): fn on every path.
+  function cellPaths() {
+    const m = new Map();
+    return {
+      at(x, y) { const k = Math.floor(x / PEN_CELL) + ',' + Math.floor(y / PEN_CELL); let path = m.get(k); if (!path) m.set(k, (path = new Path2D())); return path; },
+      each(fn) { m.forEach((path) => fn(path)); },
+    };
+  }
+  // draw(c) on the picture at the alpha `alpha`: below 1, opaque into a second canvas and from it onto
+  // the picture, so that where the paths of neighbouring cells overlap it is no darker
+  function withAlpha(ctx, alpha, draw) {
+    if (alpha <= 0.002) return;
+    if (alpha >= 0.998) { draw(ctx); return; }
+    const cv = ctx.canvas;
+    if (!penLayer) penLayer = document.createElement('canvas');
+    if (penLayer.width !== cv.width || penLayer.height !== cv.height) { penLayer.width = cv.width; penLayer.height = cv.height; }
+    const c = penLayer.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.setTransform(ctx.getTransform());
+    c.lineCap = ctx.lineCap;
+    c.lineJoin = ctx.lineJoin;
+    draw(c);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(penLayer, 0, 0);
+    ctx.restore();
+  }
   function drawPenrose() {
     const { ctx, w, h } = frameCanvas();
     const pen = state.pen, s = Math.min(w, h) / 2 / pen.span;   // pixels per unit (the finest tiles' edge)
     // The level whose tiles' edges are TILE pixels long, as a real number λ (the sun is level 0).
-    // One level is drawn, its tiles' edges between TILE·φ^−0.15 and TILE·φ^0.85 pixels long; when
-    // the zoom passes into the next, the next fades in over a moment, so that at rest the picture
-    // never shows two levels at once.
+    // One level is drawn, its tiles' edges between TILE·φ^−0.15 and TILE·φ^0.85 pixels long, kept
+    // a little past that (PEN_STAY) so that a pinch that wavers at the end of the range does not
+    // change it to and fro; when the zoom passes into the next, the next fades in over a moment
+    // (and back out, from where it is, if the zoom turns back meanwhile), so that at rest the
+    // picture never shows two levels at once.
     const TILE = w < 500 ? 22 : 28, lam = Math.max(1, Math.min(PEN_LEVELS - 1e-6, PEN_LEVELS + Math.log(s / TILE) / Math.log(PHI)));
-    const kind = pen.tiles, target = Math.floor(lam + 0.15), now = performance.now();
+    const kind = pen.tiles, now = performance.now();
+    let target = Math.floor(lam + 0.15);
+    if (penShown && penShown.kind === kind && lam >= penShown.level - 0.15 - PEN_STAY && lam < penShown.level + 0.85 + PEN_STAY) target = penShown.level;
     if (!penShown || penShown.kind !== kind) penShown = { level: target, from: null, t0: 0, kind };
     else if (target !== penShown.level) {
       const near = Math.abs(target - penShown.level) === 1 && !MM.reduceMotion();
-      penShown = { level: target, from: near ? penShown.level : null, t0: now, kind };
+      const back = near && penShown.from === target ? Math.min(1, (now - penShown.t0) / PEN_FADE) : 1;
+      penShown = { level: target, from: near ? penShown.level : null, t0: now - (1 - back) * PEN_FADE, kind };
     }
     let a = 1;
     if (penShown.from !== null) {
@@ -1235,88 +1274,85 @@
     const colours = [MM.color(kind === 'p3' ? 'tile-thin' : 'tile-kite'), MM.color(kind === 'p3' ? 'tile-thick' : 'tile-dart')];
     // fills: the coarser level's, and the finer level's over them as it comes in
     const fillT = (list, alpha) => {
-      if (alpha <= 0.002 || !state.colours) return;
-      ctx.globalAlpha = alpha;
-      for (const k of [0, 1]) {
-        const path = new Path2D();
-        for (const tri of list) {
-          if (tri[0] !== k) continue;
-          const a = at(tri[1]), b = at(tri[2]), cc = at(tri[3]);
-          path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); path.lineTo(a[0], a[1]);
+      if (!state.colours) return;
+      withAlpha(ctx, alpha, (c) => {
+        for (const k of [0, 1]) {
+          const cells = cellPaths();
+          for (const tri of list) {
+            if (tri[0] !== k) continue;
+            const A = at(tri[1]), b = at(tri[2]), cc = at(tri[3]), path = cells.at(A[0], A[1]);
+            path.moveTo(A[0], A[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); path.lineTo(A[0], A[1]);
+          }
+          c.fillStyle = colours[k];
+          cells.each((path) => c.fill(path));
+          // (the two halves of a tile meet without a seam: the same colour drawn over the cut)
+          c.strokeStyle = colours[k];
+          c.lineWidth = 0.7;
+          cells.each((path) => c.stroke(path));
         }
-        ctx.fillStyle = colours[k];
-        ctx.fill(path);
-        // (the two halves of a tile meet without a seam: the same colour drawn over the cut)
-        ctx.strokeStyle = colours[k];
-        ctx.lineWidth = 0.7;
-        ctx.stroke(path);
-      }
-      ctx.globalAlpha = 1;
+      });
     };
     // edges: a tile's edges, not the cut between its halves (P3: apex–b and apex–c; P2: apex–b and b–c)
-    const edges = (list, width, alpha, light) => {
-      if (alpha <= 0.002) return;
-      const path = new Path2D();
+    const edges = (list, width, alpha) => withAlpha(ctx, alpha, (c) => {
+      const cells = cellPaths();
       for (const tri of list) {
-        const a = at(tri[1]), b = at(tri[2]), cc = at(tri[3]);
-        if (kind === 'p3') { path.moveTo(b[0], b[1]); path.lineTo(a[0], a[1]); path.lineTo(cc[0], cc[1]); }
-        else { path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); }
+        const A = at(tri[1]), b = at(tri[2]), cc = at(tri[3]), path = cells.at(A[0], A[1]);
+        if (kind === 'p3') { path.moveTo(b[0], b[1]); path.lineTo(A[0], A[1]); path.lineTo(cc[0], cc[1]); }
+        else { path.moveTo(A[0], A[1]); path.lineTo(b[0], b[1]); path.lineTo(cc[0], cc[1]); }
       }
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = MM.rgba('edge', light || 1);
-      ctx.lineWidth = width;
-      ctx.stroke(path);
-      ctx.globalAlpha = 1;
-    };
+      c.strokeStyle = MM.color('edge');
+      c.lineWidth = width;
+      cells.each((path) => c.stroke(path));
+    });
     fillT(coarseT, 1);
     fillT(fineT, u);
     if (pen.larger) {
       // The tiles two and four levels up, in lighter, wider lines under the tiles' edges: they are
       // made of tiles and halves of tiles, so where one of their edges passes through a tile it
       // runs along its axis, and the tile still shows whole.
-      ctx.lineCap = ctx.lineJoin = 'round';
       for (const [up, width, col] of [[4, 7, 'pen-larger-4'], [2, 3.6, 'pen-larger-2']]) {
         for (const [base, alpha] of [[coarse, 1 - u], [fine, u]]) {
-          if (alpha <= 0.002 || base - up < 0) continue;
-          const path = new Path2D();
-          for (const tri of levels[base - up]) for (const [A, B] of PEN.sides(kind, tri)) { const a = at(A), b = at(B); path.moveTo(a[0], a[1]); path.lineTo(b[0], b[1]); }
-          ctx.globalAlpha = alpha;
-          ctx.strokeStyle = MM.color(col);
-          ctx.lineWidth = width;
-          ctx.stroke(path);
-          ctx.globalAlpha = 1;
+          if (base - up < 0) continue;
+          withAlpha(ctx, alpha, (c) => {
+            const cells = cellPaths();
+            for (const tri of levels[base - up]) for (const [A, B] of PEN.sides(kind, tri)) { const a0 = at(A), b0 = at(B), path = cells.at(a0[0], a0[1]); path.moveTo(a0[0], a0[1]); path.lineTo(b0[0], b0[1]); }
+            c.strokeStyle = MM.color(col);
+            c.lineWidth = width;
+            cells.each((path) => c.stroke(path));
+          });
         }
       }
     }
     const faint = pen.arcs ? 0.45 : 1;
-    edges(coarseT, 1.1, 1 - u, faint);
-    edges(fineT, 1.1, u, faint);
+    edges(coarseT, 1.1, faint * (1 - u));
+    edges(fineT, 1.1, faint * u);
     if (pen.arcs) { drawArcs(ctx, kind, coarseT, at, s, 1 - u); drawArcs(ctx, kind, fineT, at, s, u); }
     ctx.strokeStyle = MM.color('rule');
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.roundRect(0.5, 0.5, w - 1, h - 1, 6); ctx.stroke();
     handle.hidden = true;
   }
+  // the arcs of the matching rules, as short straight segments (cellPaths: no curves for Firefox
+  // on Android either)
   function drawArcs(ctx, kind, list, at, s, alpha) {
-    if (alpha <= 0.002) return;
-    ctx.globalAlpha = alpha;
-    for (const colour of [0, 1]) {
-      const path = new Path2D();
-      for (const tri of list) {
-        const [v, r] = PEN.ARCS[kind][tri[0]][colour], u = PEN.unit(kind, tri), Vt = tri.slice(1), c = Vt[v];
-        const o = Vt.filter((_, i) => i !== v), R = r * u;
-        const a0 = Math.atan2(-(o[0][1] - c[1]), o[0][0] - c[0]), a1 = Math.atan2(-(o[1][1] - c[1]), o[1][0] - c[0]);
-        let d = a1 - a0;
-        d -= TAU * Math.round(d / TAU);
-        const C = at(c);
-        path.moveTo(C[0] + R * s * Math.cos(a0), C[1] + R * s * Math.sin(a0));
-        path.arc(C[0], C[1], R * s, a0, a0 + d, d < 0);
+    withAlpha(ctx, alpha, (c) => {
+      for (const colour of [0, 1]) {
+        const cells = cellPaths();
+        for (const tri of list) {
+          const [v, r] = PEN.ARCS[kind][tri[0]][colour], u = PEN.unit(kind, tri), Vt = tri.slice(1), cv = Vt[v];
+          const o = Vt.filter((_, i) => i !== v), R = r * u * s;
+          const a0 = Math.atan2(-(o[0][1] - cv[1]), o[0][0] - cv[0]), a1 = Math.atan2(-(o[1][1] - cv[1]), o[1][0] - cv[0]);
+          let d = a1 - a0;
+          d -= TAU * Math.round(d / TAU);
+          const C = at(cv), n = Math.max(2, Math.min(48, Math.ceil(Math.abs(d) * R / 3))), path = cells.at(C[0], C[1]);
+          path.moveTo(C[0] + R * Math.cos(a0), C[1] + R * Math.sin(a0));
+          for (let k = 1; k <= n; k++) { const t = a0 + d * k / n; path.lineTo(C[0] + R * Math.cos(t), C[1] + R * Math.sin(t)); }
+        }
+        c.strokeStyle = MM.color(colour ? 'arc-2' : 'arc-1');
+        c.lineWidth = 1.3;
+        cells.each((path) => c.stroke(path));
       }
-      ctx.strokeStyle = MM.color(colour ? 'arc-2' : 'arc-1');
-      ctx.lineWidth = 1.3;
-      ctx.stroke(path);
-    }
-    ctx.globalAlpha = 1;
+    });
   }
 
   /* ---------- rank four: in space ---------- */
@@ -2334,12 +2370,24 @@
   }
   // x to the point of the chamber's picture at (x, y): held at the special points, then on the walls
   const HOLD_PT = () => (coarse() ? 15 : 9), HOLD_WALL = () => (coarse() ? 6 : 4);
+  // The special point that holds x: the nearest within HOLD_PT of the pointer (x, y) or of the
+  // point q that x goes to (with the pointer outside where x may be, x stays on the edge, and the
+  // dots there hold it as it slides along); -1 if none. at(i): special i in the picture.
+  function holdAt(x, y, q, n, at) {
+    let best = -1, bd = HOLD_PT();
+    for (let i = 0; i < n; i++) {
+      const p = at(i), d = Math.min(Math.hypot(p[0] - x, p[1] - y), Math.hypot(p[0] - q[0], p[1] - q[1]));
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
   function chamberTo(x, y) {
     if (!ch) return;
     if (ch.rank === 2) {
       const u = ch.F.un(x, y), M = ch.M, a = clamp(Math.atan2(u[1], u[0]), Math.min(ch.a0, ch.a1), Math.max(ch.a0, ch.a1));
       let v = [Math.cos(a), Math.sin(a)];
-      for (const sp of ch.specials) { const q = ch.F.px(sp); if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { v = sp; break; } }
+      const i = holdAt(x, y, ch.F.px(v), ch.specials.length, (k) => ch.F.px(ch.specials[k]));
+      if (i >= 0) v = ch.specials[i];
       state.two.w = weights(M.walls(v));
       return;
     }
@@ -2352,20 +2400,28 @@
       };
       let at = where(P);
       if (!at) {
-        // beyond the flaps: back towards the middle of C, to the edge of where x may be
-        const m = [0, 1].map((i) => (ch.A[0][i] + ch.A[1][i] + ch.A[2][i]) / 3);
-        let lo = 0, hi = 1;
-        for (let t = 0; t < 30; t++) { const h = (lo + hi) / 2; if (where([m[0] + h * (P[0] - m[0]), m[1] + h * (P[1] - m[1])])) lo = h; else hi = h; }
-        at = where([m[0] + lo * (P[0] - m[0]), m[1] + lo * (P[1] - m[1])]) || { flap: -1, P: m };
+        // beyond the flaps: the nearest point of their outline (corners of C and far corners of the
+        // flaps in turn), or failing that, back towards the middle of C to the edge of where x may be
+        const A = ch.A, line = [A[0], ch.reflect(A[2], 2), A[1], ch.reflect(A[0], 0), A[2], ch.reflect(A[1], 1)];
+        let N = null, nd = Infinity;
+        line.forEach((U, k) => {
+          const V = line[(k + 1) % 6], d = [V[0] - U[0], V[1] - U[1]], t = clamp(((P[0] - U[0]) * d[0] + (P[1] - U[1]) * d[1]) / (d[0] * d[0] + d[1] * d[1]), 0, 1);
+          const Q = [U[0] + t * d[0], U[1] + t * d[1]], e = Math.hypot(P[0] - Q[0], P[1] - Q[1]);
+          if (e < nd) { nd = e; N = Q; }
+        });
+        at = where(N);
+        if (!at) {
+          const m = [0, 1].map((i) => (A[0][i] + A[1][i] + A[2][i]) / 3);
+          let lo = 0, hi = 1;
+          for (let t = 0; t < 30; t++) { const h = (lo + hi) / 2; if (where([m[0] + h * (N[0] - m[0]), m[1] + h * (N[1] - m[1])])) lo = h; else hi = h; }
+          at = where([m[0] + lo * (N[0] - m[0]), m[1] + lo * (N[1] - m[1])]) || { flap: -1, P: m };
+        }
       }
       let w = weights([0, 1, 2].map((k) => Math.max(0, ch.dist(at.P, k))));
       // the special points, then the walls, within a few pixels
-      let held = false;
-      for (const sp of ch.specials) {
-        const q = ch.toPx(sp.w, sp.flap);
-        if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { w = weights(sp.w); at.flap = sp.flap; held = true; break; }
-      }
-      if (!held) {
+      const i = holdAt(x, y, ch.F.px(at.flap >= 0 ? ch.reflect(at.P, at.flap) : at.P), ch.specials.length, (k) => ch.toPx(ch.specials[k].w, ch.specials[k].flap));
+      if (i >= 0) { w = weights(ch.specials[i].w); at.flap = ch.specials[i].flap; }
+      else {
         const k0 = ch.F.s;
         for (let k = 0; k < 3; k++) if (ch.dist(at.P, k) * k0 < HOLD_WALL() && w.some((v, j) => j !== k && v > 1e-9)) { w[k] = 0; if (k === at.flap) at.flap = -1; }
         w = weights(w);
@@ -2381,7 +2437,8 @@
     let t = 1;
     lam.forEach((l) => { if (l < 0) t = Math.min(t, 0.25 / (0.25 - l)); });
     let w = lam.map((l) => Math.max(0, 0.25 + t * (l - 0.25)));
-    for (const sp of ch.specials) { const q = ch.px3(tetraAt(sp.w)); if (Math.hypot(q[0] - x, q[1] - y) < HOLD_PT()) { w = sp.w.slice(); break; } }
+    const i = holdAt(x, y, ch.px3(tetraAt(w)), ch.specials.length, (k) => ch.px3(ch.u[k]));
+    if (i >= 0) w = ch.specials[i].w.slice();
     f.w = weights(w);
   }
   // the walls of x, scaled to a largest of 1, the small ones 0
@@ -2400,7 +2457,7 @@
     if (ch.rank === 4 && !onHandle) {
       chDrag = { turn: true, x: e.clientX, y: e.clientY };
     } else {
-      chDrag = { turn: false, gx: 0, gy: 0, left: r.left + scrollX, top: r.top + scrollY };
+      chDrag = { turn: false, gx: 0, gy: 0, left: r.left, top: r.top };
       if (onHandle) { const b = ch.handle.getBoundingClientRect(); chDrag.gx = (e.clientX - (b.left + b.width / 2)) * sx; chDrag.gy = (e.clientY - (b.top + b.height / 2)) * sx; }
       else { morphing = null; chamberTo(x, y); draw(); }
     }
@@ -2418,11 +2475,12 @@
       placeChamberHandle();
       return;
     }
-    // from where the chamber was when it was pressed: if the name above grows and moves it
-    // down, x does not jump
+    // from where the chamber was on the screen when it was pressed: if the name above grows and
+    // moves it down, x does not jump, and if the browser scrolls the page to keep it in place
+    // (scroll anchoring), x stays under the pointer
     const r = chamberSvg.getBoundingClientRect(), sx = ch.W / r.width;
     morphing = null;
-    chamberTo((e.clientX + scrollX - chDrag.left) * sx - chDrag.gx, (e.clientY + scrollY - chDrag.top) * sx - chDrag.gy);
+    chamberTo((e.clientX - chDrag.left) * sx - chDrag.gx, (e.clientY - chDrag.top) * sx - chDrag.gy);
     draw();
   });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => chamberSvg.addEventListener(t, () => { if (chDrag) { chDrag = null; MM.moved(); } }));
@@ -2940,8 +2998,11 @@
   const turntable = () => state.rotate && ((state.kind === 'sphere' && state.view3 !== 'stereo') || (state.kind === 'space' && view4() !== 'coxeter'));
   const turning = () => turntable() || rotating4();
   function animating() { return morphing || flight || turning(); }
+  // (a morph or a flight runs to its end even with the picture out of view: on a phone the reader
+  // rings a node of the diagram under it, and x and the readouts move with the change; only the
+  // turntable waits for the picture to come back)
   function tick() {
-    if (raf || !visible()) return;
+    if (raf || (!visible() && !morphing && !flight)) return;
     raf = requestAnimationFrame(frame);
   }
   function frame(now) {
@@ -3360,11 +3421,9 @@
     recentre4();
     draw();
   });
-  let hold = null;
   const drag = MM.turnDrag(stage, {
     when: (e) => !(e && e.target && handle.contains(e.target)) && state.kind !== 'polygon' && !(state.kind === 'space' && view4() === 'coxeter'),
-    start: () => { hold = null; },
-    end: () => { hold = null; tick(); },
+    end: () => tick(),
     move(dx, dy, e) {
       const r = stage.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
       if (state.kind === 'sphere' && state.view3 !== 'stereo') { const K = Math.min(r.width, r.height) / 2; turnBy(dx / K, dy / K); }
