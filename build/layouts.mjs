@@ -120,13 +120,18 @@ const chevron = (d) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hid
 // A topic's row of cards on the home page. The row scrolls sideways; while it
 // holds more than fits, site.js shows a dot for each card under it, a pill
 // over those in view, with arrows either side that scroll it by the cards in view, and lets a
-// mouse drag it. Its heading leads to the topic's page.
+// mouse drag it. Its heading leads to the topic's page, and so does a link, View all →, at the
+// right of the heading while the row holds more than fits (on a phone a heading does not look
+// like a link).
 function shelf(ctx, { slug, items }) {
   const name = esc(ctx.tags[slug].name);
   return html`<section class="shelf" id="${slug}" aria-labelledby="${slug}-h">
   <div class="wrap shelf-head">
-    <h2 id="${slug}-h"><a href="/tags/${slug}/">${name}</a></h2>
-    <span class="shelf-count">${count(items.length)}</span>
+    <div class="shelf-name">
+      <h2 id="${slug}-h"><a href="/tags/${slug}/">${name}</a></h2>
+      <span class="shelf-count">${count(items.length)}</span>
+    </div>
+    <a class="shelf-all" href="/tags/${slug}/" aria-label="View all pages in ${name}">View all<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8h10.5M9 4l4 4-4 4"/></svg></a>
   </div>
   <div class="shelf-body">
     <div class="shelf-track" id="${slug}-cards">

@@ -1614,7 +1614,7 @@
   }
 
   // Rows of cards (.shelf, on the home page). While a row holds more than
-  // fits it is marked .is-scrollable, and:
+  // fits it is marked .is-scrollable (else .is-whole, which hides View all), and:
   // - round arrows either side of the bar under it scroll it by as many whole
   //   cards as are in view; each shows only while there is more that way
   //   (.has-prev, .has-next);
@@ -1656,6 +1656,7 @@
         var m = max(), x = track.scrollLeft, on = m >= 2;
         var cs = getComputedStyle(track), pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
         shelf.classList.toggle('is-scrollable', on);
+        shelf.classList.toggle('is-whole', !on); // (every card in view: no View all)
         shelf.classList.toggle('has-prev', on && x > 2);
         shelf.classList.toggle('has-next', on && x < m - 2);
         prev.disabled = !(on && x > 2);

@@ -64,13 +64,22 @@
    the next card shows at the edge. */
 .page-home .hero { padding-bottom: 0; }
 .shelf { margin-top: 56px; }
-.shelf-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 16px; }
+/* (the heading and the number of pages wrap together; View all stays at the right, on their last line) */
+.shelf-head { display: flex; align-items: baseline; align-items: last baseline; gap: 12px; margin-bottom: 16px; }
+.shelf-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
 .shelf-head h2 { margin: 0; }
 /* a heading that is a link (a topic's row; a page's title, to the page itself, without the
    parameters of a link to an example): the heading's colour, the accent under the pointer */
 .shelf-head h2 a, .entry-head h1 a { color: var(--ink); text-decoration: none; transition: color .12s; }
 .shelf-head h2 a:hover, .entry-head h1 a:hover { color: var(--accent-ink); }
 .shelf-count { font-family: var(--sans); font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* View all, at the right of the heading, while the row holds more than fits */
+/* (grey, the accent under the pointer; the arrow drawn, as the bundled Inter has none, its
+   strokes the weight of the text's and its middle at the height of a hyphen's) */
+.shelf-all { flex: none; margin-left: auto; font-family: var(--sans); font-size: var(--text-label); white-space: nowrap; color: var(--ink-3); text-decoration: none; transition: color .12s; }
+.shelf-all:hover { color: var(--accent-ink); }
+.shelf-all svg { width: 1.05em; height: 1.05em; margin-left: .3em; vertical-align: -.22em; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.shelf.is-whole .shelf-all { display: none; }
 .shelf-track {
   --shelf-gap: 28px;
   --shelf-pad: max(var(--gutter), (100% - var(--page-max)) / 2 + var(--gutter));
