@@ -86,8 +86,8 @@ references:
 <section aria-labelledby="sec-curve">
   <h2 class="section-title" id="sec-curve">The curve and its amoeba</h2>
   <p>Consider the curve in $(\CC^\times)^2$ defined by</p>
-  $$f(z,w)=\sum_{i+j\le d}a_{ij}\,z^iw^j=0,\qquad a_{ij}=\pm t^{v_{ij}},$$
-  <p>where $t>1$ and $v_{ij}$ are real parameters. The polynomial $f$ has a term for each lattice point $(i,j)$ of the triangle with corners $(0,0)$, $(d,0)$ and $(0,d)$, its <strong>Newton polygon</strong>; $d$ is the degree of the curve, and $v_{ij}$ is called the <strong>height</strong> of $(i,j)$.</p>
+  $$f(z,w)=\sum_{(i,j)\in I}a_{ij}\,z^iw^j=0,\qquad a_{ij}=\pm t^{v_{ij}},$$
+  <p>where $I\subset\ZZ^2$ is a finite set, $t>1$, and the $v_{ij}$ are real parameters, called the <strong>height</strong> of $(i,j)$. The <strong>Newton polygon</strong> $\Delta$ of $f$ is the convex hull of $I$ in $\RR^2$. For the curve of degree $d$ that the page opens with, its Newton polygon is the triangle with corners $(0,0)$, $(d,0)$ and $(0,d)$. Adding or deleting terms of $f$ can change its Newton polygon.</p>
   <figure id="lift-fig">
     <div class="fig-pair">
       <div>
@@ -106,15 +106,13 @@ references:
 
 <section aria-labelledby="sec-holes">
   <h2 class="section-title" id="sec-holes">Holes and tentacles</h2>
-  <p>The complement of the amoeba consists of convex regions, its connected components [@gelfand1994]. Each region has an <strong>order</strong> $(\nu_1,\nu_2)$: at a point $(x,y)$ of the region, $\nu_1$ is the number of zeros of $z\mapsto f(z,w)$ with ${|z|<t^x}$, for any $w$ with ${|w|=t^y}$, and $\nu_2$ is the same with $z$ and $w$ exchanged. The order is a lattice point of the Newton polygon, different regions have different orders, and a region is bounded exactly when its order is an interior point [@forsberg2000]. So the amoeba has at most as many holes as there are interior points,</p>
-  $$g=\frac{(d-1)(d-2)}{2},$$
-  <p>which is the genus of the curve. The unbounded regions lie between the tentacles, which run off along the outward normals to the edges of the Newton polygon: down, to the left, and up and to the right [@maclagan2015, §1.4].</p>
+  <p>The complement of the amoeba consists of convex regions, its connected components [@gelfand1994]. Each region has an <strong>order</strong> $(\nu_1,\nu_2)$: at a point $(x,y)$ of the region, $\nu_1$ is the number of zeros minus the number of poles of $z\mapsto f(z,w)$ in ${|z|<t^x}$, for any $w$ with ${|w|=t^y}$, and $\nu_2$ is the same with $z$ and $w$ exchanged. The order is a lattice point of the Newton polygon, different regions have different orders, and a region is bounded exactly when its order is an interior point [@forsberg2000]. So the amoeba has at most $g$ holes, $g$ being the number of interior points of $\Delta$, which is the genus of a general curve with this Newton polygon; for the curve of degree $d$ that the page opens with, $g=(d-1)(d-2)/2$. The unbounded regions lie between the tentacles, which run off along the outward normals to the edges of the Newton polygon [@maclagan2015, §1.4].</p>
 </section>
 
 <section aria-labelledby="sec-tropical">
   <h2 class="section-title" id="sec-tropical">The tropical limit</h2>
   <p>The <strong>tropical curve</strong> $T$ of the heights is the set of points $(x,y)$ at which the maximum</p>
-  $$\max_{i+j\le d}\,\bigl(v_{ij}+ix+jy\bigr)$$
+  $$\max_{(i,j)\in I}\,\bigl(v_{ij}+ix+jy\bigr)$$
   <p>is attained at least twice. Over a point $(x,y)$ the terms of $f$ have sizes $|a_{ij}z^iw^j|=t^{\,v_{ij}+ix+jy}$, so in each region of the complement of $T$ one term is the largest, and the region is named after its monomial. Where one term is larger than all the others together, $f$ has no zeros. So the amoeba lies in the band where the two largest of the numbers ${v_{ij}+ix+jy}$ differ by at most $\log_t(n-1)$, $n$ being the number of terms, and the band narrows onto $T$ as $t$ grows [@mikhalkin2004; @maclagan2015, §1.4].</p>
   <p>The <strong>roof</strong> in the <a href="#lift-fig">figure of the Newton polygon</a> is the upper convex hull of the lifted points $(i,j,v_{ij})$. Its faces project to a subdivision of the Newton polygon, dual to $T$: each face to a vertex of $T$, where the terms of the face are the largest and equal; each inner edge to an edge of $T$ at right angles to it, whose <strong>weight</strong> is the lattice length of the inner edge; each edge on the boundary to a ray. The curve $T$ is <strong>smooth</strong> when the faces are triangles of area $\tfrac12$. A lattice point under the roof, or on it but not at a corner, gives a term that is never alone the largest. An interior point at a corner gives a cycle of $T$, and so, once $t$ is large, a hole of the amoeba.</p>
 </section>
@@ -129,8 +127,8 @@ references:
     <figcaption class="caption" id="chart-cap"></figcaption>
   </figure>
   <p>In the coordinates $(\log|z|,\log|w|)$ the area of an amoeba is at most $\pi^2$ times the area of its Newton polygon [@passare2004]:</p>
-  $$\operatorname{Area}\le\frac{d^2}{2}\,\pi^2.$$
-  <p>It equals this bound exactly when the curve, after $z$ and $w$ are multiplied by constants, is a simple Harnack curve [@mikhalkin2001]. The real points of a simple Harnack curve trace the boundary of its amoeba [@mikhalkin2000]. In the chart, with the signs minus where $i$ and $j$ are both even and a smooth tropical curve, the area comes up to the bound as $t$ grows.</p>
+  $$\operatorname{Area}\le\pi^2\operatorname{Area}(\Delta),$$
+  <p>which is $\tfrac{d^2}{2}\pi^2$ for the curve of degree $d$ that the page opens with. It equals this bound exactly when the curve, after $z$ and $w$ are multiplied by constants, is a simple Harnack curve [@mikhalkin2001]. The real points of a simple Harnack curve trace the boundary of its amoeba [@mikhalkin2000]. In the chart, with the signs minus where $i$ and $j$ are both even and a smooth tropical curve, the area comes up to the bound as $t$ grows.</p>
 </section>
 </div>
 </div>
