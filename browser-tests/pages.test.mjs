@@ -968,3 +968,63 @@ test('a touch drag goes on moving a picture to its end, when MM.turnDrag holds a
     assert.deepEqual(problems, []);
   } finally { await close(); }
 });
+
+test('on a phone, a tap on the Coxeter diagram after turning the polyhedron rings the node, with the picture scrolled away (regular polytopes)', async () => {
+  // The ring moves x by an animation, which once waited for the picture to be in view.
+  const { page, problems, close } = await open('/regular-polytopes/', { phone: true });
+  try {
+    const stage = page.locator('#stage');
+    await stage.scrollIntoViewIfNeeded();
+    const b = await stage.boundingBox(), x = b.x + b.width * 0.3, y = b.y + b.height * 0.5;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 10 * i, y: y + i }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const node = page.locator('#coxeter .cx-node[data-i="1"]');
+    await node.scrollIntoViewIfNeeded();
+    assert.ok((await stage.boundingBox()).y + b.height < 0, 'the picture is out of view');
+    assert.equal(await node.getAttribute('aria-checked'), 'false');
+    const n = await node.boundingBox();
+    await page.touchscreen.tap(n.x + n.width / 2, n.y + n.height / 2);
+    await page.locator('#coxeter .cx-node[data-i="1"][aria-checked="true"]').waitFor({ timeout: 2000 });
+    assert.deepEqual(problems, []);
+  } finally { await close(); }
+});
+
+test('the chamber holds x at a dot on the edge of a grey chamber with the pointer outside it (regular polytopes)', async () => {
+  // Outside where x may be, x stays on the edge; a dot there holds it when x comes near it, though
+  // the pointer itself is farther from it than the holding distance.
+  const { page, problems, close } = await open('/regular-polytopes/');
+  try {
+    await page.locator('#rotate').click();
+    await page.evaluate(() => document.getElementById('chamber').scrollIntoView({ block: 'center' }));
+    const g = await page.evaluate(() => {
+      const svg = document.getElementById('chamber'), M = svg.getScreenCTM(), cl = (q) => { const r = new DOMPoint(q[0], q[1]).matrixTransform(M); return [r.x, r.y]; };
+      const t = /translate\(([-\d.]+),([-\d.]+)\)/.exec(svg.querySelector('.rp-chamber-handle').getAttribute('transform'));
+      // a lighter dot on the outer edge of a grey chamber, and the outward normal of that edge
+      for (const dot of svg.querySelectorAll('.rp-ch-dot.echo')) {
+        const d = [+dot.getAttribute('cx'), +dot.getAttribute('cy')];
+        for (const pg of svg.querySelectorAll('.rp-ch-flap')) {
+          const P = pg.getAttribute('points').trim().split(/\s+/).map((q) => q.split(',').map(Number));
+          for (let e = 0; e < 3; e++) {
+            const U = P[e], V = P[(e + 1) % 3], W = P[(e + 2) % 3], L = Math.hypot(V[0] - U[0], V[1] - U[1]), tx = (V[0] - U[0]) / L, ty = (V[1] - U[1]) / L;
+            const along = (d[0] - U[0]) * tx + (d[1] - U[1]) * ty, off = (d[0] - U[0]) * ty - (d[1] - U[1]) * tx;
+            if (Math.abs(off) > 0.3 || along < 10 || along > L - 10) continue;
+            let n = [ty, -tx];
+            if ((W[0] - U[0]) * n[0] + (W[1] - U[1]) * n[1] > 0) n = [-n[0], -n[1]];
+            return { dot: d, from: cl([+t[1], +t[2]]), to: cl([d[0] + 14 * n[0] + 3 * tx, d[1] + 14 * n[1] + 3 * ty]) };
+          }
+        }
+      }
+      return null;
+    });
+    assert.ok(g, 'a dot on an outer edge');
+    await page.mouse.move(g.from[0], g.from[1]);
+    await page.mouse.down();
+    await page.mouse.move(g.to[0], g.to[1], { steps: 8 });
+    await page.mouse.up();
+    const h = await page.evaluate(() => /translate\(([-\d.]+),([-\d.]+)\)/.exec(document.querySelector('.rp-chamber-handle').getAttribute('transform')).slice(1).map(Number));
+    assert.ok(Math.hypot(h[0] - g.dot[0], h[1] - g.dot[1]) < 0.6, 'x at the dot: ' + h + ' and ' + g.dot);
+    assert.deepEqual(problems, []);
+  } finally { await close(); }
+});
