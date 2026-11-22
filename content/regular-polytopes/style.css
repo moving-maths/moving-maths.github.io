@@ -68,7 +68,7 @@ body {
 .rp-sec-hit { fill: transparent; }
 
 /* the chamber with x (an SVG drawn by main.js), the Coxeter diagram under it */
-.rp-chamber { display: block; width: 100%; max-width: 280px; overflow: hidden; touch-action: none; }
+.rp-chamber { display: block; width: 100%; max-width: 280px; overflow: hidden; }
 .rp-chamber.is-turnable { max-width: 320px; cursor: grab; }
 .rp-chamber.is-turnable:active { cursor: grabbing; }
 .rp-cox-head { display: flex; align-items: baseline; gap: 12px; margin-top: 10px; }

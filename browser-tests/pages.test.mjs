@@ -946,3 +946,25 @@ test('MM.setHTML leaves the same HTML alone, and writes afresh what something el
     }), [true, false, true, true, true, 1, false]);
   } finally { await close(); }
 });
+
+test('a touch drag goes on moving a picture to its end, when MM.turnDrag holds a box round the canvas (regular polytopes)', async () => {
+  // The touch is held by the canvas it lands on; taking it to the box makes the canvas lose it,
+  // and that event bubbles to the box: the drag must not end there, after its first movement.
+  const { page, problems, close } = await open('/regular-polytopes/', { phone: true });
+  try {
+    await page.evaluate(() => document.querySelector('.strip-block button[aria-label="Square tiling"]').click());
+    const stage = page.locator('#stage');
+    await stage.scrollIntoViewIfNeeded();
+    const b = await stage.boundingBox(), x = b.x + b.width * 0.2, y = b.y + b.height * 0.5;
+    const cdp = await page.context().newCDPSession(page), seen = [];
+    const picture = () => page.evaluate(() => document.getElementById('flat').toDataURL());
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 24; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + 7 * i, y: y + i }] });
+      if (i % 6 === 0) seen.push(await picture());
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    assert.equal(new Set(seen).size, seen.length, 'the tiling moves all along the drag');
+    assert.deepEqual(problems, []);
+  } finally { await close(); }
+});

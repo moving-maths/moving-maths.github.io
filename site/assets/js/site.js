@@ -683,6 +683,10 @@
     }, { passive: false });
     function finish(e) {
       if (!g || e.pointerId !== g.id) return;
+      // A touch is held by the element it lands on; when the drag takes it to el (a box round a
+      // canvas, an SVG round its shapes), that element loses it, and the event bubbles here: not
+      // the end of the drag, which would otherwise stop after its first movement.
+      if (e.type === 'lostpointercapture' && e.target !== el) return;
       g = null;
       if (drag.active) { drag.active = false; if (opts.end) opts.end(e); moved(); }
     }

@@ -2390,10 +2390,13 @@
     return p.map((v) => (v < 1e-7 * top ? 0 : v / top));
   }
   let chDrag = null;
+  // (a mouse anywhere on it; on a touch screen a finger only from the handle, and elsewhere the
+  // page scrolls)
   chamberSvg.addEventListener('pointerdown', (e) => {
     if (!ch) return;
     const r = chamberSvg.getBoundingClientRect(), sx = ch.W / r.width, x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sx;
     const onHandle = ch.handle.contains(e.target);
+    if (e.pointerType === 'touch' && !onHandle) return;
     if (ch.rank === 4 && !onHandle) {
       chDrag = { turn: true, x: e.clientX, y: e.clientY };
     } else {
