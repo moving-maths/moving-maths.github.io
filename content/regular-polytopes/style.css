@@ -39,10 +39,11 @@ body {
 .rp.rp-sections { --split-below: 350px; }
 @media (max-width: 899.98px) {
   .rp > .split-main, .rp > .split-side { display: contents; }
+  /* the picture, the list under it, then the name, the chamber and the rest */
   .rp .rp-stage, .rp .rp-sec { order: 1; }
-  .rp .rp-name { order: 2; }
-  .rp .rp-chamber-block { order: 3; }
-  .rp .strip-block { order: 4; }
+  .rp .strip-block { order: 2; }
+  .rp .rp-name { order: 3; }
+  .rp .rp-chamber-block { order: 4; }
   .rp .side-block:not(.rp-chamber-block):not(.rp-name) { order: 5; }
 }
 /* the list's two controls side by side: the dimension, then which kind */
